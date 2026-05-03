@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from app.db.database import Base, SessionLocal, engine
 from app.db.seed_data import EMISSION_FACTORS
-from app.models.models import EmissionFactor  # importar modelos registra metadatos en Base
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -32,6 +31,8 @@ def seed_emission_factors(db: Session) -> None:
     Carga los factores de emisión iniciales.
     Usa upsert manual: inserta si la categoría no existe, omite si ya existe.
     """
+    from app.models.models import EmissionFactor
+    
     existing = {f.category for f in db.query(EmissionFactor.category).all()}
     new_factors = [f for f in EMISSION_FACTORS if f["category"] not in existing]
 
@@ -47,6 +48,9 @@ def seed_emission_factors(db: Session) -> None:
 
 
 def init_db() -> None:
+    # Import models to register them with Base metadata before creating tables
+    import app.models.models  # noqa: F401
+    
     create_tables()
     db = SessionLocal()
     try:

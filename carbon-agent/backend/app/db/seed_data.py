@@ -5,13 +5,15 @@ Fuentes:
   - DEFRA (UK Government GHG Conversion Factors 2023)
   - IPCC AR6
   - Red Eléctrica de España (REE 2023) para electricidad
+  - Poore & Nemecek 2018 (alimentación)
+  - WRAP Textiles 2022 (ropa)
 
 Unidades:
   km       → por kilómetro recorrido
   kg       → por kilogramo consumido / transportado
   kWh      → por kilovatio-hora de electricidad
   hora     → por hora de uso
-  unidad   → por pieza / evento
+  unidad   → por pieza / evento / ciclo
   litro    → por litro consumido
 """
 
@@ -40,10 +42,31 @@ EMISSION_FACTORS = [
     },
     {
         "category": "moto",
-        "display_name": "Moto / ciclomotor",
+        "display_name": "Moto / ciclomotor (gasolina)",
         "unit": "km",
         "factor_kg_co2e": 0.114,
         "source": "DEFRA 2023 — motorbike, average",
+    },
+    {
+        "category": "moto_electrica",
+        "display_name": "Moto eléctrica",
+        "unit": "km",
+        "factor_kg_co2e": 0.022,
+        "source": "DEFRA 2023 — electric motorbike, mix eléctrico europeo",
+    },
+    {
+        "category": "patinete_electrico",
+        "display_name": "Patinete eléctrico",
+        "unit": "km",
+        "factor_kg_co2e": 0.025,
+        "source": "CE Delft 2020 — e-scooter lifecycle",
+    },
+    {
+        "category": "taxi",
+        "display_name": "Taxi / VTC (Uber)",
+        "unit": "km",
+        "factor_kg_co2e": 0.211,
+        "source": "DEFRA 2023 — taxi, average",
     },
     {
         "category": "avion_domestico",
@@ -58,6 +81,13 @@ EMISSION_FACTORS = [
         "unit": "km",
         "factor_kg_co2e": 0.195,
         "source": "DEFRA 2023 — long-haul flight, economy class",
+    },
+    {
+        "category": "crucero",
+        "display_name": "Crucero (por día)",
+        "unit": "unidad",
+        "factor_kg_co2e": 163.0,
+        "source": "ICCT 2019 — cruise ship per passenger day",
     },
     {
         "category": "tren",
@@ -80,6 +110,14 @@ EMISSION_FACTORS = [
         "factor_kg_co2e": 0.089,
         "source": "DEFRA 2023 — local bus average",
     },
+    {
+        "category": "autobus_interurbano",
+        "display_name": "Autobús interurbano",
+        "unit": "km",
+        "factor_kg_co2e": 0.068,
+        "source": "DEFRA 2023 — coach average",
+    },
+
     # ── ENERGÍA EN HOGAR ────────────────────────────────────────────────────
     {
         "category": "electricidad_es",
@@ -102,6 +140,42 @@ EMISSION_FACTORS = [
         "factor_kg_co2e": 2.68,
         "source": "DEFRA 2023 — burning oil",
     },
+    {
+        "category": "aire_acondicionado",
+        "display_name": "Aire acondicionado",
+        "unit": "hora",
+        "factor_kg_co2e": 0.362,
+        "source": "Estimación: 2 kWh/h × REE 2023 factor España",
+    },
+    {
+        "category": "lavadora",
+        "display_name": "Lavadora (ciclo)",
+        "unit": "unidad",
+        "factor_kg_co2e": 0.272,
+        "source": "DEFRA 2023 — washing machine cycle, 1.5 kWh",
+    },
+    {
+        "category": "secadora",
+        "display_name": "Secadora (ciclo)",
+        "unit": "unidad",
+        "factor_kg_co2e": 0.724,
+        "source": "DEFRA 2023 — tumble dryer cycle, 4 kWh",
+    },
+    {
+        "category": "lavavajillas",
+        "display_name": "Lavavajillas (ciclo)",
+        "unit": "unidad",
+        "factor_kg_co2e": 0.362,
+        "source": "DEFRA 2023 — dishwasher cycle, 2 kWh",
+    },
+    {
+        "category": "television",
+        "display_name": "Televisión",
+        "unit": "hora",
+        "factor_kg_co2e": 0.036,
+        "source": "Estimación: 0.2 kWh/h × REE 2023",
+    },
+
     # ── ALIMENTACIÓN ────────────────────────────────────────────────────────
     {
         "category": "carne_vacuno",
@@ -125,11 +199,25 @@ EMISSION_FACTORS = [
         "source": "Poore & Nemecek 2018",
     },
     {
+        "category": "carne_procesada",
+        "display_name": "Carne procesada (embutidos, frankfurt)",
+        "unit": "kg",
+        "factor_kg_co2e": 11.0,
+        "source": "Poore & Nemecek 2018 — processed meat average",
+    },
+    {
         "category": "pescado",
         "display_name": "Pescado (promedio)",
         "unit": "kg",
         "factor_kg_co2e": 6.1,
         "source": "Poore & Nemecek 2018",
+    },
+    {
+        "category": "marisco",
+        "display_name": "Marisco / mariscos",
+        "unit": "kg",
+        "factor_kg_co2e": 11.4,
+        "source": "Poore & Nemecek 2018 — crustaceans average",
     },
     {
         "category": "lacteos_leche",
@@ -146,6 +234,13 @@ EMISSION_FACTORS = [
         "source": "Poore & Nemecek 2018",
     },
     {
+        "category": "huevos",
+        "display_name": "Huevos",
+        "unit": "unidad",
+        "factor_kg_co2e": 0.196,
+        "source": "Poore & Nemecek 2018 — eggs per unit (~60g)",
+    },
+    {
         "category": "verduras",
         "display_name": "Verduras y hortalizas",
         "unit": "kg",
@@ -159,6 +254,49 @@ EMISSION_FACTORS = [
         "factor_kg_co2e": 1.4,
         "source": "Poore & Nemecek 2018",
     },
+    {
+        "category": "cafe",
+        "display_name": "Café",
+        "unit": "kg",
+        "factor_kg_co2e": 28.5,
+        "source": "Poore & Nemecek 2018 — coffee beans",
+    },
+    {
+        "category": "chocolate",
+        "display_name": "Chocolate",
+        "unit": "kg",
+        "factor_kg_co2e": 46.4,
+        "source": "Poore & Nemecek 2018 — dark chocolate",
+    },
+    {
+        "category": "alcohol_cerveza",
+        "display_name": "Cerveza",
+        "unit": "litro",
+        "factor_kg_co2e": 1.04,
+        "source": "Poore & Nemecek 2018 — beer",
+    },
+    {
+        "category": "alcohol_vino",
+        "display_name": "Vino",
+        "unit": "litro",
+        "factor_kg_co2e": 1.79,
+        "source": "Poore & Nemecek 2018 — wine",
+    },
+    {
+        "category": "comida_rapida",
+        "display_name": "Comida rápida (hamburguesa/pizza)",
+        "unit": "unidad",
+        "factor_kg_co2e": 2.5,
+        "source": "Estimación basada en Poore & Nemecek 2018 — mixed ingredients",
+    },
+    {
+        "category": "aceite_oliva",
+        "display_name": "Aceite de oliva",
+        "unit": "litro",
+        "factor_kg_co2e": 6.0,
+        "source": "Poore & Nemecek 2018 — olive oil",
+    },
+
     # ── RESIDUOS ────────────────────────────────────────────────────────────
     {
         "category": "residuo_mixto",
@@ -174,6 +312,7 @@ EMISSION_FACTORS = [
         "factor_kg_co2e": 0.021,
         "source": "DEFRA 2023 — recycled waste",
     },
+
     # ── COMPRAS ─────────────────────────────────────────────────────────────
     {
         "category": "ropa_nueva",
@@ -181,6 +320,20 @@ EMISSION_FACTORS = [
         "unit": "unidad",
         "factor_kg_co2e": 8.0,
         "source": "WRAP Textiles 2022 — average garment",
+    },
+    {
+        "category": "zapatillas",
+        "display_name": "Zapatillas / calzado",
+        "unit": "unidad",
+        "factor_kg_co2e": 14.0,
+        "source": "MIT Scope 3 — footwear average",
+    },
+    {
+        "category": "libro_nuevo",
+        "display_name": "Libro nuevo",
+        "unit": "unidad",
+        "factor_kg_co2e": 2.71,
+        "source": "Book Industry Study Group 2008 — average book",
     },
     {
         "category": "smartphone",
@@ -195,5 +348,28 @@ EMISSION_FACTORS = [
         "unit": "unidad",
         "factor_kg_co2e": 400.0,
         "source": "Dell / Apple LCA reports 2023",
+    },
+
+    # ── OCIO / SERVICIOS ─────────────────────────────────────────────────────
+    {
+        "category": "streaming",
+        "display_name": "Streaming (Netflix/Spotify, por mes)",
+        "unit": "unidad",
+        "factor_kg_co2e": 0.036,
+        "source": "Carbon Trust 2021 — video streaming per hour × 10h/mes",
+    },
+    {
+        "category": "gimnasio",
+        "display_name": "Sesión de gimnasio",
+        "unit": "unidad",
+        "factor_kg_co2e": 0.502,
+        "source": "Estimación: desplazamiento medio 3km coche + instalación",
+    },
+    {
+        "category": "hotel",
+        "display_name": "Hotel (por noche)",
+        "unit": "unidad",
+        "factor_kg_co2e": 22.6,
+        "source": "Cornell Hotel Sustainability Benchmarking 2022",
     },
 ]

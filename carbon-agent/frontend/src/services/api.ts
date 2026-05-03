@@ -1,0 +1,31 @@
+import axios from 'axios'
+import type { ActivityResponse, ActivityOut, SummaryOut } from '../types'
+
+const api = axios.create({
+  baseURL: '/api',
+  headers: { 'Content-Type': 'application/json' },
+})
+
+export const carbonApi = {
+  postActivity: async (rawText: string, userId = 'default'): Promise<ActivityResponse> => {
+    const { data } = await api.post<ActivityResponse>('/activity', {
+      raw_text: rawText,
+      user_id: userId,
+    })
+    return data
+  },
+
+  getHistory: async (userId = 'default', limit = 50): Promise<ActivityOut[]> => {
+    const { data } = await api.get<ActivityOut[]>('/history', {
+      params: { user_id: userId, limit },
+    })
+    return data
+  },
+
+  getSummary: async (userId = 'default', periodDays = 30): Promise<SummaryOut> => {
+    const { data } = await api.get<SummaryOut>('/summary', {
+      params: { user_id: userId, period_days: periodDays },
+    })
+    return data
+  },
+}
