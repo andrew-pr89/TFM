@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { useHistory } from '../hooks/useCarbon'
+import { useHistory, useDeleteHistory, useDeleteActivity } from '../hooks/useCarbon'
 
 interface Props {
   userId?: string
@@ -15,9 +16,13 @@ function co2Color(kg: number) {
 
 export function HistoryPanel({ userId = 'default' }: Props) {
   const { data: activities, isLoading, isError } = useHistory(userId)
+  const deleteHistory = useDeleteHistory(userId)
+  const deleteActivity = useDeleteActivity(userId)
+  const [confirmClear, setConfirmClear] = useState(false)
 
   if (isLoading) return <div className="panel-state">Cargando historial…</div>
   if (isError) return <div className="panel-state panel-state--error">Error al cargar el historial.</div>
+
   if (!activities?.length) return (
     <div className="panel-state">
       <span className="panel-state__icon">📋</span>
@@ -26,8 +31,27 @@ export function HistoryPanel({ userId = 'default' }: Props) {
     </div>
   )
 
+  const handleClearAll = () => {
+    if (!confirmClear) { setConfirmClear(true); return }
+    deleteHistory.mutate()
+    setConfirmClear(false)
+  }
+
   return (
     <div className="history-panel">
+      {/* Header con botón borrar todo */}
+      <div className="history-header">
+        <span className="history-header__count">{activities.length} actividad{activities.length !== 1 ? 'es' : ''}</span>
+        <button
+          className={`btn-clear ${confirmClear ? 'btn-clear--confirm' : ''}`}
+          onClick={handleClearAll}
+          onBlur={() => setConfirmClear(false)}
+          disabled={deleteHistory.isPending}
+        >
+          {deleteHistory.isPending ? 'Borrando…' : confirmClear ? '¿Seguro? Pulsa de nuevo' : '🗑 Borrar todo'}
+        </button>
+      </div>
+
       <ul className="history-list">
         {activities.map((activity) => {
           const total = activity.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
@@ -35,12 +59,20 @@ export function HistoryPanel({ userId = 'default' }: Props) {
             <li key={activity.id} className="history-item">
               <div className="history-item__top">
                 <p className="history-item__text">{activity.raw_text}</p>
-                <span
-                  className="history-item__total"
-                  style={{ color: co2Color(total) }}
-                >
-                  {total > 0 ? `${total.toFixed(3)} kg` : '—'}
-                </span>
+                <div className="history-item__right">
+                  <span className="history-item__total" style={{ color: co2Color(total) }}>
+                    {total > 0 ? `${total.toFixed(3)} kg` : '—'}
+                  </span>
+                  <button
+                    className="btn-delete-item"
+                    onClick={() => deleteActivity.mutate(activity.id)}
+                    disabled={deleteActivity.isPending}
+                    title="Eliminar esta actividad"
+                    aria-label="Eliminar actividad"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div className="history-item__meta">
                 <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>

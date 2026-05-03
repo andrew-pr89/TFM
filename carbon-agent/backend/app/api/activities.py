@@ -1,9 +1,11 @@
 """
 Router de actividades — endpoints MVP.
 
-POST /activity   → orquesta el agente completo (Extractor → Calculadora → Recomendador)
-GET  /history    → historial de actividades del usuario
-GET  /summary    → resumen agregado con totales y top categorías
+POST   /activity        → orquesta el agente completo
+GET    /history         → historial de actividades del usuario
+GET    /summary         → resumen agregado con totales y top categorías
+DELETE /history         → borra todo el historial del usuario
+DELETE /history/{id}    → borra una actividad concreta
 """
 
 import logging
@@ -23,16 +25,6 @@ router = APIRouter(prefix="/api", tags=["activities"])
 
 @router.post("/activity", response_model=ActivityResponse, status_code=201)
 def create_activity(payload: ActivityCreate, db: Session = Depends(get_db)):
-    """
-    Registra una actividad en lenguaje natural y calcula su huella de carbono.
-
-    Flujo:
-      1. Extractor LLM → identifica actividades en el texto
-      2. Calculadora CO₂ → cálculo determinista (quantity × factor)
-      3. Persiste Activity + Emissions en BD
-      4. Recomendador LLM → recomendación personalizada
-      5. Devuelve total kg CO₂e + recomendación
-    """
     try:
         return carbon_agent.process_activity(
             raw_text=payload.raw_text,
@@ -47,14 +39,40 @@ def create_activity(payload: ActivityCreate, db: Session = Depends(get_db)):
 @router.get("/history", response_model=list[ActivityOut])
 def get_history(user_id: str = "default", limit: int = 50, db: Session = Depends(get_db)):
     """Devuelve el historial de actividades de un usuario, más reciente primero."""
-    activities = (
+    return (
         db.query(Activity)
         .filter(Activity.user_id == user_id)
         .order_by(Activity.created_at.desc())
         .limit(limit)
         .all()
     )
-    return activities
+
+
+@router.delete("/history", status_code=204)
+def delete_history(user_id: str = "default", db: Session = Depends(get_db)):
+    """Borra todo el historial del usuario (cascade elimina las emisiones asociadas)."""
+    deleted = (
+        db.query(Activity)
+        .filter(Activity.user_id == user_id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    log.info("Historial borrado: user=%s, %d actividades eliminadas", user_id, deleted)
+
+
+@router.delete("/history/{activity_id}", status_code=204)
+def delete_activity(activity_id: int, user_id: str = "default", db: Session = Depends(get_db)):
+    """Borra una actividad concreta y sus emisiones."""
+    activity = (
+        db.query(Activity)
+        .filter(Activity.id == activity_id, Activity.user_id == user_id)
+        .first()
+    )
+    if not activity:
+        raise HTTPException(status_code=404, detail="Actividad no encontrada")
+    db.delete(activity)
+    db.commit()
+    log.info("Actividad %d eliminada para user=%s", activity_id, user_id)
 
 
 @router.get("/summary", response_model=SummaryOut)
@@ -63,18 +81,13 @@ def get_summary(user_id: str = "default", period_days: int = 30, db: Session = D
     from collections import defaultdict
 
     since = datetime.utcnow() - timedelta(days=period_days)
-
     activities = (
         db.query(Activity)
         .filter(Activity.user_id == user_id, Activity.created_at >= since)
         .all()
     )
 
-    total_kg = sum(
-        e.amount_kg_co2e
-        for a in activities
-        for e in a.emissions
-    )
+    total_kg = sum(e.amount_kg_co2e for a in activities for e in a.emissions)
 
     by_category: dict[str, float] = defaultdict(float)
     for activity in activities:

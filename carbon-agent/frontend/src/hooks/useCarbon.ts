@@ -32,3 +32,25 @@ export function usePostActivity(userId = 'default') {
     },
   })
 }
+
+export function useDeleteHistory(userId = 'default') {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => carbonApi.deleteHistory(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.history(userId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.summary(userId) })
+    },
+  })
+}
+
+export function useDeleteActivity(userId = 'default') {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (activityId: number) => carbonApi.deleteActivity(activityId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.history(userId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.summary(userId) })
+    },
+  })
+}

@@ -3,14 +3,12 @@ Orquestador del agente — coordina todos los componentes.
 
 Flujo completo de POST /activity:
   1. Extractor LLM    → identifica actividades en texto natural
-  2. Calculadora CO₂  → cálculo determinista (sin LLM)
-  3. Persistencia     → guarda Activity + Emissions en BD
-  4. Memoria          → actualiza hábitos del usuario
-  5. Recomendador LLM → genera recomendación personalizada
-  6. Devuelve         → total kg CO₂e + recomendación
-
-Diseñado para evolucionar a multi-agente: cada componente es independiente
-y puede convertirse en un agente especializado sin cambiar la interfaz.
+  2. Si no hay actividades → devuelve mensaje, NO persiste nada
+  3. Calculadora CO₂  → cálculo determinista (sin LLM)
+  4. Persistencia     → guarda Activity + Emissions en BD
+  5. Memoria          → actualiza hábitos del usuario
+  6. Recomendador LLM → genera recomendación personalizada
+  7. Devuelve         → total kg CO₂e + recomendación
 """
 
 import logging
@@ -28,13 +26,6 @@ log = logging.getLogger(__name__)
 
 
 class CarbonAgent:
-    """
-    Agente único del MVP.
-
-    Orquesta Extractor → Calculadora → Memoria → Recomendador
-    en una sola llamada síncrona.
-    """
-
     def __init__(self) -> None:
         self.llm = LLMService()
         self.extractor = Extractor(llm=self.llm)
@@ -47,35 +38,34 @@ class CarbonAgent:
         user_id: str,
         db: Session,
     ) -> ActivityResponse:
-        """
-        Procesa una actividad de principio a fin.
-
-        Parámetros:
-            raw_text: texto libre introducido por el usuario
-            user_id:  identificador del usuario
-            db:       sesión SQLAlchemy (inyectada por FastAPI)
-
-        Devuelve ActivityResponse con total CO₂ y recomendación.
-        """
-        # ── 1. Persistir la actividad (texto crudo) ──────────────────────────
-        activity = Activity(user_id=user_id, raw_text=raw_text)
-        db.add(activity)
-        db.flush()  # obtiene el id sin hacer commit todavía
-
-        # ── 2. Extracción (LLM) ──────────────────────────────────────────────
+        # ── 1. Extracción (LLM) — ANTES de persistir ────────────────────────
+        # Necesitamos los factores de BD para el extractor, pero aún no
+        # creamos la Activity. Si no hay nada que guardar, no tocamos la BD.
         extracted = self.extractor.extract(raw_text=raw_text, db=db)
 
         if not extracted:
-            db.commit()
-            log.info("No se encontraron actividades CO₂ en el texto.")
+            log.info("Nada que guardar — el LLM no identificó actividades CO₂.")
+            # Devolvemos una ActivityOut vacía sin id real (no persistida)
             return ActivityResponse(
-                activity=ActivityOut.model_validate(activity),
+                activity=ActivityOut(
+                    id=-1,
+                    user_id=user_id,
+                    raw_text=raw_text,
+                    created_at=__import__("datetime").datetime.utcnow(),
+                    emissions=[],
+                ),
                 total_kg_co2e=0.0,
                 recommendation=(
                     "No he podido identificar actividades con huella de carbono en tu mensaje. "
-                    "Prueba con algo como: 'he conducido 20 km' o 'comí carne de vacuno'."
+                    "Prueba con algo como: 'he conducido 20 km', 'comí un filete de ternera' "
+                    "o 'vuelo Madrid-Londres'."
                 ),
             )
+
+        # ── 2. Persistir Activity ────────────────────────────────────────────
+        activity = Activity(user_id=user_id, raw_text=raw_text)
+        db.add(activity)
+        db.flush()  # obtiene id sin commit
 
         # ── 3. Cálculo CO₂ (determinista, sin LLM) ──────────────────────────
         results = self.calculator.calculate(
@@ -85,27 +75,19 @@ class CarbonAgent:
         )
         total = self.calculator.total(results)
 
-        # ── 4. Commit de actividad + emisiones ───────────────────────────────
+        # ── 4. Commit ────────────────────────────────────────────────────────
         db.commit()
         db.refresh(activity)
 
-        # ── 5. Actualizar memoria del usuario ────────────────────────────────
+        # ── 5. Actualizar memoria ────────────────────────────────────────────
         for r in results:
-            self.memory.infer_habits(
-                user_id=user_id,
-                category=r.extracted.category,
-                db=db,
-            )
+            self.memory.infer_habits(user_id=user_id, category=r.extracted.category, db=db)
         db.commit()
 
-        # ── 6. Recomendación personalizada (LLM) ─────────────────────────────
+        # ── 6. Recomendación (LLM) ───────────────────────────────────────────
         user_memory = self.memory.get_memory(user_id=user_id, db=db)
-
         activities_summary = [
-            {
-                "description": r.extracted.description,
-                "amount_kg_co2e": r.amount_kg_co2e,
-            }
+            {"description": r.extracted.description, "amount_kg_co2e": r.amount_kg_co2e}
             for r in results
         ]
 
@@ -128,5 +110,4 @@ class CarbonAgent:
         )
 
 
-# Singleton — una sola instancia compartida por todos los requests
 carbon_agent = CarbonAgent()

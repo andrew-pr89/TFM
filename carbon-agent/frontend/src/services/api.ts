@@ -28,4 +28,12 @@ export const carbonApi = {
     })
     return data
   },
+
+  deleteHistory: async (userId = 'default'): Promise<void> => {
+    await api.delete('/history', { params: { user_id: userId } })
+  },
+
+  deleteActivity: async (activityId: number, userId = 'default'): Promise<void> => {
+    await api.delete(`/history/${activityId}`, { params: { user_id: userId } })
+  },
 }
