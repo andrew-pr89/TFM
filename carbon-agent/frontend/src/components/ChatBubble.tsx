@@ -17,6 +17,10 @@ function co2Label(kg: number): string {
   return `${kg.toFixed(3)} kg`
 }
 
+function isQuestion(text: string): boolean {
+  return text.trim().endsWith('?')
+}
+
 export function ChatBubble({ message }: Props) {
   const { role, text, data } = message
 
@@ -37,23 +41,54 @@ export function ChatBubble({ message }: Props) {
     )
   }
 
-  // assistant
-  const total = data?.total_kg_co2e ?? 0
-  const emissions = data?.activity.emissions ?? []
-  const recommendation = data?.recommendation ?? text
+  // assistant — sin datos (pregunta aclaratoria o mensaje informativo)
+  if (!data || data.total_kg_co2e === 0) {
+    const isQ = isQuestion(text)
+    return (
+      <div className={`bubble bubble--assistant ${isQ ? 'bubble--question' : ''}`}>
+        {isQ && <span className="bubble__question-icon">💬</span>}
+        <p>{text}</p>
+        {isQ && <p className="bubble__question-hint">Responde con la cantidad para calcular la huella</p>}
+      </div>
+    )
+  }
+
+  // assistant — con datos de emisiones
+  const total = data.total_kg_co2e
+  const emissions = data.activity.emissions
+  const recommendation = data.recommendation
 
   return (
     <div className="bubble bubble--assistant">
       {/* Total badge */}
-      {data && (
-        <div className="emission-badge" style={{ '--badge-color': co2Color(total) } as React.CSSProperties}>
-          <span className="emission-badge__value">{co2Label(total)}</span>
-          <span className="emission-badge__label">CO₂e</span>
-        </div>
+      <div className="emission-badge" style={{ '--badge-color': co2Color(total) } as React.CSSProperties}>
+        <span className="emission-badge__value">{co2Label(total)}</span>
+        <span className="emission-badge__label">CO₂e</span>
+      </div>
+
+      {/* Breakdown */}
+      {emissions.length > 0 && (
+        <ul className="emission-list">
+          {emissions.map((e) => (
+            <li key={e.id} className="emission-item">
+              <span className="emission-item__name">{e.factor.display_name}</span>
+              <span className="emission-item__bar-wrap">
+                <span
+                  className="emission-item__bar"
+                  style={{
+                    width: `${Math.min((e.amount_kg_co2e / Math.max(total, 0.001)) * 100, 100)}%`,
+                    background: co2Color(e.amount_kg_co2e),
+                  }}
+                />
+              </span>
+              <span className="emission-item__value">{co2Label(e.amount_kg_co2e)}</span>
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* Recommendation */}
-      <p className="recommendation">{recommendation}</p>
+      {/* <p className="recommendation">{recommendation}</p> */}
     </div>
   )
 }

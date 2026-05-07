@@ -21,6 +21,7 @@ EMISSION_FACTORS = [
     # ── TRANSPORTE ──────────────────────────────────────────────────────────
     {
         "category": "coche_gasolina",
+        "main_category": "Transporte",
         "display_name": "Coche (gasolina)",
         "unit": "km",
         "factor_kg_co2e": 0.192,
@@ -28,6 +29,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "coche_diesel",
+        "main_category": "Transporte",
         "display_name": "Coche (diésel)",
         "unit": "km",
         "factor_kg_co2e": 0.171,
@@ -35,6 +37,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "coche_electrico",
+        "main_category": "Transporte",
         "display_name": "Coche eléctrico",
         "unit": "km",
         "factor_kg_co2e": 0.053,
@@ -42,6 +45,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "moto",
+        "main_category": "Transporte",
         "display_name": "Moto / ciclomotor (gasolina)",
         "unit": "km",
         "factor_kg_co2e": 0.114,
@@ -49,6 +53,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "moto_electrica",
+        "main_category": "Transporte",
         "display_name": "Moto eléctrica",
         "unit": "km",
         "factor_kg_co2e": 0.022,
@@ -56,6 +61,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "patinete_electrico",
+        "main_category": "Transporte",
         "display_name": "Patinete eléctrico",
         "unit": "km",
         "factor_kg_co2e": 0.025,
@@ -63,6 +69,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "taxi",
+        "main_category": "Transporte",
         "display_name": "Taxi / VTC (Uber)",
         "unit": "km",
         "factor_kg_co2e": 0.211,
@@ -70,6 +77,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "avion_domestico",
+        "main_category": "Transporte",
         "display_name": "Avión (vuelo doméstico)",
         "unit": "km",
         "factor_kg_co2e": 0.255,
@@ -77,6 +85,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "avion_internacional",
+        "main_category": "Transporte",
         "display_name": "Avión (vuelo internacional)",
         "unit": "km",
         "factor_kg_co2e": 0.195,
@@ -84,6 +93,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "crucero",
+        "main_category": "Transporte",
         "display_name": "Crucero (por día)",
         "unit": "unidad",
         "factor_kg_co2e": 163.0,
@@ -91,6 +101,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "tren",
+        "main_category": "Transporte",
         "display_name": "Tren (nacional)",
         "unit": "km",
         "factor_kg_co2e": 0.041,
@@ -98,6 +109,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "metro",
+        "main_category": "Transporte",
         "display_name": "Metro / tranvía",
         "unit": "km",
         "factor_kg_co2e": 0.028,
@@ -105,6 +117,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "autobus",
+        "main_category": "Transporte",
         "display_name": "Autobús urbano",
         "unit": "km",
         "factor_kg_co2e": 0.089,
@@ -112,6 +125,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "autobus_interurbano",
+        "main_category": "Transporte",
         "display_name": "Autobús interurbano",
         "unit": "km",
         "factor_kg_co2e": 0.068,
@@ -121,6 +135,7 @@ EMISSION_FACTORS = [
     # ── ENERGÍA EN HOGAR ────────────────────────────────────────────────────
     {
         "category": "electricidad_es",
+        "main_category": "Energía",
         "display_name": "Electricidad (España)",
         "unit": "kWh",
         "factor_kg_co2e": 0.181,
@@ -128,6 +143,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "gas_natural",
+        "main_category": "Energía",
         "display_name": "Gas natural (hogar)",
         "unit": "kWh",
         "factor_kg_co2e": 0.203,
@@ -135,6 +151,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "calefaccion_gasoil",
+        "main_category": "Energía",
         "display_name": "Calefacción gasoil",
         "unit": "litro",
         "factor_kg_co2e": 2.68,
@@ -142,6 +159,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "aire_acondicionado",
+        "main_category": "Energía",
         "display_name": "Aire acondicionado",
         "unit": "hora",
         "factor_kg_co2e": 0.362,
@@ -149,6 +167,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "lavadora",
+        "main_category": "Energía",
         "display_name": "Lavadora (ciclo)",
         "unit": "unidad",
         "factor_kg_co2e": 0.272,
@@ -156,6 +175,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "secadora",
+        "main_category": "Energía",
         "display_name": "Secadora (ciclo)",
         "unit": "unidad",
         "factor_kg_co2e": 0.724,
@@ -163,6 +183,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "lavavajillas",
+        "main_category": "Energía",
         "display_name": "Lavavajillas (ciclo)",
         "unit": "unidad",
         "factor_kg_co2e": 0.362,
@@ -170,6 +191,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "television",
+        "main_category": "Energía",
         "display_name": "Televisión",
         "unit": "hora",
         "factor_kg_co2e": 0.036,
@@ -179,6 +201,7 @@ EMISSION_FACTORS = [
     # ── ALIMENTACIÓN ────────────────────────────────────────────────────────
     {
         "category": "carne_vacuno",
+        "main_category": "Alimentación",
         "display_name": "Carne de vacuno",
         "unit": "kg",
         "factor_kg_co2e": 27.0,
@@ -186,6 +209,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "carne_cerdo",
+        "main_category": "Alimentación",
         "display_name": "Carne de cerdo",
         "unit": "kg",
         "factor_kg_co2e": 12.1,
@@ -193,6 +217,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "carne_pollo",
+        "main_category": "Alimentación",
         "display_name": "Carne de pollo",
         "unit": "kg",
         "factor_kg_co2e": 6.9,
@@ -200,6 +225,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "carne_procesada",
+        "main_category": "Alimentación",
         "display_name": "Carne procesada (embutidos, frankfurt)",
         "unit": "kg",
         "factor_kg_co2e": 11.0,
@@ -207,6 +233,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "pescado",
+        "main_category": "Alimentación",
         "display_name": "Pescado (promedio)",
         "unit": "kg",
         "factor_kg_co2e": 6.1,
@@ -214,6 +241,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "marisco",
+        "main_category": "Alimentación",
         "display_name": "Marisco / mariscos",
         "unit": "kg",
         "factor_kg_co2e": 11.4,
@@ -221,6 +249,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "lacteos_leche",
+        "main_category": "Alimentación",
         "display_name": "Leche / lácteos",
         "unit": "litro",
         "factor_kg_co2e": 3.2,
@@ -228,6 +257,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "queso",
+        "main_category": "Alimentación",
         "display_name": "Queso",
         "unit": "kg",
         "factor_kg_co2e": 13.5,
@@ -235,6 +265,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "huevos",
+        "main_category": "Alimentación",
         "display_name": "Huevos",
         "unit": "unidad",
         "factor_kg_co2e": 0.196,
@@ -242,6 +273,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "verduras",
+        "main_category": "Alimentación",
         "display_name": "Verduras y hortalizas",
         "unit": "kg",
         "factor_kg_co2e": 2.0,
@@ -249,6 +281,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "cereales",
+        "main_category": "Alimentación",
         "display_name": "Cereales / pan",
         "unit": "kg",
         "factor_kg_co2e": 1.4,
@@ -256,6 +289,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "cafe",
+        "main_category": "Alimentación",
         "display_name": "Café",
         "unit": "kg",
         "factor_kg_co2e": 28.5,
@@ -263,6 +297,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "chocolate",
+        "main_category": "Alimentación",
         "display_name": "Chocolate",
         "unit": "kg",
         "factor_kg_co2e": 46.4,
@@ -270,6 +305,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "alcohol_cerveza",
+        "main_category": "Alimentación",
         "display_name": "Cerveza",
         "unit": "litro",
         "factor_kg_co2e": 1.04,
@@ -277,6 +313,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "alcohol_vino",
+        "main_category": "Alimentación",
         "display_name": "Vino",
         "unit": "litro",
         "factor_kg_co2e": 1.79,
@@ -284,6 +321,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "comida_rapida",
+        "main_category": "Alimentación",
         "display_name": "Comida rápida (hamburguesa/pizza)",
         "unit": "unidad",
         "factor_kg_co2e": 2.5,
@@ -291,6 +329,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "aceite_oliva",
+        "main_category": "Alimentación",
         "display_name": "Aceite de oliva",
         "unit": "litro",
         "factor_kg_co2e": 6.0,
@@ -300,6 +339,7 @@ EMISSION_FACTORS = [
     # ── RESIDUOS ────────────────────────────────────────────────────────────
     {
         "category": "residuo_mixto",
+        "main_category": "Residuos",
         "display_name": "Residuo mezclado (vertedero)",
         "unit": "kg",
         "factor_kg_co2e": 0.587,
@@ -307,6 +347,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "residuo_reciclado",
+        "main_category": "Residuos",
         "display_name": "Residuo reciclado",
         "unit": "kg",
         "factor_kg_co2e": 0.021,
@@ -316,6 +357,7 @@ EMISSION_FACTORS = [
     # ── COMPRAS ─────────────────────────────────────────────────────────────
     {
         "category": "ropa_nueva",
+        "main_category": "Compras",
         "display_name": "Ropa nueva (prenda)",
         "unit": "unidad",
         "factor_kg_co2e": 8.0,
@@ -323,6 +365,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "zapatillas",
+        "main_category": "Compras",
         "display_name": "Zapatillas / calzado",
         "unit": "unidad",
         "factor_kg_co2e": 14.0,
@@ -330,6 +373,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "libro_nuevo",
+        "main_category": "Compras",
         "display_name": "Libro nuevo",
         "unit": "unidad",
         "factor_kg_co2e": 2.71,
@@ -337,6 +381,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "smartphone",
+        "main_category": "Compras",
         "display_name": "Smartphone nuevo",
         "unit": "unidad",
         "factor_kg_co2e": 70.0,
@@ -344,6 +389,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "portatil",
+        "main_category": "Compras",
         "display_name": "Portátil nuevo",
         "unit": "unidad",
         "factor_kg_co2e": 400.0,
@@ -353,6 +399,7 @@ EMISSION_FACTORS = [
     # ── OCIO / SERVICIOS ─────────────────────────────────────────────────────
     {
         "category": "streaming",
+        "main_category": "Ocio",
         "display_name": "Streaming (Netflix/Spotify, por mes)",
         "unit": "unidad",
         "factor_kg_co2e": 0.036,
@@ -360,6 +407,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "gimnasio",
+        "main_category": "Ocio",
         "display_name": "Sesión de gimnasio",
         "unit": "unidad",
         "factor_kg_co2e": 0.502,
@@ -367,6 +415,7 @@ EMISSION_FACTORS = [
     },
     {
         "category": "hotel",
+        "main_category": "Ocio",
         "display_name": "Hotel (por noche)",
         "unit": "unidad",
         "factor_kg_co2e": 22.6,

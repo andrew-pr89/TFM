@@ -30,6 +30,7 @@ class EmissionFactor(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     category: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    main_category: Mapped[str] = mapped_column(String(50), nullable=False)         # Transporte, Alimentación, Energía, Residuos, Compras, Ocio
     display_name: Mapped[str] = mapped_column(String(150), nullable=False)
     unit: Mapped[str] = mapped_column(String(30), nullable=False)           # km, kg, kWh, hora, unidad…
     factor_kg_co2e: Mapped[float] = mapped_column(Float, nullable=False)    # kg CO₂ equivalente por unidad

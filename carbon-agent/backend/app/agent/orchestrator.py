@@ -1,28 +1,34 @@
 """
 Orquestador del agente — coordina todos los componentes.
-
-Flujo completo de POST /activity:
-  1. Extractor LLM    → identifica actividades en texto natural
-  2. Si no hay actividades → devuelve mensaje, NO persiste nada
-  3. Calculadora CO₂  → cálculo determinista (sin LLM)
-  4. Persistencia     → guarda Activity + Emissions en BD
-  5. Memoria          → actualiza hábitos del usuario
-  6. Recomendador LLM → genera recomendación personalizada
-  7. Devuelve         → total kg CO₂e + recomendación
 """
 
 import logging
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.agent.calculator import CO2Calculator
-from app.agent.extractor import Extractor
+from app.agent.extractor import Extractor, ExtractedActivity
 from app.agent.llm_service import LLMService
 from app.agent.memory import MemoryService
 from app.models.models import Activity
 from app.schemas.schemas import ActivityOut, ActivityResponse
 
 log = logging.getLogger(__name__)
+
+
+def _empty(user_id: str, raw_text: str) -> ActivityResponse:
+    return ActivityResponse(
+        activity=ActivityOut(
+            id=-1,
+            user_id=user_id,
+            raw_text=raw_text,
+            created_at=datetime.utcnow(),
+            emissions=[],
+        ),
+        total_kg_co2e=0.0,
+        recommendation="",
+    )
 
 
 class CarbonAgent:
@@ -32,57 +38,37 @@ class CarbonAgent:
         self.calculator = CO2Calculator()
         self.memory = MemoryService()
 
-    def process_activity(
-        self,
-        raw_text: str,
-        user_id: str,
-        db: Session,
-    ) -> ActivityResponse:
+    def process_activity(self, raw_text: str, user_id: str, db: Session) -> ActivityResponse:
+
         # ── 1. Extracción (LLM) — ANTES de persistir ────────────────────────
-        # Necesitamos los factores de BD para el extractor, pero aún no
-        # creamos la Activity. Si no hay nada que guardar, no tocamos la BD.
         extracted = self.extractor.extract(raw_text=raw_text, db=db)
 
-        # Verificar si hay una pregunta aclaratoria
-        if extracted and len(extracted) == 1 and isinstance(extracted[0], dict):
-            if "clarifying_question" in extracted[0]:
-                log.info("Pregunta aclaratoria: %s", extracted[0]["clarifying_question"])
-                return ActivityResponse(
-                    activity=ActivityOut(
-                        id=-1,
-                        user_id=user_id,
-                        raw_text=raw_text,
-                        created_at=__import__("datetime").datetime.utcnow(),
-                        emissions=[],
-                    ),
-                    total_kg_co2e=0.0,
-                    recommendation=extracted[0]["clarifying_question"],
-                    is_question=True,
-                )
+        # ── Caso: pregunta aclaratoria ───────────────────────────────────────
+        # El extractor devuelve dicts cuando hay clarifying_question,
+        # y ExtractedActivity cuando hay actividades válidas.
+        if extracted and isinstance(extracted[0], dict) and "clarifying_question" in extracted[0]:
+            question = extracted[0]["clarifying_question"]
+            log.info("Pregunta aclaratoria para user=%s: %s", user_id, question)
+            response = _empty(user_id, raw_text)
+            response.recommendation = question
+            response.is_question = True
+            return response
 
+        # ── Caso: nada identificado ──────────────────────────────────────────
         if not extracted:
             log.info("Nada que guardar — el LLM no identificó actividades CO₂.")
-            # Devolvemos una ActivityOut vacía sin id real (no persistida)
-            return ActivityResponse(
-                activity=ActivityOut(
-                    id=-1,
-                    user_id=user_id,
-                    raw_text=raw_text,
-                    created_at=__import__("datetime").datetime.utcnow(),
-                    emissions=[],
-                ),
-                total_kg_co2e=0.0,
-                recommendation=(
-                    "No he podido identificar actividades con huella de carbono en tu mensaje. "
-                    "Prueba con algo como: 'he conducido 20 km', 'comí un filete de ternera' "
-                    "o 'vuelo Madrid-Londres'."
-                ),
+            response = _empty(user_id, raw_text)
+            response.recommendation = (
+                "No he podido identificar actividades con huella de carbono en tu mensaje. "
+                "Prueba con algo como: 'he conducido 20 km', 'comí 200g de ternera' "
+                "o 'vuelo Madrid-Londres de 600 km'."
             )
+            return response
 
         # ── 2. Persistir Activity ────────────────────────────────────────────
         activity = Activity(user_id=user_id, raw_text=raw_text)
         db.add(activity)
-        db.flush()  # obtiene id sin commit
+        db.flush()
 
         # ── 3. Cálculo CO₂ (determinista, sin LLM) ──────────────────────────
         results = self.calculator.calculate(

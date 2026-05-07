@@ -3,6 +3,7 @@
 export interface EmissionFactor {
   id: number
   category: string
+  main_category: string
   display_name: string
   unit: string
   factor_kg_co2e: number
@@ -21,6 +22,7 @@ export interface ActivityOut {
   user_id: string
   raw_text: string
   created_at: string
+  main_category: string
   emissions: EmissionOut[]
 }
 

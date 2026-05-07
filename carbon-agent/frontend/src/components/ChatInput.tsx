@@ -16,6 +16,13 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
     }
   }, [text])
 
+  // Devolver el foco al input cuando la respuesta llega (isLoading vuelve a false)
+  useEffect(() => {
+    if (!isLoading) {
+      textareaRef.current?.focus()
+    }
+  }, [isLoading])
+
   const handleSubmit = () => {
     const trimmed = text.trim()
     if (!trimmed || isLoading) return
