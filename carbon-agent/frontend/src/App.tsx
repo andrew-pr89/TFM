@@ -27,6 +27,7 @@ export default function App() {
       timestamp: new Date(),
     },
   ])
+  const [pendingContext, setPendingContext] = useState<{ originalText: string; question: string } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const mutation = usePostActivity()
 
@@ -35,11 +36,19 @@ export default function App() {
   }, [messages])
 
   const handleSend = useCallback(async (text: string) => {
+    const textToSend = pendingContext
+      ? `${pendingContext.originalText}. Pregunta: "${pendingContext.question}". Respuesta: ${text}`
+      : text
     const userMsg: ChatMessage = { id: uid(), role: 'user', text, timestamp: new Date() }
     setMessages((prev) => [...prev, userMsg])
 
     try {
-      const data = await mutation.mutateAsync(text)
+      const data = await mutation.mutateAsync(textToSend)
+      if (data.is_question) {
+        setPendingContext({ originalText: pendingContext?.originalText ?? text, question: data.recommendation })
+      } else {
+        setPendingContext(null)
+      }
       const assistantMsg: ChatMessage = {
         id: uid(),
         role: 'assistant',
@@ -49,6 +58,7 @@ export default function App() {
       }
       setMessages((prev) => [...prev, assistantMsg])
     } catch {
+      setPendingContext(null)
       setMessages((prev) => [
         ...prev,
         {
@@ -59,7 +69,7 @@ export default function App() {
         },
       ])
     }
-  }, [mutation])
+  }, [mutation, pendingContext])
 
   return (
     <div className="app">

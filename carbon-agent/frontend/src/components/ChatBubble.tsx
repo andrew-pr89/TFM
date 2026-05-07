@@ -52,27 +52,6 @@ export function ChatBubble({ message }: Props) {
         </div>
       )}
 
-      {/* Breakdown */}
-      {emissions.length > 0 && (
-        <ul className="emission-list">
-          {emissions.map((e) => (
-            <li key={e.id} className="emission-item">
-              <span className="emission-item__name">{e.factor.display_name}</span>
-              <span className="emission-item__bar-wrap">
-                <span
-                  className="emission-item__bar"
-                  style={{
-                    width: `${Math.min((e.amount_kg_co2e / Math.max(total, 0.001)) * 100, 100)}%`,
-                    background: co2Color(e.amount_kg_co2e),
-                  }}
-                />
-              </span>
-              <span className="emission-item__value">{co2Label(e.amount_kg_co2e)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-
       {/* Recommendation */}
       <p className="recommendation">{recommendation}</p>
     </div>

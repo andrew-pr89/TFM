@@ -68,6 +68,12 @@ class Extractor:
             log.info("El LLM no identificó actividades con impacto CO₂ en: '%s'", raw_text[:80])
             return []
 
+        # Verificar si hay una pregunta aclaratoria
+        if len(raw_activities) == 1 and "clarifying_question" in raw_activities[0]:
+            # Retornar la pregunta como un marcador especial
+            log.info("Pregunta aclaratoria del LLM: %s", raw_activities[0]["clarifying_question"])
+            return raw_activities  # Retorna [{"clarifying_question": "..."}]
+
         # 3 & 4. Validación y resolución
         result: list[ExtractedActivity] = []
 

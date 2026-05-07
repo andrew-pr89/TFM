@@ -59,23 +59,54 @@ class LLMService:
         categories_str = "\n".join(f"  - {c}" for c in valid_categories)
 
         system = f"""Eres un extractor de actividades con huella de carbono.
-Tu única tarea es analizar el texto del usuario e identificar actividades
-que tengan impacto en CO₂, estructurándolas en JSON.
+Tu tarea es analizar el texto del usuario e INTENTAR identificar actividades
+que tengan impacto en CO₂.
 
 Categorías válidas (usa EXACTAMENTE estos identificadores):
 {categories_str}
 
-Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, sin markdown.
-Formato de cada elemento:
+LÓGICA:
+
+PASO 1: ¿El texto menciona UNA de estas categorías?
+- Si NO → tipo "none"
+- Si SÍ → Ir al PASO 2
+
+PASO 2: ¿Tiene cantidad explícita (número con unidad)?
+- Si SÍ (ej: "5 km", "200g", "2 vuelos") → tipo "activity" con los datos
+- Si NO → Ir al PASO 3
+
+PASO 3: ¿La categoría necesita una unidad específica?
+- "coche_gasolina" → necesita KM (pregunta: "¿Cuántos km has conducido?")
+- "moto" → necesita KM (pregunta: "¿Cuántos km en moto?")
+- "avion_domestico" → necesita KM (pregunta: "¿Cuántos km has volado?")
+- "carne_de_vacuno" → necesita PESO (pregunta: "¿Cuántos gramos de carne?")
+- "electricidad_es" → necesita KWH (pregunta: "¿Cuántos kWh consumiste?")
+- etc.
+→ tipo "question" con pregunta específica
+
+RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO:
+
+CASO 1 - Actividad completa:
 {{
-  "category": "<categoría exacta de la lista>",
-  "quantity": <número positivo>,
-  "unit": "<unidad coherente con la categoría>",
-  "description": "<descripción breve en español>"
+  "type": "activity",
+  "activities": [{{
+    "category": "<categoría>",
+    "quantity": <número>,
+    "unit": "<unidad>",
+    "description": "<descripción>"
+  }}]
 }}
 
-Si no encuentras ninguna actividad con impacto CO₂, devuelve: []
-Si hay varias actividades en el texto, inclúyelas todas."""
+CASO 2 - Actividad parcial (falta cantidad/unidad):
+{{
+  "type": "question",
+  "clarifying_question": "<pregunta específica sobre la unidad>"
+}}
+
+CASO 3 - No tiene que ver con CO₂:
+{{
+  "type": "none"
+}}"""
 
         user = f"Texto del usuario: {raw_text}"
 
@@ -86,10 +117,22 @@ Si hay varias actividades en el texto, inclúyelas todas."""
 
         try:
             result = json.loads(raw)
-            if not isinstance(result, list):
-                log.warning("LLM devolvió un no-array: %s", raw[:200])
-                return []
-            return result
+            
+            # Si la respuesta es una pregunta aclaratoria, devolverla para que el orquestador la maneje
+            if isinstance(result, dict):
+                if result.get("type") == "question":
+                    return [{"clarifying_question": result.get("clarifying_question", "¿Cuánta cantidad?")}]
+                elif result.get("type") == "activity":
+                    return result.get("activities", [])
+                elif result.get("type") == "none":
+                    return []
+            
+            # Fallback si devuelve un array
+            if isinstance(result, list):
+                return result
+                
+            log.warning("Formato inesperado del LLM: %s", raw[:200])
+            return []
         except json.JSONDecodeError:
             log.error("Error parseando JSON del LLM: %s", raw[:300])
             return []

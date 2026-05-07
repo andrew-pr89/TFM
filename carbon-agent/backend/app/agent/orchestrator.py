@@ -43,6 +43,23 @@ class CarbonAgent:
         # creamos la Activity. Si no hay nada que guardar, no tocamos la BD.
         extracted = self.extractor.extract(raw_text=raw_text, db=db)
 
+        # Verificar si hay una pregunta aclaratoria
+        if extracted and len(extracted) == 1 and isinstance(extracted[0], dict):
+            if "clarifying_question" in extracted[0]:
+                log.info("Pregunta aclaratoria: %s", extracted[0]["clarifying_question"])
+                return ActivityResponse(
+                    activity=ActivityOut(
+                        id=-1,
+                        user_id=user_id,
+                        raw_text=raw_text,
+                        created_at=__import__("datetime").datetime.utcnow(),
+                        emissions=[],
+                    ),
+                    total_kg_co2e=0.0,
+                    recommendation=extracted[0]["clarifying_question"],
+                    is_question=True,
+                )
+
         if not extracted:
             log.info("Nada que guardar — el LLM no identificó actividades CO₂.")
             # Devolvemos una ActivityOut vacía sin id real (no persistida)

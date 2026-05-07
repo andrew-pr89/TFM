@@ -28,6 +28,7 @@ export interface ActivityResponse {
   activity: ActivityOut
   total_kg_co2e: number
   recommendation: string
+  is_question: boolean
 }
 
 export interface SummaryOut {

@@ -27,7 +27,7 @@ class EmissionFactorOut(BaseModel):
 # ── Activity ─────────────────────────────────────────────────────────────────
 
 class ActivityCreate(BaseModel):
-    raw_text: str = Field(..., min_length=3, max_length=1000, description="Texto libre del usuario")
+    raw_text: str = Field(..., min_length=1, max_length=1000, description="Texto libre del usuario")
     user_id: str = Field(default="default", max_length=100)
 
 
@@ -57,6 +57,7 @@ class ActivityResponse(BaseModel):
     activity: ActivityOut
     total_kg_co2e: float
     recommendation: str
+    is_question: bool = False
 
 
 # ── Summary ───────────────────────────────────────────────────────────────────
