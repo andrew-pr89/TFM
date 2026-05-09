@@ -156,5 +156,59 @@ package-lock.json
 yarn.lock
 dist/
 
-# Outputs
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+carbon_agent.db
+
+# Outputs & User Data
 mnt/user-data/outputs/
+mnt/
+
+# Additional Python files
+*.pyc
+.python-version
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Frontend build
+frontend/dist/
+frontend/build/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+.#*
+
+# Environment files for different environments
+.env.local
+.env.*.local
+.env.staging
+.env.production
+
+# IDE & Editor
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+*.code-workspace
+
+# Build & Cache
+*.egg-info/
+.eggs/
+build/
+dist/
+.cache/
+
+# System files
+.AppleDouble
+.LSOverride
+*.lnk
+
+# OneDrive specific
+desktop.ini
