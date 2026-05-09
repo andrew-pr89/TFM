@@ -336,6 +336,32 @@ EMISSION_FACTORS = [
         "source": "Poore & Nemecek 2018 — olive oil",
     },
 
+    # ── BEBIDAS EMBOTELLADAS ────────────────────────────────────────────────
+    {
+        "category": "agua_embotellada",
+        "main_category": "Compras",
+        "display_name": "Agua embotellada (plástico)",
+        "unit": "litro",
+        "factor_kg_co2e": 0.30,
+        "source": "Carbon Trust 2021 — bottled water lifecycle (bottle + water + transport)",
+    },
+    {
+        "category": "refresco_lata",
+        "main_category": "Alimentación",
+        "display_name": "Refresco en lata",
+        "unit": "unidad",
+        "factor_kg_co2e": 0.17,
+        "source": "Carbon Trust 2021 — canned soft drink 330ml",
+    },
+    {
+        "category": "zumo",
+        "main_category": "Alimentación",
+        "display_name": "Zumo (brick/botella)",
+        "unit": "litro",
+        "factor_kg_co2e": 0.55,
+        "source": "Poore & Nemecek 2018 — fruit juice average",
+    },
+
     # ── RESIDUOS ────────────────────────────────────────────────────────────
     {
         "category": "residuo_mixto",

@@ -38,16 +38,10 @@ const LEVELS = [
 function getLevelInfo(t: number) {
   const exact = LEVELS.find(l => l.t === t)
   if (exact) return exact
-  // interpolación entre niveles
   if (t < 4) return LEVELS[0]
   if (t < 6) return LEVELS[1]
   if (t < 8) return LEVELS[2]
   return LEVELS[3]
-}
-
-function getSliderBackground(value: number) {
-  const pct = ((value - 2) / (8 - 2)) * 100
-  return `linear-gradient(to right, #4ade80 0%, #a3e635 33%, #facc15 66%, #ef4444 100%)`
 }
 
 export function SettingsPanel() {
@@ -58,31 +52,25 @@ export function SettingsPanel() {
   const dailyKg = (t * 1000 / 365).toFixed(1)
 
   return (
-    <div style={{ maxWidth: '560px', margin: '0 auto', padding: '8px 0' }}>
-      <h2 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>Configuración</h2>
-      <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '32px' }}>
+    <div className="settings">
+      <h2 className="settings__title">Configuración</h2>
+      <p className="settings__subtitle">
         Personaliza tu objetivo de huella de carbono anual. Todos los indicadores de la aplicación se recalcularán según este valor.
       </p>
 
       {/* ── Slider section ─────────────────────────────────────────── */}
-      <div style={{
-        background: 'var(--surface-2)',
-        border: '1px solid var(--border)',
-        borderRadius: '14px',
-        padding: '28px 24px',
-        marginBottom: '24px',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
+      <div className="settings__card">
+        <div className="settings__card-header">
           <div>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 4px' }}>META ANUAL</p>
-            <p style={{ fontSize: '38px', fontWeight: 700, fontFamily: 'DM Mono', color: level.color, margin: 0, lineHeight: 1 }}>
+            <p className="settings__goal-label">META ANUAL</p>
+            <p className="settings__goal-value" style={{ color: level.color }}>
               {t} t
-              <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '8px' }}>CO₂/año</span>
+              <span className="settings__goal-unit">CO₂/año</span>
             </p>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>equivale a</div>
-            <div style={{ fontSize: '14px', fontFamily: 'DM Mono' }}>
+          <div className="settings__goal-equiv">
+            <div className="settings__equiv-label">equivale a</div>
+            <div className="settings__equiv-values">
               <span style={{ color: level.color }}>{monthlyKg} kg</span>
               <span style={{ color: 'var(--text-muted)' }}>/mes · </span>
               <span style={{ color: level.color }}>{dailyKg} kg</span>
@@ -91,29 +79,17 @@ export function SettingsPanel() {
           </div>
         </div>
 
-        {/* Slider */}
-        <div style={{ position: 'relative', marginBottom: '12px' }}>
+        <div className="settings__slider-wrap">
           <input
             type="range"
-            min={2}
-            max={8}
-            step={1}
+            min={2} max={8} step={1}
             value={t}
             onChange={e => update({ annualGoalTonnes: Number(e.target.value) })}
-            style={{
-              width: '100%',
-              appearance: 'none',
-              height: '8px',
-              borderRadius: '4px',
-              outline: 'none',
-              cursor: 'pointer',
-              background: getSliderBackground(t),
-            }}
+            className="settings__slider"
           />
         </div>
 
-        {/* Tick labels */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
+        <div className="settings__ticks">
           {[2, 3, 4, 5, 6, 7, 8].map(v => (
             <span key={v} style={{ color: v === t ? level.color : 'var(--text-muted)', fontWeight: v === t ? 600 : 400 }}>
               {v}t
@@ -121,21 +97,16 @@ export function SettingsPanel() {
           ))}
         </div>
 
-        {/* Level badges */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+        <div className="settings__level-btns">
           {LEVELS.map(l => (
             <button
               key={l.t}
               onClick={() => update({ annualGoalTonnes: l.t })}
+              className="settings__level-btn"
               style={{
-                padding: '4px 10px',
-                borderRadius: '20px',
                 border: `1px solid ${t === l.t ? l.color : 'var(--border)'}`,
                 background: t === l.t ? `${l.color}22` : 'transparent',
                 color: t === l.t ? l.color : 'var(--text-muted)',
-                fontSize: '11px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
               }}
             >
               {l.t} t
@@ -145,49 +116,34 @@ export function SettingsPanel() {
       </div>
 
       {/* ── Explanation card ───────────────────────────────────────── */}
-      <div style={{
-        background: 'var(--surface-2)',
-        border: `1px solid ${level.color}44`,
-        borderLeft: `4px solid ${level.color}`,
-        borderRadius: '10px',
-        padding: '20px 20px 20px 24px',
-        marginBottom: '24px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-          <span style={{ fontSize: '20px', fontWeight: 700, color: level.color, fontFamily: 'DM Mono' }}>
+      <div
+        className="settings__info-card"
+        style={{
+          border: `1px solid ${level.color}44`,
+          borderLeft: `4px solid ${level.color}`,
+        }}
+      >
+        <div className="settings__info-header">
+          <span className="settings__info-name" style={{ color: level.color }}>
             {level.label}
           </span>
-          <span style={{
-            padding: '2px 10px',
-            borderRadius: '20px',
-            background: `${level.tempColor}22`,
-            color: level.tempColor,
-            fontSize: '12px',
-            fontWeight: 600,
-          }}>
+          <span
+            className="settings__temp-badge"
+            style={{ background: `${level.tempColor}22`, color: level.tempColor }}
+          >
             🌡️ {level.temp}
           </span>
         </div>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.7' }}>
-          {level.desc}
-        </p>
+        <p className="settings__info-desc">{level.desc}</p>
       </div>
 
       {/* ── Context info ───────────────────────────────────────────── */}
-      <div style={{
-        background: 'var(--surface-2)',
-        border: '1px solid var(--border)',
-        borderRadius: '10px',
-        padding: '18px 20px',
-        fontSize: '12px',
-        color: 'var(--text-muted)',
-        lineHeight: '1.7',
-      }}>
-        <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--text)', fontSize: '13px' }}>¿Qué es la huella de carbono?</p>
-        <p style={{ margin: '0 0 8px' }}>
+      <div className="settings__context-box">
+        <p className="settings__context-title">¿Qué es la huella de carbono?</p>
+        <p className="settings__context-desc">
           La huella de carbono mide la cantidad de gases de efecto invernadero (CO₂ y equivalentes) que generamos con nuestras actividades diarias: lo que comemos, cómo nos desplazamos, la energía que consumimos o lo que compramos.
         </p>
-        <p style={{ margin: 0 }}>
+        <p className="settings__context-desc">
           Cuanto más alta sea tu meta anual, menor presión sentirás al principio — pero mayor será tu impacto en el clima. La ciencia indica que para limitar el calentamiento a <strong style={{ color: '#4ade80' }}>1,5 °C</strong> necesitamos reducir a <strong style={{ color: '#4ade80' }}>~2 t/persona/año</strong> antes de 2050. Empieza donde puedas y ve bajando poco a poco.
         </p>
       </div>

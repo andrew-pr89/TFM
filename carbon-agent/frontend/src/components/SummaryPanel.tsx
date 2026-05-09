@@ -16,6 +16,15 @@ function co2Color(kg: number) {
   return 'var(--c-high)'
 }
 
+const tooltipStyle = {
+  background: 'var(--surface-2)',
+  border: '1px solid var(--border)',
+  borderRadius: '8px',
+  fontFamily: 'DM Mono',
+  fontSize: '12px',
+  color: 'var(--text)',
+}
+
 function StatCard({ label, value, unit }: { label: string; value: string | number; unit?: string }) {
   return (
     <div className="stat-card">
@@ -36,7 +45,7 @@ function BudgetCard({ total, budget, periodDays }: { total: number; budget: numb
   return (
     <div className="stat-card" style={{ gridColumn: '1 / -1' }}>
       <span className="stat-card__label">Total CO₂e — últimos {periodDays} días</span>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginTop: '4px' }}>
+      <div className="budget-card-row">
         <span className="stat-card__value" style={{ color: over ? '#ef4444' : 'inherit' }}>
           {total.toFixed(2)}
         </span>
@@ -44,47 +53,19 @@ function BudgetCard({ total, budget, periodDays }: { total: number; budget: numb
           / {budget.toFixed(0)} kg presupuesto sostenible mensual
         </span>
       </div>
-      <div style={{ marginTop: '10px', background: 'var(--border)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+      <div className="budget-bar">
         <div
-          style={{
-            width: `${pct}%`,
-            height: '100%',
-            background: barColor,
-            borderRadius: '4px',
-            transition: 'width 0.4s ease',
-          }}
+          className="budget-bar__fill"
+          style={{ width: `${pct}%`, background: barColor }}
         />
       </div>
-      <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+      <span className="budget-pct">
         {pct.toFixed(1)}% del presupuesto{over ? ' — ¡superado!' : ''}
         {' · '}
         Ref: objetivo IPCC 1,5 °C (2 t CO₂/persona/año)
       </span>
     </div>
   )
-}
-
-const tabStyle = (active: boolean) => ({
-  padding: '8px 16px',
-  marginRight: '8px',
-  marginBottom: '8px',
-  background: active ? 'var(--primary)' : 'var(--surface-2)',
-  color: active ? 'white' : 'var(--text)',
-  border: active ? '1px solid var(--primary)' : '1px solid var(--border)',
-  borderRadius: '6px',
-  cursor: 'pointer',
-  fontWeight: active ? 500 : 400,
-  whiteSpace: 'nowrap' as const,
-  transition: 'all 0.2s',
-})
-
-const tooltipStyle = {
-  background: 'var(--surface-2)',
-  border: '1px solid var(--border)',
-  borderRadius: '8px',
-  fontFamily: 'DM Mono',
-  fontSize: '12px',
-  color: 'var(--text)',
 }
 
 export function SummaryPanel({ userId = 'default', annualGoalKg = 6000 }: Props) {
@@ -102,7 +83,6 @@ export function SummaryPanel({ userId = 'default', annualGoalKg = 6000 }: Props)
     </div>
   )
 
-  // Categorías únicas presentes en el historial
   const uniqueCategories = [...new Set(activities?.map(a => a.main_category) ?? [])]
 
   // ── Vista de categoría seleccionada ──────────────────────────────────────────
@@ -122,24 +102,23 @@ export function SummaryPanel({ userId = 'default', annualGoalKg = 6000 }: Props)
 
     return (
       <div className="summary-panel">
-        <button onClick={() => setSelectedCategory(null)} style={tabStyle(false)}>
+        <button className="tab-btn" onClick={() => setSelectedCategory(null)}>
           ← Volver al resumen
         </button>
 
-        <div className="stat-grid" style={{ marginBottom: '24px', marginTop: '16px' }}>
+        <div className="stat-grid">
           <StatCard label="Total CO₂e" value={totalCat.toFixed(2)} unit="kg" />
           <StatCard label="Actividades" value={catActivities.length} />
         </div>
 
         {chartData.length > 0 && (
-          <div className="chart-wrap" style={{ marginBottom: '24px' }}>
+          <div className="chart-wrap">
             <p className="chart-title">Desglose — {selectedCategory}</p>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
                   data={chartData}
-                  cx="50%"
-                  cy="50%"
+                  cx="50%" cy="50%"
                   labelLine={true}
                   label={({ name, value }) => `${name}: ${(value as number).toFixed(3)} kg`}
                   outerRadius={80}
@@ -157,9 +136,9 @@ export function SummaryPanel({ userId = 'default', annualGoalKg = 6000 }: Props)
               </PieChart>
             </ResponsiveContainer>
 
-            <div className="emissions-detail" style={{ marginTop: '16px' }}>
+            <div className="emissions-detail">
               {Object.entries(byFactor).map(([name, kg]) => (
-                <div key={name} className="emission-row" style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                <div key={name} className="emission-row">
                   <span>{name}</span>
                   <span style={{ color: co2Color(kg), fontWeight: 500 }}>
                     {kg.toFixed(3)} kg
@@ -185,27 +164,32 @@ export function SummaryPanel({ userId = 'default', annualGoalKg = 6000 }: Props)
 
   return (
     <div className="summary-panel">
-      {/* Tabs de categorías únicas */}
-      <div className="activities-tabs" style={{ marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
-        <button style={tabStyle(selectedCategory === null)} onClick={() => setSelectedCategory(null)}>
+      <div className="activities-tabs">
+        <button
+          className={`tab-btn${selectedCategory === null ? ' tab-btn--active' : ''}`}
+          onClick={() => setSelectedCategory(null)}
+        >
           📊 Resumen General
         </button>
         {uniqueCategories.map(cat => (
-          <button key={cat} style={tabStyle(selectedCategory === cat)} onClick={() => setSelectedCategory(cat)}>
+          <button
+            key={cat}
+            className={`tab-btn${selectedCategory === cat ? ' tab-btn--active' : ''}`}
+            onClick={() => setSelectedCategory(cat)}
+          >
             {cat}
           </button>
         ))}
       </div>
 
-      {/* Métricas generales */}
-      <div className="stat-grid" style={{ marginBottom: '24px' }}>
+      <div className="stat-grid">
         <BudgetCard total={summary.total_kg_co2e} budget={summary.budget_kg_co2e} periodDays={summary.period_days} />
         <StatCard label="Actividades" value={summary.total_activities} />
         <StatCard label="Media/actividad" value={perActivity} unit="kg" />
       </div>
 
       {chartData.length > 0 && (
-        <div className="chart-wrap" style={{ marginBottom: '24px' }}>
+        <div className="chart-wrap">
           <p className="chart-title">Top categorías</p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 40 }}>

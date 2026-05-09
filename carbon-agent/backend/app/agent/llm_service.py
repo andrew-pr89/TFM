@@ -87,19 +87,21 @@ PASO 1: ¿El texto menciona UNA de estas categorías?
 
 PASO 2: ¿Hay un NÚMERO explícito con unidad de medida en el texto?
 - Si SÍ → tipo "activity" con la cantidad convertida a la unidad del factor
-- Si NO (solo se menciona el alimento/actividad sin número) → Ir al PASO 3
+- Si NO → Ir al PASO 3
 
-PASO 3: La categoría existe pero falta el número → pregunta por la cantidad en la unidad del factor.
-- Unidad "km"    → "¿Cuántos km has recorrido?"
-- Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
-- Unidad "kWh"   → "¿Cuántos kWh has consumido?"
-- Unidad "litro" → "¿Cuántos litros?"
-- Unidad "hora"  → "¿Cuántas horas?"
-- Unidad "unidad"→ "¿Cuántas veces / unidades?"
+PASO 3: La categoría existe pero falta el número.
+- Si la unidad es "km" Y el usuario menciona dos ciudades (origen y destino) → tipo "activity" con quantity=null, origin y destination.
+- En cualquier otro caso → tipo "question" con la pregunta adecuada:
+  - Unidad "km"    → "¿Cuántos km has recorrido?"
+  - Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
+  - Unidad "kWh"   → "¿Cuántos kWh has consumido?"
+  - Unidad "litro" → "¿Cuántos litros?"
+  - Unidad "hora"  → "¿Cuántas horas?"
+  - Unidad "unidad"→ "¿Cuántas veces / unidades?"
 
 RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO:
 
-CASO 1 - Actividad completa:
+CASO 1 - Actividad completa (cantidad conocida):
 {{
   "type": "activity",
   "activities": [{{
@@ -110,13 +112,26 @@ CASO 1 - Actividad completa:
   }}]
 }}
 
-CASO 2 - Actividad parcial (falta cantidad):
+CASO 2 - Transporte entre ciudades sin distancia explícita:
+{{
+  "type": "activity",
+  "activities": [{{
+    "category": "<categoría>",
+    "quantity": null,
+    "unit": "km",
+    "description": "<descripción>",
+    "origin": "<ciudad origen>",
+    "destination": "<ciudad destino>"
+  }}]
+}}
+
+CASO 3 - Actividad parcial (falta cantidad, no hay ciudades):
 {{
   "type": "question",
   "clarifying_question": "<pregunta específica sobre la cantidad en la unidad correcta>"
 }}
 
-CASO 3 - No tiene que ver con CO₂:
+CASO 4 - No tiene que ver con CO₂:
 {{
   "type": "none"
 }}"""

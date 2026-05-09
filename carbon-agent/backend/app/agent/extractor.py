@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.agent.distance_service import get_distance_km
 from app.agent.llm_service import LLMService
 from app.models.models import EmissionFactor
 
@@ -90,6 +91,18 @@ class Extractor:
             if category not in factors_by_category:
                 log.warning("Categoría desconocida ignorada: '%s'", category)
                 continue
+
+            # Resolver distancia desde ciudades si no hay cantidad explícita
+            if quantity_raw is None:
+                origin = item.get("origin", "").strip()
+                destination = item.get("destination", "").strip()
+                if origin and destination:
+                    log.info("Calculando distancia %s → %s", origin, destination)
+                    quantity_raw = get_distance_km(origin, destination)
+                    if quantity_raw is None:
+                        log.warning("No se pudo calcular distancia %s → %s", origin, destination)
+                        return [{"clarifying_question": f"No pude calcular la distancia entre {origin} y {destination}. ¿Cuántos km son aproximadamente?"}]
+                    item["description"] = item.get("description", "") + f" ({origin} → {destination}, {quantity_raw:.0f} km)"
 
             # Validar cantidad
             try:
