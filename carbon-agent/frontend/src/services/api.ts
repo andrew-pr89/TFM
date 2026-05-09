@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ActivityResponse, ActivityOut, SummaryOut } from '../types'
+import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut } from '../types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -22,9 +22,9 @@ export const carbonApi = {
     return data
   },
 
-  getSummary: async (userId = 'default', periodDays = 30): Promise<SummaryOut> => {
+  getSummary: async (userId = 'default', periodDays = 30, annualGoalKg = 6000): Promise<SummaryOut> => {
     const { data } = await api.get<SummaryOut>('/summary', {
-      params: { user_id: userId, period_days: periodDays },
+      params: { user_id: userId, period_days: periodDays, annual_goal_kg: annualGoalKg },
     })
     return data
   },
@@ -35,5 +35,12 @@ export const carbonApi = {
 
   deleteActivity: async (activityId: number, userId = 'default'): Promise<void> => {
     await api.delete(`/history/${activityId}`, { params: { user_id: userId } })
+  },
+
+  getImprovements: async (userId = 'default', periodDays = 30, annualGoalKg = 6000): Promise<ImprovementsOut> => {
+    const { data } = await api.get<ImprovementsOut>('/improvements', {
+      params: { user_id: userId, period_days: periodDays, annual_goal_kg: annualGoalKg },
+    })
+    return data
   },
 }

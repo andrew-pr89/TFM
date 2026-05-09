@@ -46,7 +46,7 @@ class LLMService:
 
     # ── Extracción ───────────────────────────────────────────────────────────
 
-    def extract_activities(self, raw_text: str, valid_categories: list[str]) -> list[dict]:
+    def extract_activities(self, raw_text: str, factors_info: list[dict]) -> list[dict]:
         """
         Convierte texto libre en una lista de actividades estructuradas.
 
@@ -56,14 +56,28 @@ class LLMService:
         El LLM solo identifica categoría y cantidad.
         El cálculo de emisiones se hace fuera de este servicio.
         """
-        categories_str = "\n".join(f"  - {c}" for c in valid_categories)
+        categories_str = "\n".join(
+            f"  - {f['category']}  →  {f['display_name']}  [unidad: {f['unit']}]"
+            for f in factors_info
+        )
 
         system = f"""Eres un extractor de actividades con huella de carbono.
 Tu tarea es analizar el texto del usuario e INTENTAR identificar actividades
 que tengan impacto en CO₂.
 
-Categorías válidas (usa EXACTAMENTE estos identificadores):
+Categorías válidas con su unidad de medida (usa EXACTAMENTE estos identificadores):
 {categories_str}
+
+REGLAS CRÍTICAS:
+
+1. CANTIDAD EXPLÍCITA: Solo hay cantidad si el usuario escribe un NÚMERO concreto
+   seguido de una unidad ("200g", "0.3 kg", "5 km", "2 kWh").
+   "Un filete", "una hamburguesa", "algo de carne" NO son cantidades — falta el número.
+
+2. CONVERSIÓN DE UNIDADES: devuelve siempre en la unidad del factor.
+   - "200 gramos" con factor en kg → quantity=0.2
+   - "500 ml" con factor en litro → quantity=0.5
+   - "5 km" con factor en km → quantity=5
 
 LÓGICA:
 
@@ -71,18 +85,17 @@ PASO 1: ¿El texto menciona UNA de estas categorías?
 - Si NO → tipo "none"
 - Si SÍ → Ir al PASO 2
 
-PASO 2: ¿Tiene cantidad explícita (número con unidad)?
-- Si SÍ (ej: "5 km", "200g", "2 vuelos") → tipo "activity" con los datos
-- Si NO → Ir al PASO 3
+PASO 2: ¿Hay un NÚMERO explícito con unidad de medida en el texto?
+- Si SÍ → tipo "activity" con la cantidad convertida a la unidad del factor
+- Si NO (solo se menciona el alimento/actividad sin número) → Ir al PASO 3
 
-PASO 3: ¿La categoría necesita una unidad específica?
-- "coche_gasolina" → necesita KM (pregunta: "¿Cuántos km has conducido?")
-- "moto" → necesita KM (pregunta: "¿Cuántos km en moto?")
-- "avion_domestico" → necesita KM (pregunta: "¿Cuántos km has volado?")
-- "carne_de_vacuno" → necesita PESO (pregunta: "¿Cuántos gramos de carne?")
-- "electricidad_es" → necesita KWH (pregunta: "¿Cuántos kWh consumiste?")
-- etc.
-→ tipo "question" con pregunta específica
+PASO 3: La categoría existe pero falta el número → pregunta por la cantidad en la unidad del factor.
+- Unidad "km"    → "¿Cuántos km has recorrido?"
+- Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
+- Unidad "kWh"   → "¿Cuántos kWh has consumido?"
+- Unidad "litro" → "¿Cuántos litros?"
+- Unidad "hora"  → "¿Cuántas horas?"
+- Unidad "unidad"→ "¿Cuántas veces / unidades?"
 
 RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO:
 
@@ -91,16 +104,16 @@ CASO 1 - Actividad completa:
   "type": "activity",
   "activities": [{{
     "category": "<categoría>",
-    "quantity": <número>,
-    "unit": "<unidad>",
+    "quantity": <número en la unidad del factor>,
+    "unit": "<unidad del factor>",
     "description": "<descripción>"
   }}]
 }}
 
-CASO 2 - Actividad parcial (falta cantidad/unidad):
+CASO 2 - Actividad parcial (falta cantidad):
 {{
   "type": "question",
-  "clarifying_question": "<pregunta específica sobre la unidad>"
+  "clarifying_question": "<pregunta específica sobre la cantidad en la unidad correcta>"
 }}
 
 CASO 3 - No tiene que ver con CO₂:
@@ -136,6 +149,78 @@ CASO 3 - No tiene que ver con CO₂:
         except json.JSONDecodeError:
             log.error("Error parseando JSON del LLM: %s", raw[:300])
             return []
+
+    # ── Mejoras ──────────────────────────────────────────────────────────────
+
+    def generate_improvements(
+        self,
+        total_kg: float,
+        budget_kg: float,
+        by_category: list[dict],
+        by_factor: list[dict],
+        period_days: int,
+    ) -> list[dict]:
+        """
+        Genera sugerencias de mejora estructuradas basadas en el consumo real del usuario.
+
+        Devuelve lista de dicts:
+          [{category, action, tip, potential_saving_pct}]
+        """
+        cats_text = "\n".join(
+            f"  - {c['category']}: {c['kg']:.3f} kg CO₂e ({c['pct']:.1f}% del total)"
+            for c in by_category
+        )
+        factors_text = "\n".join(
+            f"  - {f['name']}: {f['kg']:.3f} kg CO₂e"
+            for f in by_factor
+        )
+
+        system = """Eres un experto en sostenibilidad ambiental.
+Analiza el consumo de CO₂ del usuario y genera sugerencias de mejora concretas y accionables.
+
+REGLA CRÍTICA: Solo puedes sugerir reducir o sustituir productos/actividades que el usuario
+haya consumido realmente (los que aparecen en "Detalle de consumo"). No inventes consumos.
+
+RESPONDE ÚNICAMENTE con un array JSON válido. Sin texto adicional. Sin bloques markdown.
+
+Formato exacto:
+[
+  {
+    "category": "<nombre de la categoría amplia>",
+    "action": "<acción concreta en 1 frase referida a lo que el usuario realmente consumió>",
+    "tip": "<consejo práctico adicional en 1-2 frases>",
+    "potential_saving_pct": <número entero 5-60>
+  }
+]
+
+Reglas:
+- Genera entre 2 y 4 sugerencias, priorizando los factores con mayor impacto.
+- Las acciones deben ser específicas: menciona el producto/actividad real consumido.
+- potential_saving_pct es el % de reducción realista para esa categoría.
+- Responde siempre en español."""
+
+        user = f"""El usuario ha emitido {total_kg:.2f} kg CO₂e en los últimos {period_days} días.
+Presupuesto sostenible para ese período: {budget_kg:.0f} kg.
+{'Está dentro del presupuesto.' if total_kg <= budget_kg else f'Supera el presupuesto en {total_kg - budget_kg:.1f} kg.'}
+
+Resumen por categoría (de mayor a menor impacto):
+{cats_text}
+
+Detalle de consumo (productos y actividades reales del usuario):
+{factors_text}
+
+Genera sugerencias basadas ÚNICAMENTE en lo que el usuario realmente ha consumido."""
+
+        raw = self._chat(system, user, temperature=0.4)
+        raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+        try:
+            result = json.loads(raw)
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+        return []
 
     # ── Recomendación ────────────────────────────────────────────────────────
 

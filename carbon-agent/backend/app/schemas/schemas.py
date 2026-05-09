@@ -71,6 +71,24 @@ class ActivityResponse(BaseModel):
     is_question: bool = False
 
 
+# ── Improvements ─────────────────────────────────────────────────────────────
+
+class ImprovementSuggestion(BaseModel):
+    category: str
+    current_kg: float
+    pct_of_total: float
+    action: str
+    tip: str
+    potential_saving_pct: int
+
+
+class ImprovementsOut(BaseModel):
+    suggestions: list[ImprovementSuggestion]
+    total_kg: float
+    budget_kg: float
+    period_days: int
+
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 class SummaryOut(BaseModel):
@@ -79,3 +97,4 @@ class SummaryOut(BaseModel):
     total_kg_co2e: float
     top_categories: list[dict]          # [{category, total_kg_co2e}]
     period_days: int
+    budget_kg_co2e: float               # presupuesto sostenible IPCC (2 t/año prorrateado)

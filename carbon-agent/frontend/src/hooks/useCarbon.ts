@@ -4,6 +4,7 @@ import { carbonApi } from '../services/api'
 export const QUERY_KEYS = {
   history: (userId: string) => ['history', userId],
   summary: (userId: string) => ['summary', userId],
+  improvements: (userId: string) => ['improvements', userId],
 }
 
 export function useHistory(userId = 'default') {
@@ -14,11 +15,19 @@ export function useHistory(userId = 'default') {
   })
 }
 
-export function useSummary(userId = 'default') {
+export function useSummary(userId = 'default', annualGoalKg = 6000) {
   return useQuery({
-    queryKey: QUERY_KEYS.summary(userId),
-    queryFn: () => carbonApi.getSummary(userId),
+    queryKey: [...QUERY_KEYS.summary(userId), annualGoalKg],
+    queryFn: () => carbonApi.getSummary(userId, 30, annualGoalKg),
     staleTime: 30_000,
+  })
+}
+
+export function useImprovements(userId = 'default', annualGoalKg = 6000) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.improvements(userId), annualGoalKg],
+    queryFn: () => carbonApi.getImprovements(userId, 30, annualGoalKg),
+    staleTime: 60_000,
   })
 }
 

@@ -58,10 +58,14 @@ class Extractor:
             log.error("No hay factores de emisión en la BD — ejecuta init_db primero")
             return []
 
-        # 2. Llamada al LLM
+        # 2. Llamada al LLM — pasamos categoría, nombre legible y unidad
+        factors_info = [
+            {"category": f.category, "display_name": f.display_name, "unit": f.unit}
+            for f in factors_by_category.values()
+        ]
         raw_activities = self.llm.extract_activities(
             raw_text=raw_text,
-            valid_categories=list(factors_by_category.keys()),
+            factors_info=factors_info,
         )
 
         if not raw_activities:
@@ -99,10 +103,16 @@ class Extractor:
 
             factor = factors_by_category[category]
 
+            # Conversión de unidades: si el LLM devuelve gramos pero el factor es en kg
+            unit_given = item.get("unit", factor.unit).lower().strip()
+            if factor.unit == "kg" and unit_given in ("g", "gr", "gramos", "gram", "grams"):
+                quantity = quantity / 1000
+                log.info("Conversión g→kg: %.1f g = %.4f kg para %s", quantity * 1000, quantity, category)
+
             result.append(ExtractedActivity(
                 category=category,
                 quantity=quantity,
-                unit=item.get("unit", factor.unit),
+                unit=factor.unit,
                 description=description,
                 factor=factor,
             ))

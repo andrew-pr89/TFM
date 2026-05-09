@@ -39,6 +39,23 @@ export interface SummaryOut {
   total_kg_co2e: number
   top_categories: { category: string; total_kg_co2e: number }[]
   period_days: number
+  budget_kg_co2e: number
+}
+
+export interface ImprovementSuggestion {
+  category: string
+  current_kg: number
+  pct_of_total: number
+  action: string
+  tip: string
+  potential_saving_pct: number
+}
+
+export interface ImprovementsOut {
+  suggestions: ImprovementSuggestion[]
+  total_kg: number
+  budget_kg: number
+  period_days: number
 }
 
 // Estado del chat
