@@ -12,7 +12,6 @@ Regla de arquitectura:
 
 import json
 import logging
-from typing import Any
 
 from openai import OpenAI
 
@@ -70,27 +69,47 @@ Categorías válidas con su unidad de medida (usa EXACTAMENTE estos identificado
 
 REGLAS CRÍTICAS:
 
-1. CANTIDAD EXPLÍCITA: Solo hay cantidad si el usuario escribe un NÚMERO concreto
-   seguido de una unidad ("200g", "0.3 kg", "5 km", "2 kWh").
-   "Un filete", "una hamburguesa", "algo de carne" NO son cantidades — falta el número.
+1. CANTIDAD EXPLÍCITA: Solo hay cantidad si el usuario escribe un NÚMERO (o "un/una")
+   seguido de una unidad reconocida ("200g", "0.3 kg", "5 km", "2 kWh", "un vaso", "2 vasos").
+   Unidades de referencia aceptadas:
+   - "vaso" / "vasos" → 1 vaso = 0.25 litros (convierte directamente)
+   "Un filete", "una hamburguesa", "algo de carne" NO son cantidades — falta la unidad.
 
 2. CONVERSIÓN DE UNIDADES: devuelve siempre en la unidad del factor.
    - "200 gramos" con factor en kg → quantity=0.2
    - "500 ml" con factor en litro → quantity=0.5
    - "5 km" con factor en km → quantity=5
+   - "1 vaso", "un vaso" con factor en litro → quantity=0.25  (1 vaso = 250 ml)
+   - "2 vasos" con factor en litro → quantity=0.5
 
 LÓGICA:
 
-PASO 1: ¿El texto menciona UNA de estas categorías?
-- Si NO → tipo "none"
+PASO 1: ¿La actividad del usuario se puede asociar SEMÁNTICAMENTE a alguna categoría?
+- Usa coincidencias semánticas, NO solo literales. Ejemplos orientativos:
+  - "yogurt", "nata", "mantequilla", "batido lácteo" → lacteos_leche
+  - "pasta", "espagueti", "macarrones", "fideos", "pan", "tostadas" → cereales
+  - "lentejas", "garbanzos", "judías", "alubias", "guisantes" → legumbres
+  - "plátano", "manzana", "naranja", "fresas", "uvas", "fruta" → fruta
+  - "patatas fritas", "puré de patata" → patata
+  - "hamburguesa casera", "pizza" → comida_rapida
+  - "café solo", "café con leche" → cafe (y lacteos_leche si lleva leche)
+  - "zumo de naranja" → zumo
+  - "agua mineral" → agua_embotellada
+  - "cerveza", "caña" → alcohol_cerveza
+  - "vino", "copa de vino" → alcohol_vino
+  - "refresco", "coca-cola", "fanta" → refresco_lata
+- Si NO hay ninguna categoría razonablemente relacionada → tipo "none"
 - Si SÍ → Ir al PASO 2
 
-PASO 2: ¿Hay un NÚMERO explícito con unidad de medida en el texto?
+PASO 2: ¿Hay un NÚMERO (o "un/una") con una unidad reconocida en el texto?
+- Unidades reconocidas: números con g/kg/km/kWh/litros/ml/horas/unidades/vaso/vasos
+- "un vaso de leche" → SÍ (1 vaso = 0.25 L → quantity=0.25, unit="litro")
 - Si SÍ → tipo "activity" con la cantidad convertida a la unidad del factor
 - Si NO → Ir al PASO 3
 
 PASO 3: La categoría existe pero falta el número.
-- Si la unidad es "km" Y el usuario menciona dos ciudades (origen y destino) → tipo "activity" con quantity=null, origin y destination.
+- Si la unidad es "km" Y el usuario menciona dos CIUDADES o MUNICIPIOS reales (ej: "Madrid", "Barcelona", "Valencia") → tipo "activity" con quantity=null, origin y destination.
+  - IMPORTANTE: "casa", "trabajo", "oficina", "gimnasio", "colegio", "supermercado" NO son ciudades. Si el destino es uno de estos, ir al caso "question".
 - En cualquier otro caso → tipo "question" con la pregunta adecuada:
   - Unidad "km"    → "¿Cuántos km has recorrido?"
   - Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"

@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.agent.orchestrator import carbon_agent
 from app.db.database import get_db
 from app.models.models import Activity
-from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityResponse, ImprovementSuggestion, ImprovementsOut, SummaryOut
+from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, ImprovementSuggestion, ImprovementsOut, SummaryOut
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["activities"])
@@ -73,6 +73,22 @@ def delete_activity(activity_id: int, user_id: str = "default", db: Session = De
     db.delete(activity)
     db.commit()
     log.info("Actividad %d eliminada para user=%s", activity_id, user_id)
+
+
+@router.patch("/history/{activity_id}", response_model=ActivityOut)
+def patch_activity(activity_id: int, payload: ActivityPatch, user_id: str = "default", db: Session = Depends(get_db)):
+    """Edita el texto y/o fecha de una actividad y recalcula sus emisiones."""
+    result = carbon_agent.reprocess_activity(
+        activity_id=activity_id,
+        new_raw_text=payload.raw_text,
+        new_created_at=payload.created_at,
+        user_id=user_id,
+        db=db,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Actividad no encontrada")
+    log.info("Actividad %d actualizada para user=%s", activity_id, user_id)
+    return result
 
 
 @router.get("/summary", response_model=SummaryOut)

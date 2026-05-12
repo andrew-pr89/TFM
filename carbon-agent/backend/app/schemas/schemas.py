@@ -20,7 +20,12 @@ class EmissionFactorOut(BaseModel):
     display_name: str
     unit: str
     factor_kg_co2e: float
-    source: str | None
+    source_name: str | None
+    source_year: int | None
+    source_type: str | None
+    source_detail: str | None
+    source_url: str | None
+    notes: str | None
 
     model_config = {"from_attributes": True}
 
@@ -69,6 +74,13 @@ class ActivityResponse(BaseModel):
     total_kg_co2e: float
     recommendation: str
     is_question: bool = False
+
+
+# ── Activity patch ───────────────────────────────────────────────────────────
+
+class ActivityPatch(BaseModel):
+    raw_text: str = Field(..., min_length=1, max_length=1000)
+    created_at: datetime | None = None
 
 
 # ── Improvements ─────────────────────────────────────────────────────────────

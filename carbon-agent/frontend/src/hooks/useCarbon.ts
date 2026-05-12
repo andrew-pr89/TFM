@@ -63,3 +63,15 @@ export function useDeleteActivity(userId = 'default') {
     },
   })
 }
+
+export function useEditActivity(userId = 'default') {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, rawText, createdAt }: { id: number; rawText: string; createdAt: string | null }) =>
+      carbonApi.patchActivity(id, rawText, createdAt, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.history(userId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.summary(userId) })
+    },
+  })
+}

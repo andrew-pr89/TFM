@@ -37,6 +37,14 @@ export const carbonApi = {
     await api.delete(`/history/${activityId}`, { params: { user_id: userId } })
   },
 
+  patchActivity: async (activityId: number, rawText: string, createdAt: string | null, userId = 'default'): Promise<ActivityOut> => {
+    const { data } = await api.patch<ActivityOut>(`/history/${activityId}`, {
+      raw_text: rawText,
+      created_at: createdAt,
+    }, { params: { user_id: userId } })
+    return data
+  },
+
   getImprovements: async (userId = 'default', periodDays = 30, annualGoalKg = 6000): Promise<ImprovementsOut> => {
     const { data } = await api.get<ImprovementsOut>('/improvements', {
       params: { user_id: userId, period_days: periodDays, annual_goal_kg: annualGoalKg },

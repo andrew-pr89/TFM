@@ -93,10 +93,18 @@ class Extractor:
                 continue
 
             # Resolver distancia desde ciudades si no hay cantidad explícita
+            _GENERIC_PLACES = {
+                "casa", "trabajo", "oficina", "gimnasio", "colegio", "escuela",
+                "instituto", "hospital", "mercado", "supermercado", "tienda",
+                "universidad", "facultad", "bar", "restaurante", "playa", "campo",
+            }
             if quantity_raw is None:
                 origin = item.get("origin", "").strip()
                 destination = item.get("destination", "").strip()
                 if origin and destination:
+                    if origin.lower() in _GENERIC_PLACES or destination.lower() in _GENERIC_PLACES:
+                        log.info("Origen/destino genérico detectado ('%s'/'%s') — pidiendo km", origin, destination)
+                        return [{"clarifying_question": "¿Cuántos km has recorrido aproximadamente?"}]
                     log.info("Calculando distancia %s → %s", origin, destination)
                     quantity_raw = get_distance_km(origin, destination)
                     if quantity_raw is None:
@@ -121,6 +129,9 @@ class Extractor:
             if factor.unit == "kg" and unit_given in ("g", "gr", "gramos", "gram", "grams"):
                 quantity = quantity / 1000
                 log.info("Conversión g→kg: %.1f g = %.4f kg para %s", quantity * 1000, quantity, category)
+            elif factor.unit == "litro" and unit_given in ("vaso", "vasos"):
+                quantity = quantity * 0.25
+                log.info("Conversión vaso→litro: %.0f vaso(s) = %.3f L para %s", quantity / 0.25, quantity, category)
 
             result.append(ExtractedActivity(
                 category=category,

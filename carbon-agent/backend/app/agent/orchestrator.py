@@ -113,4 +113,36 @@ class CarbonAgent:
         )
 
 
+    def reprocess_activity(
+        self,
+        activity_id: int,
+        new_raw_text: str,
+        new_created_at,
+        user_id: str,
+        db: Session,
+    ) -> "ActivityOut | None":
+        activity = (
+            db.query(Activity)
+            .filter(Activity.id == activity_id, Activity.user_id == user_id)
+            .first()
+        )
+        if not activity:
+            return None
+
+        activity.raw_text = new_raw_text
+        if new_created_at:
+            activity.created_at = new_created_at
+
+        activity.emissions.clear()
+        db.flush()
+
+        extracted = self.extractor.extract(new_raw_text, db)
+        if extracted and not (isinstance(extracted[0], dict) and "clarifying_question" in extracted[0]):
+            self.calculator.calculate(activity=activity, extracted_activities=extracted, db=db)
+
+        db.commit()
+        db.refresh(activity)
+        return ActivityOut.model_validate(activity)
+
+
 carbon_agent = CarbonAgent()

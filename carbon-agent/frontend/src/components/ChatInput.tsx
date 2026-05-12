@@ -23,7 +23,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
     }
   }, [isLoading])
 
-  const handleSubmit = () => {
+const handleSubmit = () => {
     const trimmed = text.trim()
     if (!trimmed || isLoading) return
     onSend(trimmed)

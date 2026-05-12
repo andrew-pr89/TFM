@@ -18,9 +18,10 @@ const CATEGORY_ICONS: Record<string, string> = {
 const IMPACT_COLOR = (pct: number) =>
   pct >= 40 ? '#ef4444' : pct >= 20 ? '#fb923c' : '#facc15'
 
-function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
-  const icon = CATEGORY_ICONS[s.category] ?? '🌿'
-  const saving = Math.round(s.current_kg * s.potential_saving_pct / 100)
+function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }) {
+  const first = suggestions[0]
+  const icon = CATEGORY_ICONS[first.category] ?? '🌿'
+  const color = IMPACT_COLOR(first.pct_of_total)
 
   return (
     <div className="suggestion-card">
@@ -28,29 +29,35 @@ function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
         <div className="suggestion-card__title-group">
           <span className="suggestion-card__icon">{icon}</span>
           <div>
-            <span className="suggestion-card__category">{s.category}</span>
-            <span className="suggestion-card__stats" style={{ color: IMPACT_COLOR(s.pct_of_total) }}>
-              {s.current_kg.toFixed(2)} kg · {s.pct_of_total.toFixed(0)}% del total
+            <span className="suggestion-card__category">{first.category}</span>
+            <span className="suggestion-card__stats" style={{ color }}>
+              {first.current_kg.toFixed(2)} kg · {first.pct_of_total.toFixed(0)}% del total
             </span>
           </div>
-        </div>
-        <div className="suggestion-card__badge">
-          −{s.potential_saving_pct}% · ahorra ~{saving} kg
         </div>
       </div>
 
       <div className="suggestion-card__bar">
         <div
           className="suggestion-card__bar-fill"
-          style={{
-            width: `${Math.min(s.pct_of_total, 100)}%`,
-            background: IMPACT_COLOR(s.pct_of_total),
-          }}
+          style={{ width: `${Math.min(first.pct_of_total, 100)}%`, background: color }}
         />
       </div>
 
-      <p className="suggestion-card__action">{s.action}</p>
-      <p className="suggestion-card__tip">{s.tip}</p>
+      {suggestions.map((s, i) => {
+        const saving = Math.round(s.current_kg * s.potential_saving_pct / 100)
+        return (
+          <div key={i} className="suggestion-card__item">
+            <div className="suggestion-card__item-header">
+              <p className="suggestion-card__action">{s.action}</p>
+              <span className="suggestion-card__badge">
+                −{s.potential_saving_pct}% · ahorra ~{saving} kg
+              </span>
+            </div>
+            <p className="suggestion-card__tip">{s.tip}</p>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -80,6 +87,12 @@ export function ImprovementsPanel({ userId = 'default', annualGoalKg = 6000 }: P
   const overBudget = data.total_kg > data.budget_kg
   const gap = Math.abs(data.total_kg - data.budget_kg).toFixed(1)
 
+  const grouped = data.suggestions.reduce((map, s) => {
+    if (!map.has(s.category)) map.set(s.category, [])
+    map.get(s.category)!.push(s)
+    return map
+  }, new Map<string, ImprovementSuggestion[]>())
+
   return (
     <div className="summary-panel">
       <div
@@ -95,8 +108,8 @@ export function ImprovementsPanel({ userId = 'default', annualGoalKg = 6000 }: P
         }
       </div>
 
-      {data.suggestions.map((s, i) => (
-        <SuggestionCard key={i} s={s} />
+      {Array.from(grouped.entries()).map(([category, suggestions]) => (
+        <CategoryGroup key={category} suggestions={suggestions} />
       ))}
 
       <button className="suggestions-regen-btn" onClick={() => refetch()}>
