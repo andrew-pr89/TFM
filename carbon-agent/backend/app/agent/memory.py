@@ -43,6 +43,20 @@ class MemoryService:
         db.flush()
         log.info("Memoria actualizada para user=%s: %s", user_id, list(updates.keys()))
 
+    def get_home_city(self, user_id: str, db: Session) -> str | None:
+        """Devuelve la ciudad de origen habitual del usuario, o None si no está guardada."""
+        record = (
+            db.query(UserMemory)
+            .filter(UserMemory.user_id == user_id, UserMemory.key == "home_city")
+            .first()
+        )
+        return record.value if record else None
+
+    def set_home_city(self, user_id: str, city: str, db: Session) -> None:
+        """Guarda la ciudad de origen habitual del usuario."""
+        self.update_memory(user_id=user_id, updates={"home_city": city}, db=db)
+        log.info("Ciudad de origen guardada para user=%s: %s", user_id, city)
+
     def infer_habits(self, user_id: str, category: str, db: Session) -> None:
         """
         Infiere y guarda hábitos a partir de las actividades registradas.

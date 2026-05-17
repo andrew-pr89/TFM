@@ -40,22 +40,52 @@ class CarbonAgent:
 
     def process_activity(self, raw_text: str, user_id: str, db: Session) -> ActivityResponse:
 
-        # ── 1. Extracción (LLM) — ANTES de persistir ────────────────────────
-        extracted = self.extractor.extract(raw_text=raw_text, db=db)
+        # ── 1. Cargar contexto de memoria antes de extraer ───────────────────
+        home_city = self.memory.get_home_city(user_id=user_id, db=db)
 
-        # ── Caso: pregunta aclaratoria ───────────────────────────────────────
-        # El extractor devuelve dicts cuando hay clarifying_question,
-        # y ExtractedActivity cuando hay actividades válidas.
-        if extracted and isinstance(extracted[0], dict) and "clarifying_question" in extracted[0]:
-            question = extracted[0]["clarifying_question"]
-            log.info("Pregunta aclaratoria para user=%s: %s", user_id, question)
+        # ── 2. Extracción (LLM) — ANTES de persistir ────────────────────────
+        extracted = self.extractor.extract(raw_text=raw_text, db=db, home_city=home_city)
+
+        # ── Separar marcadores especiales de actividades reales ──────────────
+        new_home_city: str | None = None
+        pending_question: str | None = None
+
+        # Los marcadores siempre van al final de la lista
+        filtered = []
+        for item in extracted:
+            if isinstance(item, dict) and "set_home_city" in item:
+                new_home_city = item["set_home_city"]
+            elif isinstance(item, dict) and "clarifying_question" in item:
+                pending_question = item["clarifying_question"]
+            else:
+                filtered.append(item)
+        extracted = filtered
+
+        # Guardar home_city si el LLM la detectó
+        if new_home_city:
+            self.memory.set_home_city(user_id=user_id, city=new_home_city, db=db)
+            db.commit()
+            log.info("home_city guardada para user=%s: %s", user_id, new_home_city)
+
+        # ── Caso: solo pregunta, sin actividades ─────────────────────────────
+        if pending_question and not extracted:
+            log.info("Pregunta aclaratoria para user=%s: %s", user_id, pending_question)
             response = _empty(user_id, raw_text)
-            response.recommendation = question
+            response.recommendation = pending_question
             response.is_question = True
             return response
 
+        # ── Caso: solo se declaró ciudad de origen, sin actividades CO₂ ───────
+        if not extracted and not pending_question and new_home_city:
+            response = _empty(user_id, raw_text)
+            response.recommendation = (
+                f"¡Perfecto! He guardado {new_home_city} como tu ciudad de origen. "
+                "La usaré automáticamente para calcular distancias cuando viajes."
+            )
+            return response
+
         # ── Caso: nada identificado ──────────────────────────────────────────
-        if not extracted:
+        if not extracted and not pending_question:
             log.info("Nada que guardar — el LLM no identificó actividades CO₂.")
             response = _empty(user_id, raw_text)
             response.recommendation = (
@@ -104,6 +134,10 @@ class CarbonAgent:
             log.error("Error generando recomendación: %s", exc)
             recommendation = f"Has generado {total:.3f} kg CO₂e. ¡Intenta reducir tu huella mañana!"
 
+        # Si había actividades incompletas, añadir la pregunta a la recomendación
+        if pending_question:
+            recommendation = f"{recommendation}\n\nAdemás, necesito más información: {pending_question}"
+
         log.info("Actividad procesada: user=%s total=%.3f kg CO₂e", user_id, total)
 
         return ActivityResponse(
@@ -136,8 +170,14 @@ class CarbonAgent:
         activity.emissions.clear()
         db.flush()
 
-        extracted = self.extractor.extract(new_raw_text, db)
-        if extracted and not (isinstance(extracted[0], dict) and "clarifying_question" in extracted[0]):
+        home_city = self.memory.get_home_city(user_id=user_id, db=db)
+        extracted = self.extractor.extract(new_raw_text, db, home_city=home_city)
+        # Filtrar marcadores especiales antes de calcular
+        extracted = [
+            e for e in extracted
+            if not (isinstance(e, dict) and ("clarifying_question" in e or "set_home_city" in e))
+        ]
+        if extracted:
             self.calculator.calculate(activity=activity, extracted_activities=extracted, db=db)
 
         db.commit()

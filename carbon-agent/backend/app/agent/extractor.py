@@ -38,7 +38,7 @@ class Extractor:
     def __init__(self, llm: LLMService) -> None:
         self.llm = llm
 
-    def extract(self, raw_text: str, db: Session) -> list[ExtractedActivity]:
+    def extract(self, raw_text: str, db: Session, home_city: str | None = None) -> list[ExtractedActivity]:
         """
         Extrae actividades del texto y las cruza con los factores de la BD.
 
@@ -73,16 +73,23 @@ class Extractor:
             log.info("El LLM no identificó actividades con impacto CO₂ en: '%s'", raw_text[:80])
             return []
 
-        # Verificar si hay una pregunta aclaratoria
-        if len(raw_activities) == 1 and "clarifying_question" in raw_activities[0]:
-            # Retornar la pregunta como un marcador especial
-            log.info("Pregunta aclaratoria del LLM: %s", raw_activities[0]["clarifying_question"])
-            return raw_activities  # Retorna [{"clarifying_question": "..."}]
-
-        # 3 & 4. Validación y resolución
+        # 3 & 4. Validación y resolución — procesar TODAS las actividades
         result: list[ExtractedActivity] = []
+        pending_questions: list[str] = []
+
+        _GENERIC_PLACES = {
+            "casa", "trabajo", "oficina", "gimnasio", "colegio", "escuela",
+            "instituto", "hospital", "mercado", "supermercado", "tienda",
+            "universidad", "facultad", "bar", "restaurante", "playa", "campo",
+            "hotel", "aeropuerto",
+        }
 
         for item in raw_activities:
+            # Pasar marcadores especiales sin procesarlos como actividades
+            if "set_home_city" in item or ("clarifying_question" in item and not item.get("category")):
+                result.append(item)  # type: ignore[arg-type]
+                continue
+
             category = item.get("category", "").strip()
             quantity_raw = item.get("quantity")
             description = item.get("description", category)
@@ -92,25 +99,62 @@ class Extractor:
                 log.warning("Categoría desconocida ignorada: '%s'", category)
                 continue
 
-            # Resolver distancia desde ciudades si no hay cantidad explícita
-            _GENERIC_PLACES = {
-                "casa", "trabajo", "oficina", "gimnasio", "colegio", "escuela",
-                "instituto", "hospital", "mercado", "supermercado", "tienda",
-                "universidad", "facultad", "bar", "restaurante", "playa", "campo",
-            }
             if quantity_raw is None:
-                origin = item.get("origin", "").strip()
-                destination = item.get("destination", "").strip()
+                # Intentar calcular distancia desde ciudades
+                origin = (item.get("origin") or "").strip()
+                destination = (item.get("destination") or "").strip()
+
+                # Si hay origen explícito entre dos ciudades reales
                 if origin and destination:
                     if origin.lower() in _GENERIC_PLACES or destination.lower() in _GENERIC_PLACES:
-                        log.info("Origen/destino genérico detectado ('%s'/'%s') — pidiendo km", origin, destination)
-                        return [{"clarifying_question": "¿Cuántos km has recorrido aproximadamente?"}]
+                        log.info("Origen/destino genérico ('%s'/'%s') — añadiendo pregunta", origin, destination)
+                        pending_questions.append(
+                            item.get("clarifying_question") or "¿Cuántos km has recorrido aproximadamente?"
+                        )
+                        continue
                     log.info("Calculando distancia %s → %s", origin, destination)
                     quantity_raw = get_distance_km(origin, destination)
                     if quantity_raw is None:
                         log.warning("No se pudo calcular distancia %s → %s", origin, destination)
-                        return [{"clarifying_question": f"No pude calcular la distancia entre {origin} y {destination}. ¿Cuántos km son aproximadamente?"}]
-                    item["description"] = item.get("description", "") + f" ({origin} → {destination}, {quantity_raw:.0f} km)"
+                        pending_questions.append(
+                            f"No pude calcular la distancia entre {origin} y {destination}. ¿Cuántos km son aproximadamente?"
+                        )
+                        continue
+                    item["description"] = description + f" ({origin} → {destination}, {quantity_raw:.0f} km)"
+                    description = item["description"]
+
+                # Solo hay destino (origin=null) — usar home_city si está disponible
+                elif destination and not origin:
+                    if destination.lower() in _GENERIC_PLACES:
+                        pending_questions.append(
+                            item.get("clarifying_question") or "¿Cuántos km has recorrido aproximadamente?"
+                        )
+                        continue
+                    if home_city:
+                        log.info("Usando home_city '%s' como origen para → %s", home_city, destination)
+                        quantity_raw = get_distance_km(home_city, destination)
+                        if quantity_raw is None:
+                            log.warning("No se pudo calcular distancia %s → %s", home_city, destination)
+                            pending_questions.append(
+                                f"No pude calcular la distancia entre {home_city} y {destination}. ¿Cuántos km son aproximadamente?"
+                            )
+                            continue
+                        item["description"] = description + f" ({home_city} → {destination}, {quantity_raw:.0f} km)"
+                        description = item["description"]
+                    else:
+                        # Sin home_city conocida — preguntar la ciudad de origen
+                        pending_questions.append(
+                            item.get("clarifying_question")
+                            or "¿Desde qué ciudad saliste? La recordaré para la próxima vez."
+                        )
+                        continue
+
+                elif item.get("clarifying_question"):
+                    pending_questions.append(item["clarifying_question"])
+                    continue
+                else:
+                    log.warning("Actividad sin cantidad ni ciudades ignorada: %s", category)
+                    continue
 
             # Validar cantidad
             try:
@@ -124,7 +168,7 @@ class Extractor:
 
             factor = factors_by_category[category]
 
-            # Conversión de unidades: si el LLM devuelve gramos pero el factor es en kg
+            # Conversión de unidades
             unit_given = item.get("unit", factor.unit).lower().strip()
             if factor.unit == "kg" and unit_given in ("g", "gr", "gramos", "gram", "grams"):
                 quantity = quantity / 1000
@@ -141,5 +185,25 @@ class Extractor:
                 factor=factor,
             ))
 
-        log.info("Extractor: %d actividades válidas extraídas de '%s'", len(result), raw_text[:60])
-        return result
+        # Separar marcadores especiales de actividades reales
+        real_activities = [r for r in result if isinstance(r, ExtractedActivity)]
+        set_home_markers = [r for r in result if isinstance(r, dict) and "set_home_city" in r]
+
+        log.info(
+            "Extractor: %d actividades válidas, %d preguntas pendientes — '%s'",
+            len(real_activities), len(pending_questions), raw_text[:60],
+        )
+
+        # Construir resultado final: actividades reales + marcadores + preguntas al final
+        final: list = list(real_activities)
+
+        if set_home_markers:
+            final.extend(set_home_markers)
+
+        if pending_questions and not real_activities:
+            return [{"clarifying_question": " ".join(pending_questions)}] + set_home_markers
+
+        if pending_questions:
+            final.append({"clarifying_question": " ".join(pending_questions)})
+
+        return final

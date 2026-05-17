@@ -61,8 +61,8 @@ class LLMService:
         )
 
         system = f"""Eres un extractor de actividades con huella de carbono.
-Tu tarea es analizar el texto del usuario e INTENTAR identificar actividades
-que tengan impacto en CO₂.
+Tu tarea es analizar el texto del usuario e identificar TODAS las actividades
+que tengan impacto en CO₂. Puede haber una o varias en el mismo mensaje.
 
 Categorías válidas con su unidad de medida (usa EXACTAMENTE estos identificadores):
 {categories_str}
@@ -82,9 +82,12 @@ REGLAS CRÍTICAS:
    - "1 vaso", "un vaso" con factor en litro → quantity=0.25  (1 vaso = 250 ml)
    - "2 vasos" con factor en litro → quantity=0.5
 
-LÓGICA:
+3. MÚLTIPLES ACTIVIDADES: El usuario puede mencionar varias acciones en un mismo mensaje.
+   Identifica TODAS y devuélvelas en el array "activities", cada una con su propio estado.
 
-PASO 1: ¿La actividad del usuario se puede asociar SEMÁNTICAMENTE a alguna categoría?
+POR CADA ACTIVIDAD IDENTIFICADA sigue esta lógica:
+
+PASO 1: ¿Se puede asociar SEMÁNTICAMENTE a alguna categoría?
 - Usa coincidencias semánticas, NO solo literales. Ejemplos orientativos:
   - "yogurt", "nata", "mantequilla", "batido lácteo" → lacteos_leche
   - "pasta", "espagueti", "macarrones", "fideos", "pan", "tostadas" → cereales
@@ -98,59 +101,59 @@ PASO 1: ¿La actividad del usuario se puede asociar SEMÁNTICAMENTE a alguna cat
   - "cerveza", "caña" → alcohol_cerveza
   - "vino", "copa de vino" → alcohol_vino
   - "refresco", "coca-cola", "fanta" → refresco_lata
-- Si NO hay ninguna categoría razonablemente relacionada → tipo "none"
+- Si NO hay ninguna categoría relacionada → omite esta actividad (no la incluyas)
 - Si SÍ → Ir al PASO 2
 
-PASO 2: ¿Hay un NÚMERO (o "un/una") con una unidad reconocida en el texto?
+PASO 2: ¿Hay un NÚMERO (o "un/una") con una unidad reconocida?
 - Unidades reconocidas: números con g/kg/km/kWh/litros/ml/horas/unidades/vaso/vasos
-- "un vaso de leche" → SÍ (1 vaso = 0.25 L → quantity=0.25, unit="litro")
-- Si SÍ → tipo "activity" con la cantidad convertida a la unidad del factor
+- Si SÍ → actividad completa con quantity y unit convertidos a la unidad del factor
 - Si NO → Ir al PASO 3
 
-PASO 3: La categoría existe pero falta el número.
-- Si la unidad es "km" Y el usuario menciona dos CIUDADES o MUNICIPIOS reales (ej: "Madrid", "Barcelona", "Valencia") → tipo "activity" con quantity=null, origin y destination.
-  - IMPORTANTE: "casa", "trabajo", "oficina", "gimnasio", "colegio", "supermercado" NO son ciudades. Si el destino es uno de estos, ir al caso "question".
-- En cualquier otro caso → tipo "question" con la pregunta adecuada:
-  - Unidad "km"    → "¿Cuántos km has recorrido?"
+PASO 3: Categoría identificada pero falta cantidad.
+- SUBCASO A: Unidad "km" Y el usuario menciona DOS ciudades/municipios reales (ej: "Madrid", "Barcelona"):
+  → actividad con quantity=null, origin="<ciudad>", destination="<ciudad>"
+  → IMPORTANTE: "casa", "trabajo", "oficina", "hotel", "gimnasio", "colegio", "supermercado" NO son ciudades.
+- SUBCASO B: Unidad "km" Y el usuario menciona solo UNA ciudad real (solo destino, sin origen):
+  → actividad con quantity=null, origin=null, destination="<ciudad>", clarifying_question="¿Desde qué ciudad saliste? La recordaré para la próxima vez."
+- SUBCASO C: Unidad "km" Y ninguna ciudad real (destino genérico como "hotel", "trabajo"):
+  → actividad con quantity=null y clarifying_question="¿Cuántos km has recorrido en [medio de transporte]?"
+- Otros casos (kg, kWh, litro, etc.) → actividad con quantity=null y clarifying_question:
   - Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
   - Unidad "kWh"   → "¿Cuántos kWh has consumido?"
-  - Unidad "litro" → "¿Cuántos litros?"
+  - Unidad "litro" → "¿Cuántos litros de [producto]?"
   - Unidad "hora"  → "¿Cuántas horas?"
   - Unidad "unidad"→ "¿Cuántas veces / unidades?"
 
+DETECCIÓN DE CIUDAD DE ORIGEN: Si el usuario declara su ciudad de origen habitual
+(ej: "vivo en Madrid", "mi ciudad es Sevilla", "salgo siempre desde Valencia", "soy de Bilbao"),
+incluye el campo "home_city" en el objeto raíz de la respuesta.
+
 RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO:
 
-CASO 1 - Actividad completa (cantidad conocida):
+CASO NORMAL - Una o más actividades identificadas:
 {{
   "type": "activity",
-  "activities": [{{
-    "category": "<categoría>",
-    "quantity": <número en la unidad del factor>,
-    "unit": "<unidad del factor>",
-    "description": "<descripción>"
-  }}]
+  "home_city": "<ciudad si el usuario la declara como habitual, si no omitir>",
+  "activities": [
+    {{
+      "category": "<categoría>",
+      "quantity": <número en unidad del factor, o null si falta>,
+      "unit": "<unidad del factor>",
+      "description": "<descripción breve>",
+      "origin": "<ciudad origen si hay dos ciudades, null si solo hay destino, omitir si no aplica>",
+      "destination": "<ciudad destino si aplica, si no omitir>",
+      "clarifying_question": "<pregunta si quantity es null y no se pueden calcular km, si no omitir>"
+    }}
+  ]
 }}
 
-CASO 2 - Transporte entre ciudades sin distancia explícita:
+CASO Sin CO₂ pero declara ciudad de origen:
 {{
-  "type": "activity",
-  "activities": [{{
-    "category": "<categoría>",
-    "quantity": null,
-    "unit": "km",
-    "description": "<descripción>",
-    "origin": "<ciudad origen>",
-    "destination": "<ciudad destino>"
-  }}]
+  "type": "none",
+  "home_city": "<ciudad declarada>"
 }}
 
-CASO 3 - Actividad parcial (falta cantidad, no hay ciudades):
-{{
-  "type": "question",
-  "clarifying_question": "<pregunta específica sobre la cantidad en la unidad correcta>"
-}}
-
-CASO 4 - No tiene que ver con CO₂:
+CASO Sin CO₂ y sin ciudad:
 {{
   "type": "none"
 }}"""
@@ -164,20 +167,28 @@ CASO 4 - No tiene que ver con CO₂:
 
         try:
             result = json.loads(raw)
-            
-            # Si la respuesta es una pregunta aclaratoria, devolverla para que el orquestador la maneje
+
             if isinstance(result, dict):
-                if result.get("type") == "question":
-                    return [{"clarifying_question": result.get("clarifying_question", "¿Cuánta cantidad?")}]
-                elif result.get("type") == "activity":
-                    return result.get("activities", [])
+                activities: list[dict] = []
+
+                if result.get("type") == "activity":
+                    activities = result.get("activities", [])
                 elif result.get("type") == "none":
+                    activities = []
+                else:
+                    log.warning("Formato inesperado del LLM: %s", raw[:200])
                     return []
-            
+
+                # Propagar home_city como marcador al final si fue declarada
+                if result.get("home_city"):
+                    activities = list(activities) + [{"set_home_city": result["home_city"]}]
+
+                return activities
+
             # Fallback si devuelve un array
             if isinstance(result, list):
                 return result
-                
+
             log.warning("Formato inesperado del LLM: %s", raw[:200])
             return []
         except json.JSONDecodeError:
