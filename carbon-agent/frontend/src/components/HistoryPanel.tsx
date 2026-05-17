@@ -147,7 +147,10 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                   </div>
                   <div className="history-item__meta">
                     {activity.emissions.length === 1 && (
-                      <span style={{ color: 'var(--text-muted)' }}>{activity.emissions[0].factor.display_name}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {activity.emissions[0].description || activity.emissions[0].factor.display_name}
+                        {' — '}{activity.emissions[0].quantity} {activity.emissions[0].factor.unit}
+                      </span>
                     )}
                     {activity.emissions.length > 1 && (
                       <span style={{ color: 'var(--text-muted)' }}>{activity.main_category}</span>
@@ -158,7 +161,7 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                     <ul className="history-item__emissions">
                       {activity.emissions.map((e) => (
                         <li key={e.id}>
-                          <span>{e.factor.display_name}</span>
+                          <span>{e.description || e.factor.display_name} — {e.quantity} {e.factor.unit}</span>
                           <span style={{ color: co2Color(e.amount_kg_co2e) }}>{e.amount_kg_co2e.toFixed(3)} kg</span>
                         </li>
                       ))}

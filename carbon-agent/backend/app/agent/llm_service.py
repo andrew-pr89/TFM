@@ -45,7 +45,12 @@ class LLMService:
 
     # ── Extracción ───────────────────────────────────────────────────────────
 
-    def extract_activities(self, raw_text: str, factors_info: list[dict]) -> list[dict]:
+    def extract_activities(
+        self,
+        raw_text: str,
+        factors_info: list[dict],
+        pending_activity: dict | None = None,
+    ) -> list[dict]:
         """
         Convierte texto libre en una lista de actividades estructuradas.
 
@@ -104,6 +109,12 @@ PASO 1: ¿Se puede asociar SEMÁNTICAMENTE a alguna categoría?
 - Si NO hay ninguna categoría relacionada → omite esta actividad (no la incluyas)
 - Si SÍ → Ir al PASO 2
 
+CLASIFICACIÓN DE VUELOS (obligatorio):
+- avion_domestico: vuelo DENTRO del mismo país (ej: Madrid→Barcelona, Sevilla→Bilbao)
+- avion_internacional: vuelo ENTRE PAÍSES DISTINTOS (ej: Madrid→Londres, Barcelona→París)
+- Si origin y destination son ciudades del mismo país → siempre avion_domestico
+- Si no se sabe el destino aún → usa avion_domestico solo si el contexto indica vuelo nacional
+
 PASO 2: ¿Hay un NÚMERO (o "un/una") con una unidad reconocida?
 - Unidades reconocidas: números con g/kg/km/kWh/litros/ml/horas/unidades/vaso/vasos
 - Si SÍ → actividad completa con quantity y unit convertidos a la unidad del factor
@@ -116,7 +127,7 @@ PASO 3: Categoría identificada pero falta cantidad.
 - SUBCASO B: Unidad "km" Y el usuario menciona solo UNA ciudad real (solo destino, sin origen):
   → actividad con quantity=null, origin=null, destination="<ciudad>", clarifying_question="¿Desde qué ciudad saliste? La recordaré para la próxima vez."
 - SUBCASO C: Unidad "km" Y ninguna ciudad real (destino genérico como "hotel", "trabajo"):
-  → actividad con quantity=null y clarifying_question="¿Cuántos km has recorrido en [medio de transporte]?"
+  → actividad con quantity=null, needs_locations=true, y clarifying_question="¿Desde qué lugar saliste y hasta dónde en [transporte]? (p.ej: 'desde el aeropuerto de Madrid hasta el hotel Meliá Castilla')"
 - Otros casos (kg, kWh, litro, etc.) → actividad con quantity=null y clarifying_question:
   - Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
   - Unidad "kWh"   → "¿Cuántos kWh has consumido?"
@@ -142,7 +153,8 @@ CASO NORMAL - Una o más actividades identificadas:
       "description": "<descripción breve>",
       "origin": "<ciudad origen si hay dos ciudades, null si solo hay destino, omitir si no aplica>",
       "destination": "<ciudad destino si aplica, si no omitir>",
-      "clarifying_question": "<pregunta si quantity es null y no se pueden calcular km, si no omitir>"
+      "clarifying_question": "<pregunta si quantity es null y no se pueden calcular km, si no omitir>",
+      "needs_locations": "<true si es SUBCASO C — transporte con destino genérico que necesita origen y destino concretos; si no, omitir>"
     }}
   ]
 }}
@@ -158,7 +170,22 @@ CASO Sin CO₂ y sin ciudad:
   "type": "none"
 }}"""
 
-        user = f"Texto del usuario: {raw_text}"
+        # Si hay una actividad pendiente de resolución, añadir contexto al prompt
+        pending_section = ""
+        if pending_activity:
+            category = pending_activity.get("category", "?")
+            description = pending_activity.get("description", "una actividad")
+            question = pending_activity.get("question", "")
+            pending_section = (
+                f"\n\nCONTEXTO — ACTIVIDAD PENDIENTE DE INFORMACIÓN:\n"
+                f"En el turno anterior el usuario mencionó \"{description}\" (categoría: {category})"
+                f" pero faltaba información. Se le hizo esta pregunta: \"{question}\"\n"
+                f"Si el mensaje actual responde a esa pregunta, interpreta la respuesta en ese contexto"
+                f" y devuelve una actividad de categoría \"{category}\" con los datos que aporte el usuario"
+                f" (quantity, origin/destination, etc.)."
+            )
+
+        user = f"Texto del usuario: {raw_text}\n{pending_section}" if pending_section else f"Texto del usuario: {raw_text}"
 
         raw = self._chat(system, user, temperature=0.1)
 

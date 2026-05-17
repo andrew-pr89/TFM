@@ -15,6 +15,7 @@ export interface EmissionOut {
   factor: EmissionFactor
   quantity: number
   amount_kg_co2e: number
+  description: string | null
 }
 
 export interface ActivityOut {

@@ -71,7 +71,9 @@ export function ChatBubble({ message }: Props) {
         <ul className="emission-list">
           {emissions.map((e) => (
             <li key={e.id} className="emission-item">
-              <span className="emission-item__name">{e.factor.display_name}</span>
+              <span className="emission-item__name">
+                {e.description || e.factor.display_name}
+              </span>
               <span className="emission-item__bar-wrap">
                 <span
                   className="emission-item__bar"
@@ -87,8 +89,6 @@ export function ChatBubble({ message }: Props) {
         </ul>
       )}
 
-      {/* Recommendation */}
-      {/* <p className="recommendation">{recommendation}</p> */}
     </div>
   )
 }

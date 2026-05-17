@@ -5,6 +5,7 @@ En el MVP es una tabla clave-valor simple (UserMemory).
 El Recomendador la consulta para personalizar sus sugerencias.
 """
 
+import json
 import logging
 
 from sqlalchemy.orm import Session
@@ -56,6 +57,40 @@ class MemoryService:
         """Guarda la ciudad de origen habitual del usuario."""
         self.update_memory(user_id=user_id, updates={"home_city": city}, db=db)
         log.info("Ciudad de origen guardada para user=%s: %s", user_id, city)
+
+    def get_pending_activity(self, user_id: str, db: Session) -> dict | None:
+        """Devuelve la actividad pendiente de resolución (esperando más info), o None."""
+        record = (
+            db.query(UserMemory)
+            .filter(UserMemory.user_id == user_id, UserMemory.key == "pending_activity")
+            .first()
+        )
+        if record:
+            try:
+                return json.loads(record.value)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return None
+
+    def set_pending_activity(
+        self, user_id: str, category: str, description: str, question: str, db: Session
+    ) -> None:
+        """Guarda una actividad pendiente: esperamos que el usuario aporte la información faltante."""
+        value = json.dumps({"category": category, "description": description, "question": question})
+        self.update_memory(user_id=user_id, updates={"pending_activity": value}, db=db)
+        log.info("Actividad pendiente guardada para user=%s: %s", user_id, category)
+
+    def clear_pending_activity(self, user_id: str, db: Session) -> None:
+        """Elimina la actividad pendiente tras resolverla."""
+        record = (
+            db.query(UserMemory)
+            .filter(UserMemory.user_id == user_id, UserMemory.key == "pending_activity")
+            .first()
+        )
+        if record:
+            db.delete(record)
+            db.flush()
+            log.info("Actividad pendiente eliminada para user=%s", user_id)
 
     def infer_habits(self, user_id: str, category: str, db: Session) -> None:
         """

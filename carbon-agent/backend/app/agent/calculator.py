@@ -58,6 +58,7 @@ class CO2Calculator:
                 factor_id=extracted.factor.id,
                 quantity=extracted.quantity,
                 amount_kg_co2e=amount,
+                description=extracted.description,
             )
             db.add(emission)
 

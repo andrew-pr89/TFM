@@ -89,8 +89,9 @@ class Emission(Base):
     factor_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("emission_factors.id"), nullable=False
     )
-    quantity: Mapped[float] = mapped_column(Float, nullable=False)          # cantidad extraída por el LLM
-    amount_kg_co2e: Mapped[float] = mapped_column(Float, nullable=False)    # resultado determinista
+    quantity: Mapped[float] = mapped_column(Float, nullable=False)
+    amount_kg_co2e: Mapped[float] = mapped_column(Float, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=True)
 
     activity: Mapped["Activity"] = relationship("Activity", back_populates="emissions")
     factor: Mapped["EmissionFactor"] = relationship("EmissionFactor", back_populates="emissions")

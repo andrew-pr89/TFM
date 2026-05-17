@@ -42,6 +42,7 @@ class EmissionOut(BaseModel):
     factor: EmissionFactorOut
     quantity: float
     amount_kg_co2e: float
+    description: str | None = None
 
     model_config = {"from_attributes": True}
 

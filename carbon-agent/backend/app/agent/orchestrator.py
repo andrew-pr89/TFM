@@ -42,19 +42,27 @@ class CarbonAgent:
 
         # ── 1. Cargar contexto de memoria antes de extraer ───────────────────
         home_city = self.memory.get_home_city(user_id=user_id, db=db)
+        existing_pending_activity = self.memory.get_pending_activity(user_id=user_id, db=db)
 
         # ── 2. Extracción (LLM) — ANTES de persistir ────────────────────────
-        extracted = self.extractor.extract(raw_text=raw_text, db=db, home_city=home_city)
+        extracted = self.extractor.extract(
+            raw_text=raw_text,
+            db=db,
+            home_city=home_city,
+            pending_activity=existing_pending_activity,
+        )
 
         # ── Separar marcadores especiales de actividades reales ──────────────
         new_home_city: str | None = None
+        new_pending_activity: dict | None = None
         pending_question: str | None = None
 
-        # Los marcadores siempre van al final de la lista
         filtered = []
         for item in extracted:
             if isinstance(item, dict) and "set_home_city" in item:
                 new_home_city = item["set_home_city"]
+            elif isinstance(item, dict) and "set_pending_activity" in item:
+                new_pending_activity = item["set_pending_activity"]
             elif isinstance(item, dict) and "clarifying_question" in item:
                 pending_question = item["clarifying_question"]
             else:
@@ -67,7 +75,33 @@ class CarbonAgent:
             db.commit()
             log.info("home_city guardada para user=%s: %s", user_id, new_home_city)
 
-        # ── Caso: solo pregunta, sin actividades ─────────────────────────────
+        # Si el turno actual RESOLVIÓ el pending_activity anterior → limpiarlo.
+        # Solo se considera resuelto si hay actividades de la misma categoría calculadas.
+        pending_resolved = (
+            existing_pending_activity
+            and not new_pending_activity
+            and any(
+                isinstance(e, ExtractedActivity)
+                and e.category == existing_pending_activity.get("category")
+                for e in extracted
+            )
+        )
+        if pending_resolved:
+            self.memory.clear_pending_activity(user_id=user_id, db=db)
+            db.commit()
+
+        # Si hay nuevo transporte pendiente de ubicación → guardarlo
+        if new_pending_activity:
+            self.memory.set_pending_activity(
+                user_id=user_id,
+                category=new_pending_activity["category"],
+                description=new_pending_activity["description"],
+                question=new_pending_activity.get("question", ""),
+                db=db,
+            )
+            db.commit()
+
+        # ── Caso: solo pregunta (sin actividades calculables aún) ─────────────
         if pending_question and not extracted:
             log.info("Pregunta aclaratoria para user=%s: %s", user_id, pending_question)
             response = _empty(user_id, raw_text)
@@ -75,13 +109,19 @@ class CarbonAgent:
             response.is_question = True
             return response
 
-        # ── Caso: solo se declaró ciudad de origen, sin actividades CO₂ ───────
+        # ── Caso: solo se declaró ciudad de origen ────────────────────────────
         if not extracted and not pending_question and new_home_city:
+            still_pending = self.memory.get_pending_activity(user_id=user_id, db=db)
+            follow_up = (
+                f" Ahora dime: {still_pending['description']} — ¿desde qué lugar y hasta dónde?"
+                if still_pending else ""
+            )
             response = _empty(user_id, raw_text)
             response.recommendation = (
                 f"¡Perfecto! He guardado {new_home_city} como tu ciudad de origen. "
-                "La usaré automáticamente para calcular distancias cuando viajes."
+                f"La usaré automáticamente para calcular distancias cuando viajes.{follow_up}"
             )
+            response.is_question = bool(follow_up)
             return response
 
         # ── Caso: nada identificado ──────────────────────────────────────────
@@ -134,9 +174,18 @@ class CarbonAgent:
             log.error("Error generando recomendación: %s", exc)
             recommendation = f"Has generado {total:.3f} kg CO₂e. ¡Intenta reducir tu huella mañana!"
 
-        # Si había actividades incompletas, añadir la pregunta a la recomendación
+        # Si había actividades incompletas (km o lugares), añadir la pregunta
         if pending_question:
             recommendation = f"{recommendation}\n\nAdemás, necesito más información: {pending_question}"
+
+        # Si sigue habiendo un transporte pendiente en memoria (no resuelto este turno), recordarlo
+        still_pending = None if pending_resolved else self.memory.get_pending_activity(user_id=user_id, db=db)
+        if still_pending and not pending_question:
+            recommendation = (
+                f"{recommendation}\n\nTodavía me falta saber los lugares para "
+                f"{still_pending.get('description', 'el transporte pendiente')}: "
+                "¿desde qué lugar y hasta dónde?"
+            )
 
         log.info("Actividad procesada: user=%s total=%.3f kg CO₂e", user_id, total)
 
@@ -175,7 +224,9 @@ class CarbonAgent:
         # Filtrar marcadores especiales antes de calcular
         extracted = [
             e for e in extracted
-            if not (isinstance(e, dict) and ("clarifying_question" in e or "set_home_city" in e))
+            if not (isinstance(e, dict) and (
+                "clarifying_question" in e or "set_home_city" in e or "set_pending_activity" in e
+            ))
         ]
         if extracted:
             self.calculator.calculate(activity=activity, extracted_activities=extracted, db=db)
