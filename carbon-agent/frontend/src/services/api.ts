@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut } from '../types'
+import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile } from '../types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -49,6 +49,16 @@ export const carbonApi = {
     const { data } = await api.get<ImprovementsOut>('/improvements', {
       params: { user_id: userId, period_days: periodDays, annual_goal_kg: annualGoalKg },
     })
+    return data
+  },
+
+  getProfile: async (userId = 'default'): Promise<UserProfile> => {
+    const { data } = await api.get<UserProfile>('/profile', { params: { user_id: userId } })
+    return data
+  },
+
+  updateProfile: async (profile: UserProfile, userId = 'default'): Promise<UserProfile> => {
+    const { data } = await api.patch<UserProfile>('/profile', profile, { params: { user_id: userId } })
     return data
   },
 }

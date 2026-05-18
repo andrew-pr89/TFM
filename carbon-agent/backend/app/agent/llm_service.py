@@ -121,13 +121,25 @@ PASO 2: ¿Hay un NÚMERO (o "un/una") con una unidad reconocida?
 - Si NO → Ir al PASO 3
 
 PASO 3: Categoría identificada pero falta cantidad.
-- SUBCASO A: Unidad "km" Y el usuario menciona DOS ciudades/municipios reales (ej: "Madrid", "Barcelona"):
+
+DISTINCIÓN CLAVE — POI con nombre propio vs. lugar genérico:
+  ✅ POI con nombre propio (geocodificable): "hotel Hesperia Madrid", "hotel Meliá Castilla", "restaurante El Bulli", "estadio Santiago Bernabéu"
+  ❌ Lugar genérico (no geocodificable): "hotel" (solo esa palabra), "trabajo", "casa", "oficina", "gym"
+  → Si el usuario dice "al hotel [nombre]" o "al restaurante [nombre]" → es un POI específico → SUBCASO A2
+  → Si el usuario dice solo "al hotel" sin nombre → es genérico → SUBCASO C
+
+- SUBCASO A: Unidad "km" Y el usuario menciona DOS ciudades/municipios (ej: "Madrid", "Barcelona"):
   → actividad con quantity=null, origin="<ciudad>", destination="<ciudad>"
-  → IMPORTANTE: "casa", "trabajo", "oficina", "hotel", "gimnasio", "colegio", "supermercado" NO son ciudades.
-- SUBCASO B: Unidad "km" Y el usuario menciona solo UNA ciudad real (solo destino, sin origen):
+- SUBCASO A2: Unidad "km" Y hay un POI con nombre propio Y se sabe la ciudad (en el mensaje o en el nombre del POI):
+  → actividad con quantity=null, origin=null, destination="<nombre POI>, <ciudad>"
+  → OBLIGATORIO: usar coma para separar POI y ciudad. Ejemplos:
+    · "taxi al hotel Hesperia Madrid" → destination="Hotel Hesperia, Madrid"
+    · "taxi al Hotel Meliá Castilla en Madrid" → destination="Hotel Meliá Castilla, Madrid"
+    · "al estadio Santiago Bernabéu" (Madrid conocido del contexto) → destination="Estadio Santiago Bernabéu, Madrid"
+- SUBCASO B: Unidad "km" Y solo UNA ciudad real mencionada:
   → actividad con quantity=null, origin=null, destination="<ciudad>", clarifying_question="¿Desde qué ciudad saliste? La recordaré para la próxima vez."
-- SUBCASO C: Unidad "km" Y ninguna ciudad real (destino genérico como "hotel", "trabajo"):
-  → actividad con quantity=null, needs_locations=true, y clarifying_question="¿Desde qué lugar saliste y hasta dónde en [transporte]? (p.ej: 'desde el aeropuerto de Madrid hasta el hotel Meliá Castilla')"
+- SUBCASO C: Unidad "km" Y destino completamente genérico SIN nombre propio y SIN ciudad (ej: solo "el hotel", "el trabajo"):
+  → actividad con quantity=null, needs_locations=true, clarifying_question="¿Desde qué lugar saliste y hasta dónde en [transporte]? (p.ej: 'desde la estación de Atocha hasta el hotel Meliá Castilla, Madrid')"
 - Otros casos (kg, kWh, litro, etc.) → actividad con quantity=null y clarifying_question:
   - Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
   - Unidad "kWh"   → "¿Cuántos kWh has consumido?"
@@ -176,13 +188,23 @@ CASO Sin CO₂ y sin ciudad:
             category = pending_activity.get("category", "?")
             description = pending_activity.get("description", "una actividad")
             question = pending_activity.get("question", "")
+            known_destination = pending_activity.get("destination", "")
+            destination_hint = (
+                f" El destino ya es conocido: \"{known_destination}\"."
+                if known_destination else ""
+            )
+            destination_instruction = (
+                f"\n- OBLIGATORIO: usa EXACTAMENTE \"{known_destination}\" como destination en tu respuesta JSON."
+                f" El origin será el lugar que mencione el usuario en este mensaje."
+                if known_destination else ""
+            )
             pending_section = (
                 f"\n\nCONTEXTO — ACTIVIDAD PENDIENTE DE INFORMACIÓN:\n"
                 f"En el turno anterior el usuario mencionó \"{description}\" (categoría: {category})"
-                f" pero faltaba información. Se le hizo esta pregunta: \"{question}\"\n"
-                f"Si el mensaje actual responde a esa pregunta, interpreta la respuesta en ese contexto"
-                f" y devuelve una actividad de categoría \"{category}\" con los datos que aporte el usuario"
-                f" (quantity, origin/destination, etc.)."
+                f" pero faltaba información. Se le hizo esta pregunta: \"{question}\"{destination_hint}\n"
+                f"Si el mensaje actual responde a esa pregunta (ya sea con un número, un lugar o cualquier dato),"
+                f" interpreta la respuesta en ese contexto y devuelve una actividad de categoría \"{category}\"."
+                f"{destination_instruction}"
             )
 
         user = f"Texto del usuario: {raw_text}\n{pending_section}" if pending_section else f"Texto del usuario: {raw_text}"

@@ -43,6 +43,7 @@ class Extractor:
         raw_text: str,
         db: Session,
         home_city: str | None = None,
+        work_place: str | None = None,
         pending_activity: dict | None = None,
     ) -> list[ExtractedActivity]:
         """
@@ -136,36 +137,45 @@ class Extractor:
                             "clarifying_question": question,
                         })
                         continue
-                    # POI con nombre propio (hotel, restaurante…) → confirmar ciudad antes de geocodificar
-                    if _is_ambiguous_poi(destination) and category in _URBAN_TRANSPORT:
-                        log.info("Destino es un POI específico '%s' — pidiendo confirmación de ciudad", destination)
-                        question = (
-                            f"¿En qué ciudad está '{destination}'? "
-                            f"Lo necesito para calcular los km de {description}."
-                        )
-                        result.append({  # type: ignore[arg-type]
-                            "set_pending_activity": {"category": category, "description": description, "destination_poi": destination, "origin": origin},
-                            "clarifying_question": question,
-                        })
-                        continue
-                    log.info("Calculando distancia %s → %s", origin, destination)
-                    quantity_raw = get_distance_km(origin, destination)
-                    if quantity_raw is None or (
-                        category in _URBAN_TRANSPORT and quantity_raw > _MAX_KM_URBAN
-                    ):
-                        if quantity_raw and quantity_raw > _MAX_KM_URBAN:
-                            log.warning("Distancia %s → %s = %.0f km parece incorrecta para %s", origin, destination, quantity_raw, category)
-                            question = f"No pude calcular bien la distancia para {description}. ¿Cuántos km son aproximadamente?"
-                        else:
-                            log.warning("No se pudo calcular distancia %s → %s", origin, destination)
-                            question = f"No pude calcular la distancia entre {origin} y {destination}. ¿Cuántos km son aproximadamente?"
-                        result.append({  # type: ignore[arg-type]
-                            "set_pending_activity": {"category": category, "description": description},
-                            "clarifying_question": question,
-                        })
-                        continue
-                    item["description"] = description + f" ({origin} → {destination}, {quantity_raw:.0f} km)"
-                    description = item["description"]
+                    # POI con nombre propio: intentar geocodificar directamente antes de preguntar ciudad.
+                    # Algunos POIs incluyen la ciudad en su nombre (ej: "Hotel Hesperia Madrid") y geocodifican bien.
+                    destination_has_city = "," in destination
+                    if _is_ambiguous_poi(destination) and category in _URBAN_TRANSPORT and not destination_has_city:
+                        probe = get_distance_km(origin, destination)
+                        if probe is None or probe > _MAX_KM_URBAN:
+                            log.info("Destino POI '%s' no geocodificable sin ciudad — pidiendo ciudad", destination)
+                            question = (
+                                f"¿En qué ciudad está '{destination}'? "
+                                f"Lo necesito para calcular los km de {description}."
+                            )
+                            result.append({  # type: ignore[arg-type]
+                                "set_pending_activity": {"category": category, "description": description, "destination_poi": destination, "origin": origin},
+                                "clarifying_question": question,
+                            })
+                            continue
+                        # Geocodificó correctamente — saltar el cálculo normal de abajo
+                        quantity_raw = probe
+                        item["description"] = description + f" ({origin} → {destination}, {probe:.0f} km)"
+                        description = item["description"]
+                    else:
+                        log.info("Calculando distancia %s → %s", origin, destination)
+                        quantity_raw = get_distance_km(origin, destination)
+                        if quantity_raw is None or (
+                            category in _URBAN_TRANSPORT and quantity_raw > _MAX_KM_URBAN
+                        ):
+                            if quantity_raw and quantity_raw > _MAX_KM_URBAN:
+                                log.warning("Distancia %s → %s = %.0f km parece incorrecta para %s", origin, destination, quantity_raw, category)
+                                question = f"No pude calcular bien la distancia para {description}. ¿Cuántos km son aproximadamente?"
+                            else:
+                                log.warning("No se pudo calcular distancia %s → %s", origin, destination)
+                                question = f"No pude calcular la distancia entre {origin} y {destination}. ¿Cuántos km son aproximadamente?"
+                            result.append({  # type: ignore[arg-type]
+                                "set_pending_activity": {"category": category, "description": description},
+                                "clarifying_question": question,
+                            })
+                            continue
+                        item["description"] = description + f" ({origin} → {destination}, {quantity_raw:.0f} km)"
+                        description = item["description"]
 
                 # Solo hay destino — usar home_city como origen si está disponible
                 elif destination and not origin:
@@ -179,7 +189,29 @@ class Extractor:
                             "clarifying_question": question,
                         })
                         continue
-                    if home_city:
+                    # POI sin ciudad explícita (sin coma): pedir ciudad antes de intentar geocodificar
+                    if _is_ambiguous_poi(destination) and category in _URBAN_TRANSPORT and "," not in destination:
+                        question = (
+                            f"¿En qué ciudad está '{destination}'? "
+                            f"Lo necesito para calcular los km de {description}."
+                        )
+                        result.append({  # type: ignore[arg-type]
+                            "set_pending_activity": {"category": category, "description": description, "destination": destination},
+                            "clarifying_question": question,
+                        })
+                        continue
+                    # Para transporte urbano con destino "POI, ciudad":
+                    # no usar home_city si es una ciudad distinta al destino
+                    dest_city_hint = destination.split(",")[-1].strip() if "," in destination else ""
+                    home_city_is_remote = (
+                        category in _URBAN_TRANSPORT
+                        and dest_city_hint
+                        and home_city
+                        and home_city.lower() not in dest_city_hint.lower()
+                        and dest_city_hint.lower() not in home_city.lower()
+                    )
+
+                    if home_city and not home_city_is_remote:
                         log.info("Usando home_city '%s' como origen para → %s", home_city, destination)
                         quantity_raw = get_distance_km(home_city, destination)
                         if quantity_raw is None or (
@@ -192,20 +224,27 @@ class Extractor:
                                 log.warning("No se pudo calcular distancia %s → %s", home_city, destination)
                                 question = f"No pude calcular la distancia entre {home_city} y {destination}. ¿Cuántos km son aproximadamente?"
                             result.append({  # type: ignore[arg-type]
-                                "set_pending_activity": {"category": category, "description": description},
+                                "set_pending_activity": {"category": category, "description": description, "destination": destination},
                                 "clarifying_question": question,
                             })
                             continue
                         item["description"] = description + f" ({home_city} → {destination}, {quantity_raw:.0f} km)"
                         description = item["description"]
                     else:
-                        # Sin home_city — pedir ciudad de origen
-                        question = (
-                            item.get("clarifying_question")
-                            or "¿Desde qué ciudad saliste? La recordaré para la próxima vez."
-                        )
+                        # Sin home_city (o home_city en otra ciudad) — pedir origen local
+                        if dest_city_hint and category in _URBAN_TRANSPORT:
+                            question = (
+                                item.get("clarifying_question")
+                                or f"¿Desde dónde cogiste el {description.lower()} en {dest_city_hint}? "
+                                   f"(p.ej: 'desde la estación de tren')"
+                            )
+                        else:
+                            question = (
+                                item.get("clarifying_question")
+                                or "¿Desde qué ciudad saliste? La recordaré para la próxima vez."
+                            )
                         result.append({  # type: ignore[arg-type]
-                            "set_pending_activity": {"category": category, "description": description},
+                            "set_pending_activity": {"category": category, "description": description, "destination": destination},
                             "clarifying_question": question,
                         })
                         continue

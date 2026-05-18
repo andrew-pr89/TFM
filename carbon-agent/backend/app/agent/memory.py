@@ -58,6 +58,15 @@ class MemoryService:
         self.update_memory(user_id=user_id, updates={"home_city": city}, db=db)
         log.info("Ciudad de origen guardada para user=%s: %s", user_id, city)
 
+    def get_work_place(self, user_id: str, db: Session) -> str | None:
+        """Devuelve el lugar de trabajo del usuario, o None si no está guardado."""
+        record = (
+            db.query(UserMemory)
+            .filter(UserMemory.user_id == user_id, UserMemory.key == "work_place")
+            .first()
+        )
+        return record.value if record else None
+
     def get_pending_activity(self, user_id: str, db: Session) -> dict | None:
         """Devuelve la actividad pendiente de resolución (esperando más info), o None."""
         record = (
@@ -73,10 +82,14 @@ class MemoryService:
         return None
 
     def set_pending_activity(
-        self, user_id: str, category: str, description: str, question: str, db: Session
+        self, user_id: str, category: str, description: str, question: str, db: Session,
+        destination: str | None = None,
     ) -> None:
         """Guarda una actividad pendiente: esperamos que el usuario aporte la información faltante."""
-        value = json.dumps({"category": category, "description": description, "question": question})
+        data: dict = {"category": category, "description": description, "question": question}
+        if destination:
+            data["destination"] = destination
+        value = json.dumps(data)
         self.update_memory(user_id=user_id, updates={"pending_activity": value}, db=db)
         log.info("Actividad pendiente guardada para user=%s: %s", user_id, category)
 

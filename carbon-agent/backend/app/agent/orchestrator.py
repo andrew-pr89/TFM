@@ -3,7 +3,7 @@ Orquestador del agente — coordina todos los componentes.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -23,7 +23,7 @@ def _empty(user_id: str, raw_text: str) -> ActivityResponse:
             id=-1,
             user_id=user_id,
             raw_text=raw_text,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             emissions=[],
         ),
         total_kg_co2e=0.0,
@@ -42,6 +42,7 @@ class CarbonAgent:
 
         # ── 1. Cargar contexto de memoria antes de extraer ───────────────────
         home_city = self.memory.get_home_city(user_id=user_id, db=db)
+        work_place = self.memory.get_work_place(user_id=user_id, db=db)
         existing_pending_activity = self.memory.get_pending_activity(user_id=user_id, db=db)
 
         # ── 2. Extracción (LLM) — ANTES de persistir ────────────────────────
@@ -49,6 +50,7 @@ class CarbonAgent:
             raw_text=raw_text,
             db=db,
             home_city=home_city,
+            work_place=work_place,
             pending_activity=existing_pending_activity,
         )
 
@@ -97,6 +99,7 @@ class CarbonAgent:
                 category=new_pending_activity["category"],
                 description=new_pending_activity["description"],
                 question=new_pending_activity.get("question", ""),
+                destination=new_pending_activity.get("destination"),
                 db=db,
             )
             db.commit()
@@ -174,15 +177,11 @@ class CarbonAgent:
             log.error("Error generando recomendación: %s", exc)
             recommendation = f"Has generado {total:.3f} kg CO₂e. ¡Intenta reducir tu huella mañana!"
 
-        # Si había actividades incompletas (km o lugares), añadir la pregunta
-        if pending_question:
-            recommendation = f"{recommendation}\n\nAdemás, necesito más información: {pending_question}"
-
         # Si sigue habiendo un transporte pendiente en memoria (no resuelto este turno), recordarlo
         still_pending = None if pending_resolved else self.memory.get_pending_activity(user_id=user_id, db=db)
         if still_pending and not pending_question:
-            recommendation = (
-                f"{recommendation}\n\nTodavía me falta saber los lugares para "
+            pending_question = (
+                f"Todavía me falta saber los lugares para "
                 f"{still_pending.get('description', 'el transporte pendiente')}: "
                 "¿desde qué lugar y hasta dónde?"
             )
@@ -193,6 +192,7 @@ class CarbonAgent:
             activity=ActivityOut.model_validate(activity),
             total_kg_co2e=total,
             recommendation=recommendation,
+            clarifying_question=pending_question or None,
         )
 
 

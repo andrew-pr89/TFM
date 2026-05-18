@@ -121,7 +121,22 @@ export function HistoryPanel({ userId = 'default' }: Props) {
               ) : (
                 <>
                   <div className="history-item__top">
-                    <p className="history-item__text">{activity.raw_text}</p>
+                    <div className="history-item__text">
+                      {activity.emissions.length === 0 ? (
+                        // Sin emisiones: mostrar texto del usuario
+                        <span>{activity.raw_text}</span>
+                      ) : activity.emissions.length === 1 ? (
+                        // Una emisión: mostrar la descripción procesada
+                        <span>{activity.emissions[0].description || activity.emissions[0].factor.display_name}</span>
+                      ) : (
+                        // Varias emisiones: listar descripciones
+                        <ul className="history-item__desc-list">
+                          {activity.emissions.map((e) => (
+                            <li key={e.id}>{e.description || e.factor.display_name}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                     <div className="history-item__right">
                       <span className="history-item__total" style={{ color: co2Color(total) }}>
                         {total > 0 ? `${total.toFixed(3)} kg` : '—'}
@@ -146,27 +161,13 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                     </div>
                   </div>
                   <div className="history-item__meta">
-                    {activity.emissions.length === 1 && (
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        {activity.emissions[0].description || activity.emissions[0].factor.display_name}
-                        {' — '}{activity.emissions[0].quantity} {activity.emissions[0].factor.unit}
+                    {activity.emissions.length > 0 && (
+                      <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                        {activity.emissions.map(e => `${e.quantity} ${e.factor.unit}`).join(' · ')}
                       </span>
-                    )}
-                    {activity.emissions.length > 1 && (
-                      <span style={{ color: 'var(--text-muted)' }}>{activity.main_category}</span>
                     )}
                     <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>
                   </div>
-                  {activity.emissions.length > 1 && (
-                    <ul className="history-item__emissions">
-                      {activity.emissions.map((e) => (
-                        <li key={e.id}>
-                          <span>{e.description || e.factor.display_name} — {e.quantity} {e.factor.unit}</span>
-                          <span style={{ color: co2Color(e.amount_kg_co2e) }}>{e.amount_kg_co2e.toFixed(3)} kg</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </>
               )}
             </li>

@@ -75,6 +75,15 @@ class ActivityResponse(BaseModel):
     total_kg_co2e: float
     recommendation: str
     is_question: bool = False
+    clarifying_question: str | None = None  # pregunta pendiente cuando hay emisiones Y actividad incompleta
+
+
+# ── User profile ─────────────────────────────────────────────────────────────
+
+class UserProfile(BaseModel):
+    home_city: str | None = None       # ciudad de residencia
+    work_place: str | None = None      # lugar de trabajo / centro de estudios
+    display_name: str | None = None    # nombre del usuario (opcional)
 
 
 # ── Activity patch ───────────────────────────────────────────────────────────

@@ -32,6 +32,7 @@ export interface ActivityResponse {
   total_kg_co2e: number
   recommendation: string
   is_question: boolean
+  clarifying_question?: string
 }
 
 export interface SummaryOut {
@@ -57,6 +58,12 @@ export interface ImprovementsOut {
   total_kg: number
   budget_kg: number
   period_days: number
+}
+
+export interface UserProfile {
+  home_city?: string | null
+  work_place?: string | null
+  display_name?: string | null
 }
 
 // Estado del chat

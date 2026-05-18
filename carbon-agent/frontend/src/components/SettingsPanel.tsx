@@ -1,4 +1,8 @@
+import { useState, useEffect } from 'react'
 import { useSettings } from '../hooks/useSettings'
+import { useProfile, useUpdateProfile } from '../hooks/useCarbon'
+
+// ── Sub-panel: Objetivo CO₂ ───────────────────────────────────────────────────
 
 const LEVELS = [
   {
@@ -44,7 +48,7 @@ function getLevelInfo(t: number) {
   return LEVELS[3]
 }
 
-export function SettingsPanel() {
+function GoalPanel() {
   const { settings, update } = useSettings()
   const t = settings.annualGoalTonnes
   const level = getLevelInfo(t)
@@ -52,13 +56,7 @@ export function SettingsPanel() {
   const dailyKg = (t * 1000 / 365).toFixed(1)
 
   return (
-    <div className="settings">
-      <h2 className="settings__title">Configuración</h2>
-      <p className="settings__subtitle">
-        Personaliza tu objetivo de huella de carbono anual. Todos los indicadores de la aplicación se recalcularán según este valor.
-      </p>
-
-      {/* ── Slider section ─────────────────────────────────────────── */}
+    <>
       <div className="settings__card">
         <div className="settings__card-header">
           <div>
@@ -115,7 +113,6 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      {/* ── Explanation card ───────────────────────────────────────── */}
       <div
         className="settings__info-card"
         style={{
@@ -137,7 +134,6 @@ export function SettingsPanel() {
         <p className="settings__info-desc">{level.desc}</p>
       </div>
 
-      {/* ── Context info ───────────────────────────────────────────── */}
       <div className="settings__context-box">
         <p className="settings__context-title">¿Qué es la huella de carbono?</p>
         <p className="settings__context-desc">
@@ -147,6 +143,133 @@ export function SettingsPanel() {
           Cuanto más alta sea tu meta anual, menor presión sentirás al principio — pero mayor será tu impacto en el clima. La ciencia indica que para limitar el calentamiento a <strong style={{ color: '#4ade80' }}>1,5 °C</strong> necesitamos reducir a <strong style={{ color: '#4ade80' }}>~2 t/persona/año</strong> antes de 2050. Empieza donde puedas y ve bajando poco a poco.
         </p>
       </div>
+    </>
+  )
+}
+
+// ── Sub-panel: Preferencias de usuario ───────────────────────────────────────
+
+function ProfilePanel() {
+  const { data: profile, isLoading } = useProfile()
+  const { mutate: save, isPending: isSaving, isSuccess } = useUpdateProfile()
+
+  const [displayName, setDisplayName] = useState('')
+  const [homeCity, setHomeCity]       = useState('')
+  const [workPlace, setWorkPlace]     = useState('')
+
+  useEffect(() => {
+    if (profile) {
+      setDisplayName(profile.display_name ?? '')
+      setHomeCity(profile.home_city ?? '')
+      setWorkPlace(profile.work_place ?? '')
+    }
+  }, [profile])
+
+  const handleSave = () => {
+    save({
+      display_name: displayName.trim() || null,
+      home_city:    homeCity.trim()    || null,
+      work_place:   workPlace.trim()   || null,
+    })
+  }
+
+  if (isLoading) return <p className="settings__context-desc">Cargando perfil…</p>
+
+  return (
+    <div className="settings__profile">
+      <div className="settings__context-box" style={{ marginBottom: 0 }}>
+        <p className="settings__context-title">¿Para qué sirve esto?</p>
+        <p className="settings__context-desc">
+          Al guardar tu ciudad y lugar de trabajo, el asistente podrá calcular automáticamente
+          las distancias de tus desplazamientos sin preguntarte cada vez.
+        </p>
+      </div>
+
+      <div className="settings__profile-fields">
+        <label className="settings__field">
+          <span className="settings__field-label">Tu nombre (opcional)</span>
+          <input
+            className="settings__field-input"
+            type="text"
+            placeholder="ej: Ana"
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+          />
+        </label>
+
+        <label className="settings__field">
+          <span className="settings__field-label">Mi ciudad</span>
+          <input
+            className="settings__field-input"
+            type="text"
+            placeholder="ej: Barcelona"
+            value={homeCity}
+            onChange={e => setHomeCity(e.target.value)}
+          />
+          <span className="settings__field-hint">
+            Se usa como origen por defecto en tus viajes desde casa.
+          </span>
+        </label>
+
+        <label className="settings__field">
+          <span className="settings__field-label">Mi trabajo / centro de estudios</span>
+          <input
+            className="settings__field-input"
+            type="text"
+            placeholder="ej: Oficina en Madrid, Universidad de Valencia"
+            value={workPlace}
+            onChange={e => setWorkPlace(e.target.value)}
+          />
+          <span className="settings__field-hint">
+            Permite calcular tu huella de trayectos al trabajo.
+          </span>
+        </label>
+      </div>
+
+      <div className="settings__profile-actions">
+        <button
+          className="settings__save-btn"
+          onClick={handleSave}
+          disabled={isSaving}
+        >
+          {isSaving ? 'Guardando…' : 'Guardar preferencias'}
+        </button>
+        {isSuccess && <span className="settings__save-ok">Guardado</span>}
+      </div>
+    </div>
+  )
+}
+
+// ── Panel principal con sub-tabs ──────────────────────────────────────────────
+
+type SubTab = 'goal' | 'profile'
+
+const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
+  { id: 'goal',    label: 'Objetivo CO₂', icon: '🎯' },
+  { id: 'profile', label: 'Preferencias', icon: '👤' },
+]
+
+export function SettingsPanel() {
+  const [tab, setTab] = useState<SubTab>('goal')
+
+  return (
+    <div className="settings">
+      <h2 className="settings__title">Configuración</h2>
+
+      <div className="settings__tabs">
+        {SUB_TABS.map(t => (
+          <button
+            key={t.id}
+            className={`settings__tab ${tab === t.id ? 'settings__tab--active' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            <span>{t.icon}</span> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'goal'    && <GoalPanel />}
+      {tab === 'profile' && <ProfilePanel />}
     </div>
   )
 }
