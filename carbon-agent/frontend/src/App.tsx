@@ -44,23 +44,23 @@ export default function App() {
   }, [messages])
 
   const handleSend = useCallback(async (text: string) => {
-    const textToSend = pendingContext
-      ? `${pendingContext.originalText}. Pregunta: "${pendingContext.question}". Respuesta: ${text}`
-      : text
     const userMsg: ChatMessage = { id: uid(), role: 'user', text, timestamp: new Date() }
     setMessages((prev) => [...prev, userMsg])
 
     try {
-      const data = await mutation.mutateAsync(textToSend)
+      const data = await mutation.mutateAsync(text)
       if (data.is_question) {
-        setPendingContext({ originalText: pendingContext?.originalText ?? text, question: data.recommendation })
+        setPendingContext({ originalText: pendingContext?.originalText ?? text, question: data.message })
+      } else if (data.clarifying_question) {
+        // Hay emisiones calculadas Y una actividad pendiente de más info
+        setPendingContext({ originalText: text, question: data.clarifying_question })
       } else {
         setPendingContext(null)
       }
       const assistantMsg: ChatMessage = {
         id: uid(),
         role: 'assistant',
-        text: data.recommendation,
+        text: data.message,
         data,
         timestamp: new Date(),
       }

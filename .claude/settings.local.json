@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Process -Id 54832)",
+      "PowerShell(Stop-Process -Id 54832 -Force -ErrorAction SilentlyContinue)"
+    ]
+  }
+}

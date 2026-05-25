@@ -50,10 +50,8 @@ function Ring({ value, max, size, stroke, color, children }: RingProps) {
 
   return (
     <svg width={size} height={size} style={{ display: 'block' }}>
-      {/* Track */}
       <circle cx={size / 2} cy={size / 2} r={r} fill="none"
         stroke="rgba(255,255,255,0.07)" strokeWidth={stroke} />
-      {/* Progress */}
       <circle cx={size / 2} cy={size / 2} r={r} fill="none"
         stroke={over ? '#ef4444' : color}
         strokeWidth={stroke}
@@ -65,7 +63,7 @@ function Ring({ value, max, size, stroke, color, children }: RingProps) {
       />
       {children && (
         <foreignObject x={stroke} y={stroke} width={size - stroke * 2} height={size - stroke * 2}>
-          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="ring-center">
             {children}
           </div>
         </foreignObject>
@@ -149,48 +147,28 @@ export function DailyDashboard({ userId = 'default', annualGoalKg = 6000 }: Prop
   if (isLoading) return <div className="panel-state">Cargando…</div>
   if (isError)   return <div className="panel-state panel-state--error">Error al cargar datos.</div>
 
-  const navBtn = (style?: React.CSSProperties) => ({
-    background: 'var(--surface-2)',
-    border: '1px solid var(--border)',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    color: 'var(--text)',
-    padding: '6px 12px',
-    fontSize: '16px',
-    ...style,
-  })
-
-  const modeBtn = (m: ViewMode) => ({
-    padding: '5px 14px',
-    borderRadius: '6px',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '12px',
-    fontWeight: mode === m ? 600 : 400,
-    background: mode === m ? 'var(--primary)' : 'var(--surface-2)',
-    color: mode === m ? 'white' : 'var(--text-muted)',
-    transition: 'all 0.2s',
-  })
-
   return (
-    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '8px 0' }}>
+    <div className="dashboard">
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button style={navBtn()} onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
-          <button style={navBtn({ opacity: isFuture ? 0.3 : 1 })}
-            disabled={isFuture}
+      <div className="dashboard__topbar">
+        <div className="dashboard__nav-group">
+          <button className="dashboard__nav-btn" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
+          <button className="dashboard__nav-btn" disabled={isFuture}
             onClick={() => setAnchor(d => stepDate(mode, d, 1))}>›</button>
         </div>
 
-        <span style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', flex: 1 }}>
+        <span className="dashboard__period-label">
           {isToday ? 'Hoy' : formatPeriod(mode, start, end)}
         </span>
 
-        <div style={{ display: 'flex', gap: '4px' }}>
+        <div className="dashboard__mode-group">
           {(['day', 'week', 'month'] as ViewMode[]).map(m => (
-            <button key={m} style={modeBtn(m)} onClick={() => { setMode(m); setAnchor(new Date()) }}>
+            <button
+              key={m}
+              className={`dashboard__mode-btn${mode === m ? ' dashboard__mode-btn--active' : ''}`}
+              onClick={() => { setMode(m); setAnchor(new Date()) }}
+            >
               {VIEW_LABELS[m]}
             </button>
           ))}
@@ -198,37 +176,35 @@ export function DailyDashboard({ userId = 'default', annualGoalKg = 6000 }: Prop
       </div>
 
       {/* ── Main ring ────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '36px' }}>
+      <div className="dashboard__ring-wrapper">
         <Ring value={total} max={budget} size={220} stroke={18} color="#4ade80">
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '36px', fontWeight: 700, fontFamily: 'DM Mono', color: total > budget ? '#ef4444' : 'var(--text)', lineHeight: 1 }}>
-              {total.toFixed(2)}
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>kg CO₂e</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
-              {pctLabel} de {budget.toFixed(1)} kg
-            </div>
-            {filtered.length === 0 && (
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>sin actividad</div>
-            )}
+          <div className="ring-center__value" style={{ color: total > budget ? '#ef4444' : 'var(--text)' }}>
+            {total.toFixed(2)}
           </div>
+          <div className="ring-center__unit">kg CO₂e</div>
+          <div className="ring-center__budget">
+            {pctLabel} de {budget.toFixed(1)} kg
+          </div>
+          {filtered.length === 0 && (
+            <div className="ring-center__empty">sin actividad</div>
+          )}
         </Ring>
       </div>
 
       {/* ── Category rings ───────────────────────────────────────────────── */}
       {byCategory.length > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '28px', flexWrap: 'wrap', marginBottom: '28px' }}>
+        <div className="dashboard__categories">
           {byCategory.map(([cat, kg]) => {
             const color = CATEGORY_COLORS[cat] ?? DEFAULT_COLOR
             const catBudget = budget * (kg / total)
             return (
-              <div key={cat} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <div key={cat} className="dashboard__category-item">
                 <Ring value={kg} max={catBudget > 0 ? catBudget : budget * 0.5} size={80} stroke={8} color={color}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, fontFamily: 'DM Mono', color }}>
+                  <span className="dashboard__category-value" style={{ color }}>
                     {kg.toFixed(2)}
                   </span>
                 </Ring>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '80px' }}>{cat}</span>
+                <span className="dashboard__category-name">{cat}</span>
               </div>
             )
           })}
@@ -237,19 +213,22 @@ export function DailyDashboard({ userId = 'default', annualGoalKg = 6000 }: Prop
 
       {/* ── Activity list ─────────────────────────────────────────────────── */}
       {filtered.length > 0 && (
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Actividades
-          </p>
+        <div className="dashboard__activity-list">
+          <p className="dashboard__activity-header">Actividades</p>
           {filtered.map(a => {
             const kg = a.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
             return (
-              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+              <div key={a.id} className="dashboard__activity-row">
                 <div>
-                  <p style={{ margin: 0, fontSize: '13px' }}>{a.raw_text.length > 60 ? a.raw_text.slice(0, 60) + '…' : a.raw_text}</p>
-                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>{a.main_category}</p>
+                  <p className="dashboard__activity-text">
+                    {a.raw_text.length > 60 ? a.raw_text.slice(0, 60) + '…' : a.raw_text}
+                  </p>
+                  <p className="dashboard__activity-sub">{a.main_category}</p>
                 </div>
-                <span style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'DM Mono', color: kg > 5 ? '#ef4444' : kg > 1 ? '#fb923c' : '#4ade80', marginLeft: '12px', whiteSpace: 'nowrap' }}>
+                <span
+                  className="dashboard__activity-kg"
+                  style={{ color: kg > 5 ? '#ef4444' : kg > 1 ? '#fb923c' : '#4ade80' }}
+                >
                   {kg.toFixed(3)} kg
                 </span>
               </div>
@@ -259,7 +238,7 @@ export function DailyDashboard({ userId = 'default', annualGoalKg = 6000 }: Prop
       )}
 
       {filtered.length === 0 && (
-        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px', marginTop: '8px' }}>
+        <div className="dashboard__empty">
           No hay actividades registradas para este período.
         </div>
       )}

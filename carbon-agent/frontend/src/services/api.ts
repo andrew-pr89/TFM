@@ -1,8 +1,14 @@
 import axios from 'axios'
-import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut } from '../types'
+import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile } from '../types'
+
+// En desarrollo: baseURL='/api' → Vite proxy → localhost:8000
+// En producción: VITE_API_URL apunta al backend de Railway
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -37,10 +43,28 @@ export const carbonApi = {
     await api.delete(`/history/${activityId}`, { params: { user_id: userId } })
   },
 
+  patchActivity: async (activityId: number, rawText: string, createdAt: string | null, userId = 'default'): Promise<ActivityOut> => {
+    const { data } = await api.patch<ActivityOut>(`/history/${activityId}`, {
+      raw_text: rawText,
+      created_at: createdAt,
+    }, { params: { user_id: userId } })
+    return data
+  },
+
   getImprovements: async (userId = 'default', periodDays = 30, annualGoalKg = 6000): Promise<ImprovementsOut> => {
     const { data } = await api.get<ImprovementsOut>('/improvements', {
       params: { user_id: userId, period_days: periodDays, annual_goal_kg: annualGoalKg },
     })
+    return data
+  },
+
+  getProfile: async (userId = 'default'): Promise<UserProfile> => {
+    const { data } = await api.get<UserProfile>('/profile', { params: { user_id: userId } })
+    return data
+  },
+
+  updateProfile: async (profile: UserProfile, userId = 'default'): Promise<UserProfile> => {
+    const { data } = await api.patch<UserProfile>('/profile', profile, { params: { user_id: userId } })
     return data
   },
 }

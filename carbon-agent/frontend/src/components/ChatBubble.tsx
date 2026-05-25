@@ -46,8 +46,7 @@ export function ChatBubble({ message }: Props) {
     const isQ = isQuestion(text)
     return (
       <div className={`bubble bubble--assistant ${isQ ? 'bubble--question' : ''}`}>
-        {isQ && <span className="bubble__question-icon">💬</span>}
-        <p>{text}</p>
+        <p>{isQ && <span className="bubble__question-icon">💬 </span>}{text}</p>
         {isQ && <p className="bubble__question-hint">Responde con la cantidad para calcular la huella</p>}
       </div>
     )
@@ -56,7 +55,7 @@ export function ChatBubble({ message }: Props) {
   // assistant — con datos de emisiones
   const total = data.total_kg_co2e
   const emissions = data.activity.emissions
-  const recommendation = data.recommendation
+  const clarifyingQ = data.clarifying_question
 
   return (
     <div className="bubble bubble--assistant">
@@ -71,7 +70,9 @@ export function ChatBubble({ message }: Props) {
         <ul className="emission-list">
           {emissions.map((e) => (
             <li key={e.id} className="emission-item">
-              <span className="emission-item__name">{e.factor.display_name}</span>
+              <span className="emission-item__name">
+                {e.description || e.factor.display_name}
+              </span>
               <span className="emission-item__bar-wrap">
                 <span
                   className="emission-item__bar"
@@ -87,8 +88,14 @@ export function ChatBubble({ message }: Props) {
         </ul>
       )}
 
-      {/* Recommendation */}
-      {/* <p className="recommendation">{recommendation}</p> */}
+      {/* Pregunta pendiente cuando hay emisiones + actividad incompleta */}
+      {clarifyingQ && (
+        <div className="bubble__pending-question">
+          <p><span className="bubble__question-icon">💬 </span>{clarifyingQ}</p>
+          <p className="bubble__question-hint">Responde para completar el cálculo</p>
+        </div>
+      )}
+
     </div>
   )
 }

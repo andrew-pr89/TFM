@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { carbonApi } from '../services/api'
+import type { UserProfile } from '../types'
 
 export const QUERY_KEYS = {
   history: (userId: string) => ['history', userId],
   summary: (userId: string) => ['summary', userId],
   improvements: (userId: string) => ['improvements', userId],
+  profile: (userId: string) => ['profile', userId],
 }
 
 export function useHistory(userId = 'default') {
@@ -60,6 +62,36 @@ export function useDeleteActivity(userId = 'default') {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.history(userId) })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.summary(userId) })
+    },
+  })
+}
+
+export function useEditActivity(userId = 'default') {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, rawText, createdAt }: { id: number; rawText: string; createdAt: string | null }) =>
+      carbonApi.patchActivity(id, rawText, createdAt, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.history(userId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.summary(userId) })
+    },
+  })
+}
+
+export function useProfile(userId = 'default') {
+  return useQuery({
+    queryKey: QUERY_KEYS.profile(userId),
+    queryFn: () => carbonApi.getProfile(userId),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdateProfile(userId = 'default') {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (profile: UserProfile) => carbonApi.updateProfile(profile, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profile(userId) })
     },
   })
 }

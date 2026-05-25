@@ -12,7 +12,6 @@ Regla de arquitectura:
 
 import json
 import logging
-from typing import Any
 
 from openai import OpenAI
 
@@ -46,7 +45,12 @@ class LLMService:
 
     # ── Extracción ───────────────────────────────────────────────────────────
 
-    def extract_activities(self, raw_text: str, factors_info: list[dict]) -> list[dict]:
+    def extract_activities(
+        self,
+        raw_text: str,
+        factors_info: list[dict],
+        pending_activity: dict | None = None,
+    ) -> list[dict]:
         """
         Convierte texto libre en una lista de actividades estructuradas.
 
@@ -62,66 +66,148 @@ class LLMService:
         )
 
         system = f"""Eres un extractor de actividades con huella de carbono.
-Tu tarea es analizar el texto del usuario e INTENTAR identificar actividades
-que tengan impacto en CO₂.
+Tu tarea es analizar el texto del usuario e identificar TODAS las actividades
+que tengan impacto en CO₂. Puede haber una o varias en el mismo mensaje.
 
 Categorías válidas con su unidad de medida (usa EXACTAMENTE estos identificadores):
 {categories_str}
 
 REGLAS CRÍTICAS:
 
-1. CANTIDAD EXPLÍCITA: Solo hay cantidad si el usuario escribe un NÚMERO concreto
-   seguido de una unidad ("200g", "0.3 kg", "5 km", "2 kWh").
-   "Un filete", "una hamburguesa", "algo de carne" NO son cantidades — falta el número.
+1. CANTIDAD EXPLÍCITA: Solo hay cantidad si el usuario escribe un NÚMERO (o "un/una")
+   seguido de una unidad reconocida ("200g", "0.3 kg", "5 km", "2 kWh", "un vaso", "2 vasos").
+   Unidades de referencia aceptadas:
+   - "vaso" / "vasos" → 1 vaso = 0.25 litros (convierte directamente)
+   "Un filete", "una hamburguesa", "algo de carne" NO son cantidades — falta la unidad.
 
 2. CONVERSIÓN DE UNIDADES: devuelve siempre en la unidad del factor.
    - "200 gramos" con factor en kg → quantity=0.2
    - "500 ml" con factor en litro → quantity=0.5
    - "5 km" con factor en km → quantity=5
+   - "1 vaso", "un vaso" con factor en litro → quantity=0.25  (1 vaso = 250 ml)
+   - "2 vasos" con factor en litro → quantity=0.5
 
-LÓGICA:
+3. MÚLTIPLES ACTIVIDADES: El usuario puede mencionar varias acciones en un mismo mensaje.
+   Identifica TODAS y devuélvelas en el array "activities", cada una con su propio estado.
 
-PASO 1: ¿El texto menciona UNA de estas categorías?
-- Si NO → tipo "none"
+POR CADA ACTIVIDAD IDENTIFICADA sigue esta lógica:
+
+PASO 1: ¿Se puede asociar SEMÁNTICAMENTE a alguna categoría?
+- Usa coincidencias semánticas, NO solo literales. Ejemplos orientativos:
+  - "yogurt", "nata", "mantequilla", "batido lácteo" → lacteos_leche
+  - "pasta", "espagueti", "macarrones", "fideos", "pan", "tostadas" → cereales
+  - "lentejas", "garbanzos", "judías", "alubias", "guisantes" → legumbres
+  - "plátano", "manzana", "naranja", "fresas", "uvas", "fruta" → fruta
+  - "patatas fritas", "puré de patata" → patata
+  - "hamburguesa casera", "pizza" → comida_rapida
+  - "café solo", "café con leche" → cafe (y lacteos_leche si lleva leche)
+  - "zumo de naranja" → zumo
+  - "agua mineral" → agua_embotellada
+  - "cerveza", "caña" → alcohol_cerveza
+  - "vino", "copa de vino" → alcohol_vino
+  - "refresco", "coca-cola", "fanta" → refresco_lata
+- Si NO hay ninguna categoría relacionada → omite esta actividad (no la incluyas)
 - Si SÍ → Ir al PASO 2
 
-PASO 2: ¿Hay un NÚMERO explícito con unidad de medida en el texto?
-- Si SÍ → tipo "activity" con la cantidad convertida a la unidad del factor
-- Si NO (solo se menciona el alimento/actividad sin número) → Ir al PASO 3
+CLASIFICACIÓN DE VUELOS (obligatorio):
+- avion_domestico: vuelo DENTRO del mismo país (ej: Madrid→Barcelona, Sevilla→Bilbao)
+- avion_internacional: vuelo ENTRE PAÍSES DISTINTOS (ej: Madrid→Londres, Barcelona→París)
+- Si origin y destination son ciudades del mismo país → siempre avion_domestico
+- Si no se sabe el destino aún → usa avion_domestico solo si el contexto indica vuelo nacional
 
-PASO 3: La categoría existe pero falta el número → pregunta por la cantidad en la unidad del factor.
-- Unidad "km"    → "¿Cuántos km has recorrido?"
-- Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
-- Unidad "kWh"   → "¿Cuántos kWh has consumido?"
-- Unidad "litro" → "¿Cuántos litros?"
-- Unidad "hora"  → "¿Cuántas horas?"
-- Unidad "unidad"→ "¿Cuántas veces / unidades?"
+PASO 2: ¿Hay un NÚMERO (o "un/una") con una unidad reconocida?
+- Unidades reconocidas: números con g/kg/km/kWh/litros/ml/horas/unidades/vaso/vasos
+- Si SÍ → actividad completa con quantity y unit convertidos a la unidad del factor
+- Si NO → Ir al PASO 3
+
+PASO 3: Categoría identificada pero falta cantidad.
+
+DISTINCIÓN CLAVE — POI con nombre propio vs. lugar genérico:
+  ✅ POI con nombre propio (geocodificable): "hotel Hesperia Madrid", "hotel Meliá Castilla", "restaurante El Bulli", "estadio Santiago Bernabéu"
+  ❌ Lugar genérico (no geocodificable): "hotel" (solo esa palabra), "trabajo", "casa", "oficina", "gym"
+  → Si el usuario dice "al hotel [nombre]" o "al restaurante [nombre]" → es un POI específico → SUBCASO A2
+  → Si el usuario dice solo "al hotel" sin nombre → es genérico → SUBCASO C
+
+- SUBCASO A: Unidad "km" Y el usuario menciona DOS ciudades/municipios (ej: "Madrid", "Barcelona"):
+  → actividad con quantity=null, origin="<ciudad>", destination="<ciudad>"
+- SUBCASO A2: Unidad "km" Y hay un POI con nombre propio Y se sabe la ciudad (en el mensaje o en el nombre del POI):
+  → actividad con quantity=null, origin=null, destination="<nombre POI>, <ciudad>"
+  → OBLIGATORIO: usar coma para separar POI y ciudad. Ejemplos:
+    · "taxi al hotel Hesperia Madrid" → destination="Hotel Hesperia, Madrid"
+    · "taxi al Hotel Meliá Castilla en Madrid" → destination="Hotel Meliá Castilla, Madrid"
+    · "al estadio Santiago Bernabéu" (Madrid conocido del contexto) → destination="Estadio Santiago Bernabéu, Madrid"
+- SUBCASO B: Unidad "km" Y solo UNA ciudad real mencionada:
+  → actividad con quantity=null, origin=null, destination="<ciudad>", clarifying_question="¿Desde qué ciudad saliste? La recordaré para la próxima vez."
+- SUBCASO C: Unidad "km" Y destino completamente genérico SIN nombre propio y SIN ciudad (ej: solo "el hotel", "el trabajo"):
+  → actividad con quantity=null, needs_locations=true, clarifying_question="¿Desde qué lugar saliste y hasta dónde en [transporte]? (p.ej: 'desde la estación de Atocha hasta el hotel Meliá Castilla, Madrid')"
+- Otros casos (kg, kWh, litro, etc.) → actividad con quantity=null y clarifying_question:
+  - Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
+  - Unidad "kWh"   → "¿Cuántos kWh has consumido?"
+  - Unidad "litro" → "¿Cuántos litros de [producto]?"
+  - Unidad "hora"  → "¿Cuántas horas?"
+  - Unidad "unidad"→ "¿Cuántas veces / unidades?"
+
+DETECCIÓN DE CIUDAD DE ORIGEN: Si el usuario declara su ciudad de origen habitual
+(ej: "vivo en Madrid", "mi ciudad es Sevilla", "salgo siempre desde Valencia", "soy de Bilbao"),
+incluye el campo "home_city" en el objeto raíz de la respuesta.
 
 RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO:
 
-CASO 1 - Actividad completa:
+CASO NORMAL - Una o más actividades identificadas:
 {{
   "type": "activity",
-  "activities": [{{
-    "category": "<categoría>",
-    "quantity": <número en la unidad del factor>,
-    "unit": "<unidad del factor>",
-    "description": "<descripción>"
-  }}]
+  "home_city": "<ciudad si el usuario la declara como habitual, si no omitir>",
+  "activities": [
+    {{
+      "category": "<categoría>",
+      "quantity": <número en unidad del factor, o null si falta>,
+      "unit": "<unidad del factor>",
+      "description": "<descripción breve>",
+      "origin": "<ciudad origen si hay dos ciudades, null si solo hay destino, omitir si no aplica>",
+      "destination": "<ciudad destino si aplica, si no omitir>",
+      "clarifying_question": "<pregunta si quantity es null y no se pueden calcular km, si no omitir>",
+      "needs_locations": "<true si es SUBCASO C — transporte con destino genérico que necesita origen y destino concretos; si no, omitir>"
+    }}
+  ]
 }}
 
-CASO 2 - Actividad parcial (falta cantidad):
+CASO Sin CO₂ pero declara ciudad de origen:
 {{
-  "type": "question",
-  "clarifying_question": "<pregunta específica sobre la cantidad en la unidad correcta>"
+  "type": "none",
+  "home_city": "<ciudad declarada>"
 }}
 
-CASO 3 - No tiene que ver con CO₂:
+CASO Sin CO₂ y sin ciudad:
 {{
   "type": "none"
 }}"""
 
-        user = f"Texto del usuario: {raw_text}"
+        # Si hay una actividad pendiente de resolución, añadir contexto al prompt
+        pending_section = ""
+        if pending_activity:
+            category = pending_activity.get("category", "?")
+            description = pending_activity.get("description", "una actividad")
+            question = pending_activity.get("question", "")
+            known_destination = pending_activity.get("destination", "")
+            destination_hint = (
+                f" El destino ya es conocido: \"{known_destination}\"."
+                if known_destination else ""
+            )
+            destination_instruction = (
+                f"\n- OBLIGATORIO: usa EXACTAMENTE \"{known_destination}\" como destination en tu respuesta JSON."
+                f" El origin será el lugar que mencione el usuario en este mensaje."
+                if known_destination else ""
+            )
+            pending_section = (
+                f"\n\nCONTEXTO — ACTIVIDAD PENDIENTE DE INFORMACIÓN:\n"
+                f"En el turno anterior el usuario mencionó \"{description}\" (categoría: {category})"
+                f" pero faltaba información. Se le hizo esta pregunta: \"{question}\"{destination_hint}\n"
+                f"Si el mensaje actual responde a esa pregunta (ya sea con un número, un lugar o cualquier dato),"
+                f" interpreta la respuesta en ese contexto y devuelve una actividad de categoría \"{category}\"."
+                f"{destination_instruction}"
+            )
+
+        user = f"Texto del usuario: {raw_text}\n{pending_section}" if pending_section else f"Texto del usuario: {raw_text}"
 
         raw = self._chat(system, user, temperature=0.1)
 
@@ -130,20 +216,28 @@ CASO 3 - No tiene que ver con CO₂:
 
         try:
             result = json.loads(raw)
-            
-            # Si la respuesta es una pregunta aclaratoria, devolverla para que el orquestador la maneje
+
             if isinstance(result, dict):
-                if result.get("type") == "question":
-                    return [{"clarifying_question": result.get("clarifying_question", "¿Cuánta cantidad?")}]
-                elif result.get("type") == "activity":
-                    return result.get("activities", [])
+                activities: list[dict] = []
+
+                if result.get("type") == "activity":
+                    activities = result.get("activities", [])
                 elif result.get("type") == "none":
+                    activities = []
+                else:
+                    log.warning("Formato inesperado del LLM: %s", raw[:200])
                     return []
-            
+
+                # Propagar home_city como marcador al final si fue declarada
+                if result.get("home_city"):
+                    activities = list(activities) + [{"set_home_city": result["home_city"]}]
+
+                return activities
+
             # Fallback si devuelve un array
             if isinstance(result, list):
                 return result
-                
+
             log.warning("Formato inesperado del LLM: %s", raw[:200])
             return []
         except json.JSONDecodeError:

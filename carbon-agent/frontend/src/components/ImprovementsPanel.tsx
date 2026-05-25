@@ -18,66 +18,46 @@ const CATEGORY_ICONS: Record<string, string> = {
 const IMPACT_COLOR = (pct: number) =>
   pct >= 40 ? '#ef4444' : pct >= 20 ? '#fb923c' : '#facc15'
 
-function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
-  const icon = CATEGORY_ICONS[s.category] ?? '🌿'
-  const saving = Math.round(s.current_kg * s.potential_saving_pct / 100)
+function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }) {
+  const first = suggestions[0]
+  const icon = CATEGORY_ICONS[first.category] ?? '🌿'
+  const color = IMPACT_COLOR(first.pct_of_total)
 
   return (
-    <div style={{
-      background: 'var(--surface-2)',
-      border: '1px solid var(--border)',
-      borderRadius: '12px',
-      padding: '20px',
-      marginBottom: '16px',
-    }}>
-      {/* Cabecera */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '22px' }}>{icon}</span>
+    <div className="suggestion-card">
+      <div className="suggestion-card__header">
+        <div className="suggestion-card__title-group">
+          <span className="suggestion-card__icon">{icon}</span>
           <div>
-            <span style={{ fontWeight: 600, fontSize: '14px' }}>{s.category}</span>
-            <span style={{
-              marginLeft: '10px',
-              fontSize: '12px',
-              color: IMPACT_COLOR(s.pct_of_total),
-              fontWeight: 500,
-            }}>
-              {s.current_kg.toFixed(2)} kg · {s.pct_of_total.toFixed(0)}% del total
+            <span className="suggestion-card__category">{first.category}</span>
+            <span className="suggestion-card__stats" style={{ color }}>
+              {first.current_kg.toFixed(2)} kg · {first.pct_of_total.toFixed(0)}% del total
             </span>
           </div>
         </div>
-        <div style={{
-          background: '#166534',
-          color: '#4ade80',
-          borderRadius: '20px',
-          padding: '3px 10px',
-          fontSize: '12px',
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
-        }}>
-          −{s.potential_saving_pct}% · ahorra ~{saving} kg
-        </div>
       </div>
 
-      {/* Barra de impacto */}
-      <div style={{ background: 'var(--border)', borderRadius: '4px', height: '4px', marginBottom: '14px' }}>
-        <div style={{
-          width: `${Math.min(s.pct_of_total, 100)}%`,
-          height: '100%',
-          background: IMPACT_COLOR(s.pct_of_total),
-          borderRadius: '4px',
-        }} />
+      <div className="suggestion-card__bar">
+        <div
+          className="suggestion-card__bar-fill"
+          style={{ width: `${Math.min(first.pct_of_total, 100)}%`, background: color }}
+        />
       </div>
 
-      {/* Acción principal */}
-      <p style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px', color: 'var(--text)' }}>
-        {s.action}
-      </p>
-
-      {/* Consejo adicional */}
-      <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0 }}>
-        {s.tip}
-      </p>
+      {suggestions.map((s, i) => {
+        const saving = Math.round(s.current_kg * s.potential_saving_pct / 100)
+        return (
+          <div key={i} className="suggestion-card__item">
+            <div className="suggestion-card__item-header">
+              <p className="suggestion-card__action">{s.action}</p>
+              <span className="suggestion-card__badge">
+                −{s.potential_saving_pct}% · ahorra ~{saving} kg
+              </span>
+            </div>
+            <p className="suggestion-card__tip">{s.tip}</p>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -107,44 +87,32 @@ export function ImprovementsPanel({ userId = 'default', annualGoalKg = 6000 }: P
   const overBudget = data.total_kg > data.budget_kg
   const gap = Math.abs(data.total_kg - data.budget_kg).toFixed(1)
 
+  const grouped = data.suggestions.reduce((map, s) => {
+    if (!map.has(s.category)) map.set(s.category, [])
+    map.get(s.category)!.push(s)
+    return map
+  }, new Map<string, ImprovementSuggestion[]>())
+
   return (
     <div className="summary-panel">
-      {/* Contexto */}
-      <div style={{
-        background: overBudget ? 'rgba(239,68,68,0.1)' : 'rgba(74,222,128,0.1)',
-        border: `1px solid ${overBudget ? '#ef4444' : '#4ade80'}`,
-        borderRadius: '10px',
-        padding: '14px 18px',
-        marginBottom: '24px',
-        fontSize: '13px',
-        lineHeight: '1.6',
-      }}>
+      <div
+        className="suggestions-context"
+        style={{
+          background: overBudget ? 'rgba(239,68,68,0.1)' : 'rgba(74,222,128,0.1)',
+          border: `1px solid ${overBudget ? '#ef4444' : '#4ade80'}`,
+        }}
+      >
         {overBudget
           ? `⚠️ Estás ${gap} kg por encima del presupuesto sostenible de ${data.budget_kg.toFixed(0)} kg/mes. Aquí tienes las áreas donde reducir más impacto:`
           : `✅ Estás dentro del presupuesto sostenible (${data.total_kg.toFixed(1)} kg de ${data.budget_kg.toFixed(0)} kg). Sigue mejorando con estos consejos:`
         }
       </div>
 
-      {/* Sugerencias */}
-      {data.suggestions.map((s, i) => (
-        <SuggestionCard key={i} s={s} />
+      {Array.from(grouped.entries()).map(([category, suggestions]) => (
+        <CategoryGroup key={category} suggestions={suggestions} />
       ))}
 
-      {/* Botón regenerar */}
-      <button
-        onClick={() => refetch()}
-        style={{
-          marginTop: '8px',
-          padding: '10px 20px',
-          background: 'var(--surface-2)',
-          border: '1px solid var(--border)',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          fontSize: '13px',
-          color: 'var(--text-muted)',
-          width: '100%',
-        }}
-      >
+      <button className="suggestions-regen-btn" onClick={() => refetch()}>
         🔄 Regenerar sugerencias
       </button>
     </div>

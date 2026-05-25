@@ -106,12 +106,12 @@ class TestActivityEndpoint:
         data = response.json()
         assert data["activity"]["raw_text"] == text
 
-    def test_post_activity_returns_recommendation_stub(self, client):
+    def test_post_activity_returns_message(self, client):
         response = client.post("/api/activity", json={"raw_text": "Volé de Madrid a Barcelona"})
         data = response.json()
-        assert "recommendation" in data
-        assert isinstance(data["recommendation"], str)
-        assert len(data["recommendation"]) > 0
+        assert "message" in data
+        assert isinstance(data["message"], str)
+        assert len(data["message"]) > 0
 
     def test_post_activity_too_short_text_fails(self, client):
         response = client.post("/api/activity", json={"raw_text": "Hi"})

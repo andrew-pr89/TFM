@@ -20,7 +20,12 @@ class EmissionFactorOut(BaseModel):
     display_name: str
     unit: str
     factor_kg_co2e: float
-    source: str | None
+    source_name: str | None
+    source_year: int | None
+    source_type: str | None
+    source_detail: str | None
+    source_url: str | None
+    notes: str | None
 
     model_config = {"from_attributes": True}
 
@@ -37,6 +42,7 @@ class EmissionOut(BaseModel):
     factor: EmissionFactorOut
     quantity: float
     amount_kg_co2e: float
+    description: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -67,8 +73,24 @@ class ActivityResponse(BaseModel):
     """Lo que devuelve POST /activity al cliente."""
     activity: ActivityOut
     total_kg_co2e: float
-    recommendation: str
+    message: str                            # recomendación o pregunta aclaratoria según is_question
     is_question: bool = False
+    clarifying_question: str | None = None  # pregunta pendiente cuando hay emisiones Y actividad incompleta
+
+
+# ── User profile ─────────────────────────────────────────────────────────────
+
+class UserProfile(BaseModel):
+    home_city: str | None = None       # ciudad de residencia
+    work_place: str | None = None      # lugar de trabajo / centro de estudios
+    display_name: str | None = None    # nombre del usuario (opcional)
+
+
+# ── Activity patch ───────────────────────────────────────────────────────────
+
+class ActivityPatch(BaseModel):
+    raw_text: str = Field(..., min_length=1, max_length=1000)
+    created_at: datetime | None = None
 
 
 # ── Improvements ─────────────────────────────────────────────────────────────

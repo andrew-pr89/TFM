@@ -23,7 +23,20 @@ def create_tables() -> None:
     """Crea todas las tablas definidas en los modelos ORM."""
     log.info("Creando tablas en %s …", engine.url)
     Base.metadata.create_all(bind=engine)
+    _migrate_add_columns()
     log.info("Tablas creadas correctamente.")
+
+
+def _migrate_add_columns() -> None:
+    """Adds new columns to existing tables without dropping data."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    with engine.connect() as conn:
+        emissions_cols = {c["name"] for c in inspector.get_columns("emissions")}
+        if "description" not in emissions_cols:
+            conn.execute(text("ALTER TABLE emissions ADD COLUMN description TEXT"))
+            conn.commit()
+            log.info("Migración: columna 'description' añadida a emissions.")
 
 
 def seed_emission_factors(db: Session) -> None:
