@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
 
+    # CORS — URL del frontend en producción (Railway/Vercel/Netlify)
+    # Ejemplo: https://carbon-agent.vercel.app
+    frontend_url: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

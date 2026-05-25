@@ -92,9 +92,21 @@ class Extractor:
             "hotel", "aeropuerto",
         }
 
-        # Para transporte urbano/regional, distancias >300 km son un error de geocodificación
+        # Límite de distancia máxima por tipo de transporte (para detectar errores de geocodificación)
+        # Metro/taxi: solo urbano. Coche: puede cruzar países enteros.
         _URBAN_TRANSPORT = {"taxi", "moto", "metro", "autobus", "coche_gasolina", "coche_diesel", "coche_electrico"}
-        _MAX_KM_URBAN = 300.0
+        _MAX_KM_BY_CATEGORY: dict[str, float] = {
+            "metro":           100.0,   # red urbana
+            "taxi":            300.0,   # máximo transfer aeropuerto
+            "autobus":        1500.0,   # puede ser interurbano
+            "moto":           1500.0,   # puede ser viaje largo
+            "coche_gasolina": 3000.0,   # puede cruzar Europa
+            "coche_diesel":   3000.0,
+            "coche_electrico": 3000.0,
+        }
+
+        def _max_km(cat: str) -> float:
+            return _MAX_KM_BY_CATEGORY.get(cat, 3000.0)
 
         # Palabras que indican un POI específico cuya ciudad no se puede inferir con seguridad
         _POI_KEYWORDS = {"hotel", "hostal", "restaurante", "bar", "café", "cafetería", "club", "centro comercial", "estadio", "teatro", "museo"}
@@ -142,7 +154,7 @@ class Extractor:
                     destination_has_city = "," in destination
                     if _is_ambiguous_poi(destination) and category in _URBAN_TRANSPORT and not destination_has_city:
                         probe = get_distance_km(origin, destination)
-                        if probe is None or probe > _MAX_KM_URBAN:
+                        if probe is None or probe > _max_km(category):
                             log.info("Destino POI '%s' no geocodificable sin ciudad — pidiendo ciudad", destination)
                             question = (
                                 f"¿En qué ciudad está '{destination}'? "
@@ -161,9 +173,9 @@ class Extractor:
                         log.info("Calculando distancia %s → %s", origin, destination)
                         quantity_raw = get_distance_km(origin, destination)
                         if quantity_raw is None or (
-                            category in _URBAN_TRANSPORT and quantity_raw > _MAX_KM_URBAN
+                            category in _URBAN_TRANSPORT and quantity_raw > _max_km(category)
                         ):
-                            if quantity_raw and quantity_raw > _MAX_KM_URBAN:
+                            if quantity_raw and quantity_raw > _max_km(category):
                                 log.warning("Distancia %s → %s = %.0f km parece incorrecta para %s", origin, destination, quantity_raw, category)
                                 question = f"No pude calcular bien la distancia para {description}. ¿Cuántos km son aproximadamente?"
                             else:
@@ -215,9 +227,9 @@ class Extractor:
                         log.info("Usando home_city '%s' como origen para → %s", home_city, destination)
                         quantity_raw = get_distance_km(home_city, destination)
                         if quantity_raw is None or (
-                            category in _URBAN_TRANSPORT and quantity_raw > _MAX_KM_URBAN
+                            category in _URBAN_TRANSPORT and quantity_raw > _max_km(category)
                         ):
-                            if quantity_raw and quantity_raw > _MAX_KM_URBAN:
+                            if quantity_raw and quantity_raw > _max_km(category):
                                 log.warning("Distancia %s → %s = %.0f km parece incorrecta para %s", home_city, destination, quantity_raw, category)
                                 question = f"No pude calcular bien la distancia para {description}. ¿Cuántos km son aproximadamente?"
                             else:

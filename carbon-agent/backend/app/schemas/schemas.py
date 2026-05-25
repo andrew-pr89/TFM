@@ -73,7 +73,7 @@ class ActivityResponse(BaseModel):
     """Lo que devuelve POST /activity al cliente."""
     activity: ActivityOut
     total_kg_co2e: float
-    recommendation: str
+    message: str                            # recomendación o pregunta aclaratoria según is_question
     is_question: bool = False
     clarifying_question: str | None = None  # pregunta pendiente cuando hay emisiones Y actividad incompleta
 

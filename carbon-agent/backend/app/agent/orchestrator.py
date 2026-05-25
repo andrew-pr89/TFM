@@ -27,7 +27,7 @@ def _empty(user_id: str, raw_text: str) -> ActivityResponse:
             emissions=[],
         ),
         total_kg_co2e=0.0,
-        recommendation="",
+        message="",
     )
 
 
@@ -108,7 +108,7 @@ class CarbonAgent:
         if pending_question and not extracted:
             log.info("Pregunta aclaratoria para user=%s: %s", user_id, pending_question)
             response = _empty(user_id, raw_text)
-            response.recommendation = pending_question
+            response.message = pending_question
             response.is_question = True
             return response
 
@@ -120,7 +120,7 @@ class CarbonAgent:
                 if still_pending else ""
             )
             response = _empty(user_id, raw_text)
-            response.recommendation = (
+            response.message = (
                 f"¡Perfecto! He guardado {new_home_city} como tu ciudad de origen. "
                 f"La usaré automáticamente para calcular distancias cuando viajes.{follow_up}"
             )
@@ -131,7 +131,7 @@ class CarbonAgent:
         if not extracted and not pending_question:
             log.info("Nada que guardar — el LLM no identificó actividades CO₂.")
             response = _empty(user_id, raw_text)
-            response.recommendation = (
+            response.message = (
                 "No he podido identificar actividades con huella de carbono en tu mensaje. "
                 "Prueba con algo como: 'he conducido 20 km', 'comí 200g de ternera' "
                 "o 'vuelo Madrid-Londres de 600 km'."
@@ -191,7 +191,7 @@ class CarbonAgent:
         return ActivityResponse(
             activity=ActivityOut.model_validate(activity),
             total_kg_co2e=total,
-            recommendation=recommendation,
+            message=recommendation,
             clarifying_question=pending_question or None,
         )
 

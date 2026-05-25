@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.activities import router as activities_router
+from app.core.config import settings
 from app.db.init_db import init_db
 
 
@@ -28,10 +29,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — en desarrollo permite el dev server de React (puerto 5173)
+# CORS — orígenes permitidos: dev local + frontend de producción si está configurado
+_origins = ["http://localhost:5173", "http://localhost:3000"]
+if settings.frontend_url:
+    _origins.append(settings.frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

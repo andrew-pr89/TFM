@@ -198,7 +198,7 @@ class TestActivityEndpointWithAgent:
                 created_at=datetime.utcnow(), emissions=[]
             ),
             total_kg_co2e=1.92,
-            recommendation="Considera usar el transporte público mañana.",
+            message="Considera usar el transporte público mañana.",
         )
 
         with patch("app.agent.orchestrator.carbon_agent.process_activity", return_value=mock_response):
@@ -207,7 +207,7 @@ class TestActivityEndpointWithAgent:
         assert response.status_code == 201
         data = response.json()
         assert data["total_kg_co2e"] == 1.92
-        assert len(data["recommendation"]) > 0
+        assert len(data["message"]) > 0
 
     def test_post_activity_500_on_agent_error(self, client):
         with patch(

@@ -1,8 +1,14 @@
 import axios from 'axios'
 import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile } from '../types'
 
+// En desarrollo: baseURL='/api' → Vite proxy → localhost:8000
+// En producción: VITE_API_URL apunta al backend de Railway
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api'
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL,
   headers: { 'Content-Type': 'application/json' },
 })
 

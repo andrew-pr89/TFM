@@ -50,7 +50,7 @@ export default function App() {
     try {
       const data = await mutation.mutateAsync(text)
       if (data.is_question) {
-        setPendingContext({ originalText: pendingContext?.originalText ?? text, question: data.recommendation })
+        setPendingContext({ originalText: pendingContext?.originalText ?? text, question: data.message })
       } else if (data.clarifying_question) {
         // Hay emisiones calculadas Y una actividad pendiente de más info
         setPendingContext({ originalText: text, question: data.clarifying_question })
@@ -60,7 +60,7 @@ export default function App() {
       const assistantMsg: ChatMessage = {
         id: uid(),
         role: 'assistant',
-        text: data.recommendation,
+        text: data.message,
         data,
         timestamp: new Date(),
       }

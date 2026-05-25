@@ -30,7 +30,7 @@ export interface ActivityOut {
 export interface ActivityResponse {
   activity: ActivityOut
   total_kg_co2e: number
-  recommendation: string
+  message: string                 // recomendación o pregunta aclaratoria según is_question
   is_question: boolean
   clarifying_question?: string
 }
