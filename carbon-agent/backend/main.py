@@ -29,14 +29,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — orígenes permitidos: dev local + frontend de producción si está configurado
+# CORS — orígenes permitidos: dev local + frontend(s) de producción
 _origins = ["http://localhost:5173", "http://localhost:3000"]
+
+# Soporta lista separada por comas: "https://a.railway.app,https://b.vercel.app"
 if settings.frontend_url:
-    _origins.append(settings.frontend_url)
+    for url in settings.frontend_url.split(","):
+        url = url.strip()
+        if url:
+            _origins.append(url)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
+    allow_origin_regex=r"https://.*\.up\.railway\.app",  # cualquier subdominio Railway
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
