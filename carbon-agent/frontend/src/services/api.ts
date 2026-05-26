@@ -2,10 +2,12 @@ import axios from 'axios'
 import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile } from '../types'
 
 // En desarrollo: baseURL='/api' → Vite proxy → localhost:8000
-// En producción: VITE_API_URL apunta al backend de Railway
-const baseURL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api`
-  : '/api'
+// En producción: VITE_API_URL apunta al backend de Railway (debe incluir https://)
+const rawApiUrl = import.meta.env.VITE_API_URL
+const normalizedApiUrl = rawApiUrl
+  ? rawApiUrl.startsWith('http') ? rawApiUrl : `https://${rawApiUrl}`
+  : null
+const baseURL = normalizedApiUrl ? `${normalizedApiUrl}/api` : '/api'
 
 const api = axios.create({
   baseURL,
