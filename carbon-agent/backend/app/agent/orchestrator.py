@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.agent.calculator import CO2Calculator
-from app.agent.extractor import Extractor, ExtractedActivity
+from app.agent.extractor import DEFAULT_PORTIONS, Extractor, ExtractedActivity
 from app.agent.llm_service import LLMService
 from app.agent.memory import MemoryService
 from app.models.models import Activity
@@ -45,6 +45,17 @@ class CarbonAgent:
         work_place = self.memory.get_work_place(user_id=user_id, db=db)
         existing_pending_activity = self.memory.get_pending_activity(user_id=user_id, db=db)
 
+        # If the pending activity is a food/energy category that now has a default portion,
+        # auto-clear it so the extractor processes all items in the message normally.
+        if existing_pending_activity:
+            pending_cat = existing_pending_activity.get("category", "")
+            if pending_cat in DEFAULT_PORTIONS:
+                self.memory.clear_pending_activity(user_id=user_id, db=db)
+                db.commit()
+                existing_pending_activity = None
+
+        user_portions = self.memory.get_portions(user_id=user_id, db=db)
+
         # ── 2. Extracción (LLM) — ANTES de persistir ────────────────────────
         extracted = self.extractor.extract(
             raw_text=raw_text,
@@ -52,6 +63,8 @@ class CarbonAgent:
             home_city=home_city,
             work_place=work_place,
             pending_activity=existing_pending_activity,
+            user_portions=user_portions or None,
+            user_id=user_id,
         )
 
         # ── Separar marcadores especiales de actividades reales ──────────────
@@ -59,6 +72,7 @@ class CarbonAgent:
         new_pending_activity: dict | None = None
         pending_question: str | None = None
 
+        unknown_names: list[str] = []
         filtered = []
         for item in extracted:
             if isinstance(item, dict) and "set_home_city" in item:
@@ -67,6 +81,8 @@ class CarbonAgent:
                 new_pending_activity = item["set_pending_activity"]
             elif isinstance(item, dict) and "clarifying_question" in item:
                 pending_question = item["clarifying_question"]
+            elif isinstance(item, dict) and "unknown_items" in item:
+                unknown_names = item["unknown_items"]
             else:
                 filtered.append(item)
         extracted = filtered
@@ -130,12 +146,22 @@ class CarbonAgent:
         # ── Caso: nada identificado ──────────────────────────────────────────
         if not extracted and not pending_question:
             log.info("Nada que guardar — el LLM no identificó actividades CO₂.")
+            if unknown_names:
+                db.commit()  # persist unknown items stored during extraction
             response = _empty(user_id, raw_text)
-            response.message = (
-                "No he podido identificar actividades con huella de carbono en tu mensaje. "
-                "Prueba con algo como: 'he conducido 20 km', 'comí 200g de ternera' "
-                "o 'vuelo Madrid-Londres de 600 km'."
-            )
+            if unknown_names:
+                names_str = ", ".join(f'"{n}"' for n in unknown_names)
+                response.message = (
+                    f"No tengo datos de huella de carbono para {names_str}. "
+                    f"He registrado {'este término' if len(unknown_names) == 1 else 'estos términos'} "
+                    f"para revisión y {'podría' if len(unknown_names) == 1 else 'podrían'} añadirse al catálogo pronto."
+                )
+            else:
+                response.message = (
+                    "No he podido identificar actividades con huella de carbono en tu mensaje. "
+                    "Prueba con algo como: 'he conducido 20 km', 'comí 200g de ternera' "
+                    "o 'vuelo Madrid-Londres de 600 km'."
+                )
             return response
 
         # ── 2. Persistir Activity ────────────────────────────────────────────
@@ -184,6 +210,15 @@ class CarbonAgent:
                 f"Todavía me falta saber los lugares para "
                 f"{still_pending.get('description', 'el transporte pendiente')}: "
                 "¿desde qué lugar y hasta dónde?"
+            )
+
+        # Append unknown items note to the recommendation if any were flagged
+        if unknown_names:
+            names_str = ", ".join(f'"{n}"' for n in unknown_names)
+            recommendation += (
+                f"\n\n⚠️ No tengo datos para {names_str}. "
+                f"{'Este término ha sido registrado' if len(unknown_names) == 1 else 'Estos términos han sido registrados'} "
+                f"para revisión y {'podría' if len(unknown_names) == 1 else 'podrían'} añadirse al catálogo pronto."
             )
 
         log.info("Actividad procesada: user=%s total=%.3f kg CO₂e", user_id, total)

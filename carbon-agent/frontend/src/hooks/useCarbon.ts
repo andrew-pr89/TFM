@@ -7,6 +7,7 @@ export const QUERY_KEYS = {
   summary: (userId: string) => ['summary', userId],
   improvements: (userId: string) => ['improvements', userId],
   profile: (userId: string) => ['profile', userId],
+  portions: (userId: string) => ['portions', userId],
 }
 
 export function useHistory(userId = 'default') {
@@ -92,6 +93,24 @@ export function useUpdateProfile(userId = 'default') {
     mutationFn: (profile: UserProfile) => carbonApi.updateProfile(profile, userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profile(userId) })
+    },
+  })
+}
+
+export function usePortions(userId = 'default') {
+  return useQuery({
+    queryKey: QUERY_KEYS.portions(userId),
+    queryFn: () => carbonApi.getPortions(userId),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdatePortions(userId = 'default') {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (portions: Record<string, number>) => carbonApi.updatePortions(portions, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.portions(userId) })
     },
   })
 }

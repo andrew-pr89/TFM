@@ -66,6 +66,14 @@ export interface UserProfile {
   display_name?: string | null
 }
 
+export interface PortionEntry {
+  category: string
+  display_name: string
+  unit: string
+  default_quantity: number
+  user_quantity: number | null
+}
+
 // Estado del chat
 export type MessageRole = 'user' | 'assistant' | 'error'
 

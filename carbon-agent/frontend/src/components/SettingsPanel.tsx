@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSettings } from '../hooks/useSettings'
-import { useProfile, useUpdateProfile } from '../hooks/useCarbon'
+import { useProfile, useUpdateProfile, usePortions, useUpdatePortions } from '../hooks/useCarbon'
 
 // ── Sub-panel: Objetivo CO₂ ───────────────────────────────────────────────────
 
@@ -240,13 +240,135 @@ function ProfilePanel() {
   )
 }
 
+// ── Sub-panel: Porciones por defecto ─────────────────────────────────────────
+
+function formatQuantity(unit: string, qty: number): string {
+  if (unit === 'kg') return `${Math.round(qty * 1000)} g`
+  if (unit === 'litro') return qty >= 1 ? `${qty} L` : `${Math.round(qty * 1000)} ml`
+  if (unit === 'unidad') return `${qty} ud.`
+  if (unit === 'kWh') return `${qty} kWh`
+  if (unit === 'hora') return `${qty} h`
+  return `${qty} ${unit}`
+}
+
+function parseInput(unit: string, raw: string): number | null {
+  const n = parseFloat(raw.replace(',', '.'))
+  if (isNaN(n) || n <= 0) return null
+  if (unit === 'kg') return n / 1000
+  if (unit === 'litro') return n / 1000
+  return n
+}
+
+function inputUnit(unit: string): string {
+  if (unit === 'kg') return 'gramos'
+  if (unit === 'litro') return 'ml'
+  return unit
+}
+
+function toInputValue(unit: string, qty: number): string {
+  if (unit === 'kg') return String(Math.round(qty * 1000))
+  if (unit === 'litro') return String(Math.round(qty * 1000))
+  return String(qty)
+}
+
+function PortionsPanel() {
+  const { data: portions, isLoading } = usePortions()
+  const { mutate: save, isPending: isSaving } = useUpdatePortions()
+  const [edits, setEdits] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState(false)
+
+  if (isLoading) return <p className="settings__context-desc">Cargando porciones…</p>
+
+  const handleChange = (category: string, value: string) => {
+    setEdits(prev => ({ ...prev, [category]: value }))
+    setSaved(false)
+  }
+
+  const handleReset = (category: string) => {
+    setEdits(prev => { const next = { ...prev }; delete next[category]; return next })
+    setSaved(false)
+  }
+
+  const handleSave = () => {
+    if (!portions) return
+    const updates: Record<string, number> = {}
+    for (const entry of portions) {
+      const raw = edits[entry.category]
+      if (raw !== undefined) {
+        const parsed = parseInput(entry.unit, raw)
+        if (parsed !== null) updates[entry.category] = parsed
+      }
+    }
+    save(updates, { onSuccess: () => { setEdits({}); setSaved(true) } })
+  }
+
+  return (
+    <div className="settings__profile">
+      <div className="settings__context-box" style={{ marginBottom: '1rem' }}>
+        <p className="settings__context-title">¿Para qué sirve esto?</p>
+        <p className="settings__context-desc">
+          Cuando dices "he comido pollo" sin indicar gramos, el asistente usa estas cantidades por defecto.
+          Ajústalas a tus raciones habituales para obtener estimaciones más precisas.
+        </p>
+      </div>
+
+      <div className="settings__portions-list">
+        {portions?.map(entry => {
+          const effective = entry.user_quantity ?? entry.default_quantity
+          const rawEdit = edits[entry.category]
+          const displayValue = rawEdit !== undefined
+            ? rawEdit
+            : toInputValue(entry.unit, effective)
+          const isCustom = entry.user_quantity !== null && entry.user_quantity !== undefined
+
+          return (
+            <div key={entry.category} className="settings__portion-row">
+              <span className="settings__portion-name">{entry.display_name}</span>
+              <div className="settings__portion-input-wrap">
+                <input
+                  className="settings__portion-input"
+                  type="number"
+                  min={1}
+                  value={displayValue}
+                  onChange={e => handleChange(entry.category, e.target.value)}
+                />
+                <span className="settings__portion-unit">{inputUnit(entry.unit)}</span>
+                {isCustom && rawEdit === undefined && (
+                  <button
+                    className="settings__portion-reset"
+                    title="Restaurar por defecto"
+                    onClick={() => {
+                      save({ [entry.category]: entry.default_quantity }, {
+                        onSuccess: () => setSaved(true),
+                      })
+                      handleReset(entry.category)
+                    }}
+                  >↺</button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="settings__profile-actions">
+        <button className="settings__save-btn" onClick={handleSave} disabled={isSaving || Object.keys(edits).length === 0}>
+          {isSaving ? 'Guardando…' : 'Guardar porciones'}
+        </button>
+        {saved && <span className="settings__save-ok">Guardado</span>}
+      </div>
+    </div>
+  )
+}
+
 // ── Panel principal con sub-tabs ──────────────────────────────────────────────
 
-type SubTab = 'goal' | 'profile'
+type SubTab = 'goal' | 'profile' | 'portions'
 
 const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
-  { id: 'goal',    label: 'Objetivo CO₂', icon: '🎯' },
-  { id: 'profile', label: 'Preferencias', icon: '👤' },
+  { id: 'goal',     label: 'Objetivo CO₂', icon: '🎯' },
+  { id: 'profile',  label: 'Preferencias', icon: '👤' },
+  { id: 'portions', label: 'Porciones',    icon: '🍽️' },
 ]
 
 export function SettingsPanel() {
@@ -268,8 +390,9 @@ export function SettingsPanel() {
         ))}
       </div>
 
-      {tab === 'goal'    && <GoalPanel />}
-      {tab === 'profile' && <ProfilePanel />}
+      {tab === 'goal'     && <GoalPanel />}
+      {tab === 'profile'  && <ProfilePanel />}
+      {tab === 'portions' && <PortionsPanel />}
     </div>
   )
 }

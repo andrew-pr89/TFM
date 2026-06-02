@@ -105,6 +105,28 @@ class MemoryService:
             db.flush()
             log.info("Actividad pendiente eliminada para user=%s", user_id)
 
+    def get_portions(self, user_id: str, db: Session) -> dict[str, float]:
+        """Returns user-overridden portion sizes as {category: quantity}."""
+        prefix = "portion_"
+        records = (
+            db.query(UserMemory)
+            .filter(UserMemory.user_id == user_id, UserMemory.key.like(f"{prefix}%"))
+            .all()
+        )
+        result: dict[str, float] = {}
+        for r in records:
+            category = r.key[len(prefix):]
+            try:
+                result[category] = float(r.value)
+            except (ValueError, TypeError):
+                pass
+        return result
+
+    def set_portions(self, user_id: str, portions: dict[str, float], db: Session) -> None:
+        """Saves user-defined default portion sizes."""
+        updates = {f"portion_{cat}": str(qty) for cat, qty in portions.items()}
+        self.update_memory(user_id=user_id, updates=updates, db=db)
+
     def infer_habits(self, user_id: str, category: str, db: Session) -> None:
         """
         Infiere y guarda hábitos a partir de las actividades registradas.
