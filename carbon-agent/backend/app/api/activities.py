@@ -14,11 +14,13 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.agent.extractor import DEFAULT_PORTIONS
 from app.agent.memory import MemoryService
 from app.agent.orchestrator import carbon_agent
 from app.db.database import get_db
+from app.db.seed_data import EMISSION_FACTORS
 from app.models.models import Activity
-from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, ImprovementSuggestion, ImprovementsOut, SummaryOut, UserProfile
+from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, ImprovementSuggestion, ImprovementsOut, PortionEntry, SummaryOut, UnknownItemOut, UserProfile
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["activities"])
@@ -156,6 +158,65 @@ def update_profile(payload: UserProfile, user_id: str = "default", db: Session =
         memory.update_memory(user_id=user_id, updates=updates, db=db)
         db.commit()
     return get_profile(user_id=user_id, db=db)
+
+
+@router.get("/admin/unknown-items", response_model=list[UnknownItemOut])
+def get_unknown_items(status: str = "pending", limit: int = 100, db: Session = Depends(get_db)):
+    """Lists items flagged as unknown by users, for admin review."""
+    from app.models.models import UnknownItem
+    return (
+        db.query(UnknownItem)
+        .filter(UnknownItem.status == status)
+        .order_by(UnknownItem.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+@router.patch("/admin/unknown-items/{item_id}", response_model=UnknownItemOut)
+def update_unknown_item_status(item_id: int, status: str, db: Session = Depends(get_db)):
+    """Update the review status of an unknown item (pending → added | rejected)."""
+    from app.models.models import UnknownItem
+    item = db.query(UnknownItem).filter(UnknownItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if status not in ("pending", "added", "rejected"):
+        raise HTTPException(status_code=400, detail="status must be pending, added, or rejected")
+    item.status = status
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/portions", response_model=list[PortionEntry])
+def get_portions(user_id: str = "default", db: Session = Depends(get_db)):
+    """Returns portion defaults for all non-transport categories, with user overrides applied."""
+    memory = MemoryService()
+    user_portions = memory.get_portions(user_id=user_id, db=db)
+    factor_map = {f["category"]: f for f in EMISSION_FACTORS}
+
+    entries: list[PortionEntry] = []
+    for category, default_qty in DEFAULT_PORTIONS.items():
+        factor = factor_map.get(category)
+        if not factor:
+            continue
+        entries.append(PortionEntry(
+            category=category,
+            display_name=factor["display_name"],
+            unit=factor["unit"],
+            default_quantity=default_qty,
+            user_quantity=user_portions.get(category),
+        ))
+    return entries
+
+
+@router.patch("/portions", response_model=list[PortionEntry])
+def update_portions(payload: dict[str, float], user_id: str = "default", db: Session = Depends(get_db)):
+    """Saves user-defined default portions. Send only the categories you want to override."""
+    memory = MemoryService()
+    memory.set_portions(user_id=user_id, portions=payload, db=db)
+    db.commit()
+    return get_portions(user_id=user_id, db=db)
 
 
 @router.get("/improvements", response_model=ImprovementsOut)

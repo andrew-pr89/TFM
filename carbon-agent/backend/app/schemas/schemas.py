@@ -111,6 +111,30 @@ class ImprovementsOut(BaseModel):
     period_days: int
 
 
+# ── Unknown items ────────────────────────────────────────────────────────────
+
+class UnknownItemOut(BaseModel):
+    id: int
+    user_id: str
+    raw_term: str
+    context: str | None
+    guessed_category: str | None
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Portions ──────────────────────────────────────────────────────────────────
+
+class PortionEntry(BaseModel):
+    category: str
+    display_name: str
+    unit: str
+    default_quantity: float        # system default
+    user_quantity: float | None    # user override (None = using system default)
+
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 class SummaryOut(BaseModel):

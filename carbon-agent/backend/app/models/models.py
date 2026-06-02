@@ -118,3 +118,23 @@ class UserMemory(Base):
 
     def __repr__(self) -> str:
         return f"<UserMemory user={self.user_id} {self.key}={self.value}>"
+
+
+class UnknownItem(Base):
+    """
+    Items mentioned by users that couldn't be mapped to a known emission category.
+    Queued for admin review so new categories can be added to the catalog.
+    """
+
+    __tablename__ = "unknown_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    raw_term: Mapped[str] = mapped_column(String(300), nullable=False)   # exact word/phrase the user said
+    context: Mapped[str] = mapped_column(Text, nullable=True)            # full original message
+    guessed_category: Mapped[str] = mapped_column(String(100), nullable=True)  # LLM's best guess
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")  # pending | added | rejected
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<UnknownItem '{self.raw_term}' status={self.status}>"

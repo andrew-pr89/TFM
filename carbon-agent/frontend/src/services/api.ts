@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile } from '../types'
+import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile, PortionEntry } from '../types'
 
 // En desarrollo: baseURL='/api' → Vite proxy → localhost:8000
 // En producción: VITE_API_URL apunta al backend de Railway (debe incluir https://)
@@ -67,6 +67,16 @@ export const carbonApi = {
 
   updateProfile: async (profile: UserProfile, userId = 'default'): Promise<UserProfile> => {
     const { data } = await api.patch<UserProfile>('/profile', profile, { params: { user_id: userId } })
+    return data
+  },
+
+  getPortions: async (userId = 'default'): Promise<PortionEntry[]> => {
+    const { data } = await api.get<PortionEntry[]>('/portions', { params: { user_id: userId } })
+    return data
+  },
+
+  updatePortions: async (portions: Record<string, number>, userId = 'default'): Promise<PortionEntry[]> => {
+    const { data } = await api.patch<PortionEntry[]>('/portions', portions, { params: { user_id: userId } })
     return data
   },
 }

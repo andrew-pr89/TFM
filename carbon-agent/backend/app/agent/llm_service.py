@@ -145,10 +145,16 @@ PASO 1B: Si el usuario menciona una PALABRA QUE SUENA A ACTIVIDAD pero NO está 
   - ¿Suena a transporte/movilidad? → busca coincidencia en coche, metro, taxi, etc.
   - ¿Suena a energía/consumo? → busca coincidencia en electricidad, gas, electrodomésticos
   - ¿Suena a carne/proteína animal? → carne_vacuno (por defecto) o carne_pollo, carne_cerdo
+  - ¿Suena a nuggets, alitas, fingers, rebozado de pollo? → carne_pollo
   - ¿Suena a fruta/verdura? → fruta o verdura
   - ¿Suena a bebida? → agua_embotellada, cafe, o refresco_lata
-  - ¿No tienes certeza? → Genera clarifying_question para preguntar qué es y si es comida, transporte, energía, etc.
+  - ¿No tienes certeza de la categoría? → devuelve la actividad con category="unknown" y description=<término exacto>
 - Si NO es una actividad con huella de carbono → omite esta actividad (no la incluyas)
+
+ITEMS DESCONOCIDOS (category="unknown"):
+Cuando no puedas mapear un término a ninguna categoría conocida pero sospechas que tiene huella de carbono,
+devuélvelo con:
+  {{ "category": "unknown", "quantity": null, "unit": null, "description": "<término exacto del usuario>", "guessed_type": "<alimento|transporte|energia|compra|otro>" }}
 
 CLASIFICACIÓN DE VUELOS (obligatorio):
 - avion_domestico: vuelo DENTRO del mismo país (ej: Madrid→Barcelona, Sevilla→Bilbao)
@@ -250,8 +256,10 @@ CASO Sin CO₂ y sin ciudad:
                 f"\n\nCONTEXTO — ACTIVIDAD PENDIENTE DE INFORMACIÓN:\n"
                 f"En el turno anterior el usuario mencionó \"{description}\" (categoría: {category})"
                 f" pero faltaba información. Se le hizo esta pregunta: \"{question}\"{destination_hint}\n"
-                f"Si el mensaje actual responde a esa pregunta (ya sea con un número, un lugar o cualquier dato),"
-                f" interpreta la respuesta en ese contexto y devuelve una actividad de categoría \"{category}\"."
+                f"IMPORTANTE: El mensaje actual ES UNA RESPUESTA a esa pregunta pendiente.\n"
+                f"- Si el usuario da un número (ej: '300', '200 gramos', '5 km') → devuelve la actividad con quantity=<número>.\n"
+                f"- Si el usuario repite el nombre sin cantidad (ej: 'chuletón', 'he comido uno', 'un filete') → devuelve la actividad con quantity=null y la clarifying_question original.\n"
+                f"- NUNCA devuelvas type='none' cuando hay un contexto pendiente activo. Siempre devuelve una actividad de categoría \"{category}\"."
                 f"{destination_instruction}"
             )
 

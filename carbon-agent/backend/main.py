@@ -30,7 +30,7 @@ app = FastAPI(
 )
 
 # CORS — orígenes permitidos: dev local + frontend(s) de producción
-_origins = ["http://localhost:5173", "http://localhost:3000"]
+_origins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:3000"]
 
 # Soporta lista separada por comas: "https://a.railway.app,https://b.vercel.app"
 if settings.frontend_url:

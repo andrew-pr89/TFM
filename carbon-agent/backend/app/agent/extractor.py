@@ -22,6 +22,56 @@ from app.models.models import EmissionFactor
 
 log = logging.getLogger(__name__)
 
+# Default portion sizes for non-transport categories (in the factor's native unit).
+# Used when the user mentions an item without specifying a quantity.
+DEFAULT_PORTIONS: dict[str, float] = {
+    # Carnes (kg)
+    "carne_vacuno":    0.30,   # 300g — filete/chuletón estándar
+    "carne_cerdo":     0.20,   # 200g — chuleta de cerdo
+    "carne_pollo":     0.15,   # 150g — pechuga de pollo
+    "carne_procesada": 0.05,   # 50g  — ración de embutido
+    "pescado":         0.15,   # 150g — filete de pescado
+    "marisco":         0.15,   # 150g
+    "queso":           0.05,   # 50g  — ración de queso
+    "tofu_soja":       0.15,   # 150g
+    # Cereales, legumbres, vegetales (kg)
+    "cereales":        0.10,   # 100g — ración pasta/pan (peso seco)
+    "arroz":           0.10,   # 100g — ración arroz (peso seco)
+    "legumbres":       0.08,   # 80g  — ración legumbres (peso seco)
+    "patata":          0.20,   # 200g
+    "fruta":           0.15,   # 150g — 1 pieza mediana
+    "verduras":        0.15,   # 150g
+    # Lácteos y bebidas (litro)
+    "lacteos_leche":   0.20,   # 200ml — 1 vaso
+    "alcohol_cerveza": 0.33,   # 330ml — 1 botella/lata
+    "alcohol_vino":    0.15,   # 150ml — 1 copa
+    "agua_embotellada":0.50,   # 500ml — 1 botella
+    "zumo":            0.20,   # 200ml — 1 vaso
+    "aceite_oliva":    0.02,   # 20ml  — 1 cucharada
+    # Café (kg — grano molido por taza)
+    "cafe":            0.012,  # ~12g por taza
+    "chocolate":       0.05,   # 50g — 1 onza/tableta pequeña
+    # Unidades
+    "huevos":          2.0,    # 2 huevos
+    "comida_rapida":   1.0,    # 1 unidad (hamburguesa/pizza)
+    "refresco_lata":   1.0,    # 1 lata
+    "ropa_nueva":      1.0,
+    "zapatillas":      1.0,
+    "libro_nuevo":     1.0,
+    "streaming":       1.0,
+    "gimnasio":        1.0,
+    "hotel":           1.0,
+    "crucero":         1.0,
+    "lavadora":        1.0,
+    "secadora":        1.0,
+    "lavavajillas":    1.0,
+    # Energía (kWh o hora)
+    "electricidad_es": 10.0,   # 10 kWh — consumo diario medio hogar
+    "gas_natural":     5.0,    # 5 kWh
+    "aire_acondicionado": 2.0, # 2 horas
+    "television":      2.0,    # 2 horas
+}
+
 
 @dataclass
 class ExtractedActivity:
@@ -39,6 +89,39 @@ class Extractor:
     def __init__(self, llm: LLMService) -> None:
         self.llm = llm
 
+    def _save_unknown_items(
+        self,
+        items: list[dict],
+        raw_text: str,
+        user_id: str,
+        db: Session,
+    ) -> list[str]:
+        """Persists unknown items to the DB. Returns list of term names for the user message."""
+        from app.models.models import UnknownItem
+        names: list[str] = []
+        for item in items:
+            term = (item.get("description") or "").strip()
+            if not term:
+                continue
+            existing = (
+                db.query(UnknownItem)
+                .filter(UnknownItem.raw_term == term, UnknownItem.status == "pending")
+                .first()
+            )
+            if not existing:
+                db.add(UnknownItem(
+                    user_id=user_id,
+                    raw_term=term,
+                    context=raw_text,
+                    guessed_category=item.get("guessed_type"),
+                    status="pending",
+                ))
+            names.append(term)
+        if names:
+            db.flush()
+            log.info("Unknown items registrados: %s", names)
+        return names
+
     def extract(
         self,
         raw_text: str,
@@ -46,6 +129,8 @@ class Extractor:
         home_city: str | None = None,
         work_place: str | None = None,
         pending_activity: dict | None = None,
+        user_portions: dict[str, float] | None = None,
+        user_id: str = "default",
     ) -> list[ExtractedActivity]:
         """
         Extrae actividades del texto y las cruza con los factores de la BD.
@@ -85,6 +170,7 @@ class Extractor:
         # 3 & 4. Validación y resolución — procesar TODAS las actividades
         result: list[ExtractedActivity] = []
         pending_questions: list[str] = []
+        unknown_items: list[dict] = []
 
         _GENERIC_PLACES = {
             "casa", "trabajo", "oficina", "gimnasio", "colegio", "escuela",
@@ -124,6 +210,11 @@ class Extractor:
                 continue
 
             category = item.get("category", "").strip()
+
+            # Item marcado como desconocido por el LLM → registrar para revisión
+            if category == "unknown":
+                unknown_items.append(item)
+                continue
             quantity_raw = item.get("quantity")
             description = item.get("description", category)
 
@@ -148,6 +239,20 @@ class Extractor:
                         })
                         log.info("No se pudo clasificar actividad '%s' — pidiendo clarificación", description)
                     continue
+
+            if quantity_raw is None:
+                # Use default portion for non-transport categories before asking the user
+                _factor_unit = factors_by_category.get(category, None)
+                _is_transport = _factor_unit and _factor_unit.unit == "km"
+                _origin_hint = (item.get("origin") or "").strip()
+                _dest_hint = (item.get("destination") or "").strip()
+                if not _is_transport and not _origin_hint and not _dest_hint:
+                    _default_q = (user_portions or {}).get(category) or DEFAULT_PORTIONS.get(category)
+                    if _default_q is not None:
+                        quantity_raw = _default_q
+                        item["description"] = description + " (ración estándar)"
+                        description = item["description"]
+                        log.info("Usando porción estándar para %s: %s %s", category, _default_q, _factor_unit.unit if _factor_unit else "")
 
             if quantity_raw is None:
                 # Intentar calcular distancia desde ciudades/lugares
@@ -335,6 +440,12 @@ class Extractor:
             "Extractor: %d actividades, %d preguntas, %d pending activity — '%s'",
             len(real_activities), len(pending_questions), len(pending_activity_markers), raw_text[:60],
         )
+
+        # Persist unknown items and attach marker so orchestrator can mention them
+        if unknown_items:
+            unknown_names = self._save_unknown_items(unknown_items, raw_text, user_id, db)
+            if unknown_names:
+                result.append({"unknown_items": unknown_names})  # type: ignore[arg-type]
 
         # Construir resultado final: actividades reales + home markers + primer pending activity + pregunta
         final: list = list(real_activities)
