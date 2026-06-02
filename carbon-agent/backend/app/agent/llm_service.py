@@ -94,20 +94,61 @@ POR CADA ACTIVIDAD IDENTIFICADA sigue esta lógica:
 
 PASO 1: ¿Se puede asociar SEMÁNTICAMENTE a alguna categoría?
 - Usa coincidencias semánticas, NO solo literales. Ejemplos orientativos:
-  - "yogurt", "nata", "mantequilla", "batido lácteo" → lacteos_leche
-  - "pasta", "espagueti", "macarrones", "fideos", "pan", "tostadas" → cereales
-  - "lentejas", "garbanzos", "judías", "alubias", "guisantes" → legumbres
-  - "plátano", "manzana", "naranja", "fresas", "uvas", "fruta" → fruta
-  - "patatas fritas", "puré de patata" → patata
-  - "hamburguesa casera", "pizza" → comida_rapida
-  - "café solo", "café con leche" → cafe (y lacteos_leche si lleva leche)
-  - "zumo de naranja" → zumo
-  - "agua mineral" → agua_embotellada
-  - "cerveza", "caña" → alcohol_cerveza
-  - "vino", "copa de vino" → alcohol_vino
-  - "refresco", "coca-cola", "fanta" → refresco_lata
-- Si NO hay ninguna categoría relacionada → omite esta actividad (no la incluyas)
-- Si SÍ → Ir al PASO 2
+
+  TRANSPORTE:
+  - "Uber", "Cabify", "VTC" → taxi
+  - "Tesla", "coche eléctrico" → coche_electrico
+  - "Renfe", "Ave", "tren de alta velocidad" → tren
+  - "Metro", "metropolitano", "subway" → metro
+  - "Autobús urbano", "línea 5" → autobus
+  - "Scooter eléctrico", "patinete", "e-scooter" → patinete_electrico
+
+  ENERGÍA Y HOGAR:
+  - "Luz", "consumo eléctrico", "kwh" → electricidad_es
+  - "Calefacción", "radiador", "termostato" → gas_natural (si es gas) o calefaccion_gasoil
+  - "Climatización", "aire", "AC", "refrigeración" → aire_acondicionado
+  - "Lavadora", "ciclo de lavado" → lavadora
+  - "Netflix", "Spotify", "servicio de streaming" → streaming
+
+  ALIMENTOS:
+  - BEBIDAS LÁCTEAS: "yogurt", "nata", "mantequilla", "batido lácteo", "leche" → lacteos_leche
+  - CEREALES: "pasta", "espagueti", "macarrones", "fideos", "pan", "tostadas", "arroz", "grano" → cereales
+  - LEGUMBRES: "lentejas", "garbanzos", "judías", "alubias", "guisantes" → legumbres
+  - FRUTAS: "plátano", "manzana", "naranja", "fresas", "uvas", "fruta" → fruta
+  - VERDURAS: "lechuga", "tomate", "cebolla", "zanahoria", "brócoli" → verdura
+  - PATATAS: "patatas fritas", "puré de patata", "papa" → patata
+  - COMIDA RÁPIDA: "hamburguesa casera", "pizza" → comida_rapida
+  - BEBIDAS: "café solo", "café con leche" → cafe (y lacteos_leche si lleva leche)
+  - JUGOS: "zumo de naranja" → zumo
+  - AGUA: "agua mineral" → agua_embotellada
+  - CERVEZA: "cerveza", "caña" → alcohol_cerveza
+  - VINO: "vino", "copa de vino" → alcohol_vino
+  - REFRESCOS: "refresco", "coca-cola", "fanta" → refresco_lata
+  - CARNE DE VACUNO (res, beef): "carne de vaca", "carne de res", "res", "vaca", "filete", "bistec", "chuletón",
+    "chuleta", "lomo", "solomillo", "entrecot", "carne molida", "picadillo", "carne de ternera",
+    "ternera", "comida de carne roja", "carne roja" → carne_vacuno
+  - CARNE DE CERDO (pork): "cerdo", "carne de cerdo", "puerco", "chuleta de cerdo", "jamón",
+    "costilla de cerdo", "tocino", "bacon" → carne_cerdo
+  - CARNE DE POLLO (chicken): "pollo", "carne de pollo", "pechuga de pollo", "muslo", "pollo entero",
+    "pata de pollo", "alita", "ala" → carne_pollo
+  - CARNES PROCESADAS: "jamón serrano", "salchichón", "embutido", "frankfurt", "chorizo",
+    "mortadela", "salami" → carne_procesada
+  - PESCADO (fish): "pescado", "salmón", "trucha", "bacalao", "atún", "pez", "piscis" → pescado
+  - HUEVOS: "huevo", "huevos", "tortilla", "revuelto" → huevos
+
+- Si NO hay ninguna categoría relacionada: Ir a PASO 1B (búsqueda semántica)
+- Si SÍ hay categoría identificada → Ir al PASO 2
+
+PASO 1B: Si el usuario menciona una PALABRA QUE SUENA A ACTIVIDAD pero NO está en las categorías:
+- Interpreta la INTENCIÓN del usuario
+- Si es claramente una actividad, intenta clasificarla semánticamente en la categoría más cercana:
+  - ¿Suena a transporte/movilidad? → busca coincidencia en coche, metro, taxi, etc.
+  - ¿Suena a energía/consumo? → busca coincidencia en electricidad, gas, electrodomésticos
+  - ¿Suena a carne/proteína animal? → carne_vacuno (por defecto) o carne_pollo, carne_cerdo
+  - ¿Suena a fruta/verdura? → fruta o verdura
+  - ¿Suena a bebida? → agua_embotellada, cafe, o refresco_lata
+  - ¿No tienes certeza? → Genera clarifying_question para preguntar qué es y si es comida, transporte, energía, etc.
+- Si NO es una actividad con huella de carbono → omite esta actividad (no la incluyas)
 
 CLASIFICACIÓN DE VUELOS (obligatorio):
 - avion_domestico: vuelo DENTRO del mismo país (ej: Madrid→Barcelona, Sevilla→Bilbao)
@@ -141,11 +182,18 @@ DISTINCIÓN CLAVE — POI con nombre propio vs. lugar genérico:
 - SUBCASO C: Unidad "km" Y destino completamente genérico SIN nombre propio y SIN ciudad (ej: solo "el hotel", "el trabajo"):
   → actividad con quantity=null, needs_locations=true, clarifying_question="¿Desde qué lugar saliste y hasta dónde en [transporte]? (p.ej: 'desde la estación de Atocha hasta el hotel Meliá Castilla, Madrid')"
 - Otros casos (kg, kWh, litro, etc.) → actividad con quantity=null y clarifying_question:
-  - Unidad "kg"    → "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
+  - Unidad "kg"    → Si es alimento reconocido: "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
+                   → Si es alimento DESCONOCIDO: "¿[alimento] es carne, pescado, verdura, fruta u otro? ¿Cuántos gramos más o menos?"
   - Unidad "kWh"   → "¿Cuántos kWh has consumido?"
   - Unidad "litro" → "¿Cuántos litros de [producto]?"
   - Unidad "hora"  → "¿Cuántas horas?"
   - Unidad "unidad"→ "¿Cuántas veces / unidades?"
+
+ESTRATEGIA PARA ALIMENTOS DESCONOCIDOS:
+- Si el usuario menciona una palabra que SUENA A COMIDA pero no está exactamente en la lista:
+  1. Intenta clasificarla por CONTEXTO (ej: termina en "-ón", "-eta", suena españolizante → probablemente carne)
+  2. Si no hay suficiente contexto → genera clarifying_question amable que pregunte:
+     "Desconozco ese alimento. ¿Es de origen animal (carne/pescado), vegetal (verdura/fruta) u otro?"
 
 DETECCIÓN DE CIUDAD DE ORIGEN: Si el usuario declara su ciudad de origen habitual
 (ej: "vivo en Madrid", "mi ciudad es Sevilla", "salgo siempre desde Valencia", "soy de Bilbao"),

@@ -423,9 +423,3 @@ Usuario: "conduje 30 km al trabajo"
   │  Frontend    │  ← muestra resultado, anillo del dashboard actualizado
   └──────────────┘
 ```
-
----
-
-## 📄 Licencia
-
-TFM — Universidad Internacional de La Rioja (UNIR) · 2025
