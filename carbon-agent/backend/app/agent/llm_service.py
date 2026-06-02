@@ -300,6 +300,39 @@ CASO Sin CO₂ y sin ciudad:
             log.error("Error parseando JSON del LLM: %s", raw[:300])
             return []
 
+    def identify_unknown_items(self, raw_text: str) -> list[dict]:
+        """
+        Fallback: called when main extraction returns nothing.
+        Asks the LLM to identify any words that sound like food, transport, or
+        energy activities — even if it has no CO₂ data for them.
+        Returns list of {term, guessed_type} dicts, or [] if nothing found.
+        """
+        system = """Eres un detector de términos con posible huella de carbono.
+Se te dará un texto de usuario. Tu tarea es identificar palabras o frases que suenen a:
+- alimento o bebida (plato, ingrediente, producto de supermercado…)
+- medio de transporte o desplazamiento
+- consumo de energía o electrodoméstico
+- compra de producto de consumo
+
+IMPORTANTE: Solo incluye términos que realmente suenen a actividades con impacto ambiental.
+No incluyas verbos, adverbios ni palabras genéricas ("he", "comido", "y", etc.).
+
+RESPONDE ÚNICAMENTE con un array JSON. Sin texto extra. Sin markdown.
+Formato:
+[{{"term": "<palabra exacta>", "guessed_type": "<alimento|transporte|energia|compra|otro>"}}]
+
+Si no hay ningún término relevante, devuelve: []"""
+
+        raw = self._chat(system, f"Texto: {raw_text}", temperature=0.1)
+        raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        try:
+            result = json.loads(raw)
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+        return []
+
     # ── Mejoras ──────────────────────────────────────────────────────────────
 
     def generate_improvements(

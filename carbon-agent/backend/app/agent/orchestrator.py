@@ -146,6 +146,8 @@ class CarbonAgent:
         # ── Caso: nada identificado ──────────────────────────────────────────
         if not extracted and not pending_question:
             log.info("Nada que guardar — el LLM no identificó actividades CO₂.")
+            if unknown_names:
+                db.commit()  # persist unknown items stored during extraction
             response = _empty(user_id, raw_text)
             if unknown_names:
                 names_str = ", ".join(f'"{n}"' for n in unknown_names)

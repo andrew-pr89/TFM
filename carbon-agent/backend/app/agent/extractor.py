@@ -165,6 +165,16 @@ class Extractor:
 
         if not raw_activities:
             log.info("El LLM no identificó actividades con impacto CO₂ en: '%s'", raw_text[:80])
+            # Fallback: check if message contains unknown food/activity terms worth flagging
+            unknown_candidates = self.llm.identify_unknown_items(raw_text)
+            if unknown_candidates:
+                items_as_unknown = [
+                    {"category": "unknown", "description": c.get("term", ""), "guessed_type": c.get("guessed_type")}
+                    for c in unknown_candidates if c.get("term")
+                ]
+                names = self._save_unknown_items(items_as_unknown, raw_text, user_id, db)
+                if names:
+                    return [{"unknown_items": names}]  # type: ignore[list-item]
             return []
 
         # 3 & 4. Validación y resolución — procesar TODAS las actividades
