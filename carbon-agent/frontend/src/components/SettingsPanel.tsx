@@ -242,14 +242,6 @@ function ProfilePanel() {
 
 // ── Sub-panel: Porciones por defecto ─────────────────────────────────────────
 
-function formatQuantity(unit: string, qty: number): string {
-  if (unit === 'kg') return `${Math.round(qty * 1000)} g`
-  if (unit === 'litro') return qty >= 1 ? `${qty} L` : `${Math.round(qty * 1000)} ml`
-  if (unit === 'unidad') return `${qty} ud.`
-  if (unit === 'kWh') return `${qty} kWh`
-  if (unit === 'hora') return `${qty} h`
-  return `${qty} ${unit}`
-}
 
 function parseInput(unit: string, raw: string): number | null {
   const n = parseFloat(raw.replace(',', '.'))
