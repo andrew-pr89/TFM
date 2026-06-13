@@ -123,16 +123,14 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                   <div className="history-item__top">
                     <div className="history-item__text">
                       {activity.emissions.length === 0 ? (
-                        // Sin emisiones: mostrar texto del usuario
                         <span>{activity.raw_text}</span>
-                      ) : activity.emissions.length === 1 ? (
-                        // Una emisión: mostrar la descripción procesada
-                        <span>{activity.emissions[0].description || activity.emissions[0].factor.display_name}</span>
                       ) : (
-                        // Varias emisiones: listar descripciones
                         <ul className="history-item__desc-list">
                           {activity.emissions.map((e) => (
-                            <li key={e.id}>{e.description || e.factor.display_name}</li>
+                            <li key={e.id}>
+                              <span>{e.description || e.factor.display_name}</span>
+                              <span className="history-item__qty">{e.quantity} {e.factor.unit}</span>
+                            </li>
                           ))}
                         </ul>
                       )}
@@ -161,11 +159,6 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                     </div>
                   </div>
                   <div className="history-item__meta">
-                    {activity.emissions.length > 0 && (
-                      <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>
-                        {activity.emissions.map(e => `${e.quantity} ${e.factor.unit}`).join(' · ')}
-                      </span>
-                    )}
                     <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>
                   </div>
                 </>
