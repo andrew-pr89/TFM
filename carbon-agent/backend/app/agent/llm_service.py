@@ -92,64 +92,26 @@ REGLAS CRÍTICAS:
 
 POR CADA ACTIVIDAD IDENTIFICADA sigue esta lógica:
 
-PASO 1: ¿Se puede asociar SEMÁNTICAMENTE a alguna categoría?
-- Usa coincidencias semánticas, NO solo literales. Ejemplos orientativos:
+PASO 1: ¿Se puede asociar SEMÁNTICAMENTE a alguna categoría de la lista?
+Cada categoría tiene un display_name con sinónimos y términos equivalentes que te sirven de guía.
+Usa el display_name para hacer el mapeo semántico — no necesitas coincidencia literal, basta con que el término del usuario sea semánticamente equivalente.
 
-  TRANSPORTE:
-  - "Uber", "Cabify", "VTC" → taxi
-  - "Tesla", "coche eléctrico" → coche_electrico
-  - "Renfe", "Ave", "tren de alta velocidad" → tren
-  - "Metro", "metropolitano", "subway" → metro
-  - "Autobús urbano", "línea 5" → autobus
-  - "Scooter eléctrico", "patinete", "e-scooter" → patinete_electrico
+Para vuelos aplica esta lógica obligatoria:
+- avion_domestico: vuelo dentro del mismo país (ej: Madrid→Barcelona)
+- avion_internacional: vuelo entre países distintos (ej: Madrid→Londres)
 
-  ENERGÍA Y HOGAR:
-  - "Luz", "consumo eléctrico", "kwh" → electricidad_es
-  - "Calefacción", "radiador", "termostato" → gas_natural (si es gas) o calefaccion_gasoil
-  - "Climatización", "aire", "AC", "refrigeración" → aire_acondicionado
-  - "Lavadora", "ciclo de lavado" → lavadora
-  - "Netflix", "Spotify", "servicio de streaming" → streaming
+Si SÍ hay categoría identificada → Ir al PASO 2
+Si NO hay categoría claramente relacionada → Ir al PASO 1B
 
-  ALIMENTOS:
-  - BEBIDAS LÁCTEAS: "yogurt", "nata", "mantequilla", "batido lácteo", "leche" → lacteos_leche
-  - CEREALES: "pasta", "espagueti", "macarrones", "fideos", "pan", "tostadas", "arroz", "grano" → cereales
-  - LEGUMBRES: "lentejas", "garbanzos", "judías", "alubias", "guisantes" → legumbres
-  - FRUTAS: "plátano", "manzana", "naranja", "fresas", "uvas", "fruta" → fruta
-  - VERDURAS: "lechuga", "tomate", "cebolla", "zanahoria", "brócoli" → verdura
-  - PATATAS: "patatas fritas", "puré de patata", "papa" → patata
-  - COMIDA RÁPIDA: "hamburguesa casera", "pizza" → comida_rapida
-  - BEBIDAS: "café solo", "café con leche" → cafe (y lacteos_leche si lleva leche)
-  - JUGOS: "zumo de naranja" → zumo
-  - AGUA: "agua mineral" → agua_embotellada
-  - CERVEZA: "cerveza", "caña" → alcohol_cerveza
-  - VINO: "vino", "copa de vino" → alcohol_vino
-  - REFRESCOS: "refresco", "coca-cola", "fanta" → refresco_lata
-  - CARNE DE VACUNO (res, beef): "carne de vaca", "carne de res", "res", "vaca", "filete", "bistec", "chuletón",
-    "chuleta", "lomo", "solomillo", "entrecot", "carne molida", "picadillo", "carne de ternera",
-    "ternera", "comida de carne roja", "carne roja" → carne_vacuno
-  - CARNE DE CERDO (pork): "cerdo", "carne de cerdo", "puerco", "chuleta de cerdo", "jamón",
-    "costilla de cerdo", "tocino", "bacon" → carne_cerdo
-  - CARNE DE POLLO (chicken): "pollo", "carne de pollo", "pechuga de pollo", "muslo", "pollo entero",
-    "pata de pollo", "alita", "ala" → carne_pollo
-  - CARNES PROCESADAS: "jamón serrano", "salchichón", "embutido", "frankfurt", "chorizo",
-    "mortadela", "salami" → carne_procesada
-  - PESCADO (fish): "pescado", "salmón", "trucha", "bacalao", "atún", "pez", "piscis" → pescado
-  - HUEVOS: "huevo", "huevos", "tortilla", "revuelto" → huevos
+PASO 1B: Término sin categoría clara
+- Si la actividad tiene huella de carbono, elige la categoría semánticamente más cercana
+- Si no hay certeza suficiente → category="unknown", description=<término exacto del usuario>
+- Si no tiene huella de carbono → omítela (no la incluyas)
 
-- Si NO hay ninguna categoría relacionada: Ir a PASO 1B (búsqueda semántica)
-- Si SÍ hay categoría identificada → Ir al PASO 2
-
-PASO 1B: Si el usuario menciona una PALABRA QUE SUENA A ACTIVIDAD pero NO está en las categorías:
-- Interpreta la INTENCIÓN del usuario
-- Si es claramente una actividad, intenta clasificarla semánticamente en la categoría más cercana:
-  - ¿Suena a transporte/movilidad? → busca coincidencia en coche, metro, taxi, etc.
-  - ¿Suena a energía/consumo? → busca coincidencia en electricidad, gas, electrodomésticos
-  - ¿Suena a carne/proteína animal? → carne_vacuno (por defecto) o carne_pollo, carne_cerdo
-  - ¿Suena a nuggets, alitas, fingers, rebozado de pollo? → carne_pollo
-  - ¿Suena a fruta/verdura? → fruta o verdura
-  - ¿Suena a bebida? → agua_embotellada, cafe, o refresco_lata
-  - ¿No tienes certeza de la categoría? → devuelve la actividad con category="unknown" y description=<término exacto>
-- Si NO es una actividad con huella de carbono → omite esta actividad (no la incluyas)
+REGLA CRÍTICA — MENSAJES MIXTOS:
+Si el mensaje contiene actividades identificables Y actividades desconocidas,
+SIEMPRE extrae las identificables con su categoría correcta y marca solo las desconocidas como category="unknown".
+NUNCA devuelvas type="none" si hay al menos una actividad identificable en el mensaje.
 
 ITEMS DESCONOCIDOS (category="unknown"):
 Cuando no puedas mapear un término a ninguna categoría conocida pero sospechas que tiene huella de carbono,
@@ -194,12 +156,6 @@ DISTINCIÓN CLAVE — POI con nombre propio vs. lugar genérico:
   - Unidad "litro" → "¿Cuántos litros de [producto]?"
   - Unidad "hora"  → "¿Cuántas horas?"
   - Unidad "unidad"→ "¿Cuántas veces / unidades?"
-
-ESTRATEGIA PARA ALIMENTOS DESCONOCIDOS:
-- Si el usuario menciona una palabra que SUENA A COMIDA pero no está exactamente en la lista:
-  1. Intenta clasificarla por CONTEXTO (ej: termina en "-ón", "-eta", suena españolizante → probablemente carne)
-  2. Si no hay suficiente contexto → genera clarifying_question amable que pregunte:
-     "Desconozco ese alimento. ¿Es de origen animal (carne/pescado), vegetal (verdura/fruta) u otro?"
 
 DETECCIÓN DE CIUDAD DE ORIGEN: Si el usuario declara su ciudad de origen habitual
 (ej: "vivo en Madrid", "mi ciudad es Sevilla", "salgo siempre desde Valencia", "soy de Bilbao"),
