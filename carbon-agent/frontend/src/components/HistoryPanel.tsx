@@ -130,7 +130,7 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                     <button className="btn-cancel-edit" onClick={cancelEdit}>Cancelar</button>
                   </div>
                 </div>
-              ) : !isEditing ? (
+              ) : (
                 <>
                   <div className="history-item__top">
                     <div className="history-item__text">
@@ -140,12 +140,8 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                       <span className="history-item__total" style={{ color: co2Color(emission.amount_kg_co2e) }}>
                         {emission.amount_kg_co2e.toFixed(3)} kg
                       </span>
-                      {idx === 0 && (
-                        <>
-                          <button className="btn-edit-item" onClick={() => startEdit(activity)} title="Editar actividad" aria-label="Editar actividad"><PencilIcon /></button>
-                          <button className="btn-delete-item" onClick={() => deleteActivity.mutate(activity.id)} disabled={deleteActivity.isPending} title="Eliminar esta actividad" aria-label="Eliminar actividad"><TrashIcon /></button>
-                        </>
-                      )}
+                      <button className="btn-edit-item" onClick={() => startEdit(activity)} title="Editar actividad" aria-label="Editar actividad"><PencilIcon /></button>
+                      <button className="btn-delete-item" onClick={() => deleteActivity.mutate(activity.id)} disabled={deleteActivity.isPending} title="Eliminar esta actividad" aria-label="Eliminar actividad"><TrashIcon /></button>
                     </div>
                   </div>
                   <div className="history-item__meta">
@@ -153,7 +149,7 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                     {idx === 0 && <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>}
                   </div>
                 </>
-              ) : null}
+              )}
             </li>
           ))
         })}
