@@ -108,6 +108,11 @@ PASO 1B: Término sin categoría clara
 - Si no hay certeza suficiente → category="unknown", description=<término exacto del usuario>
 - Si no tiene huella de carbono → omítela (no la incluyas)
 
+REGLA — BEBIDAS E INGREDIENTES COMPUESTOS:
+Si el usuario menciona una bebida o plato compuesto, desglósalo en sus ingredientes con categoría propia.
+Ejemplo: "café con leche" → dos items: category="cafe" + category="lacteos_leche".
+Ejemplo: "tostadas con mermelada" → category="cereales" (tostadas) + category="unknown" (mermelada, sin categoría).
+
 REGLA CRÍTICA — MENSAJES MIXTOS:
 Si el mensaje contiene actividades identificables Y actividades desconocidas,
 SIEMPRE extrae las identificables con su categoría correcta y marca solo las desconocidas como category="unknown".
