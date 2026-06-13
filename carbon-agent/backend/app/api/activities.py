@@ -10,16 +10,18 @@ DELETE /history/{id}    → borra una actividad concreta
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.agent.extractor import DEFAULT_PORTIONS
 from app.agent.memory import MemoryService
 from app.agent.orchestrator import carbon_agent
+from app.core.config import settings
 from app.db.database import get_db
 from app.db.seed_data import EMISSION_FACTORS
-from app.models.models import Activity
+from app.models.models import Activity, EmissionFactor
 from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, ImprovementSuggestion, ImprovementsOut, PortionEntry, SummaryOut, UnknownItemOut, UserProfile
 
 log = logging.getLogger(__name__)
@@ -285,3 +287,78 @@ def get_improvements(user_id: str = "default", period_days: int = 30, annual_goa
         budget_kg=budget_kg,
         period_days=period_days,
     )
+
+
+_UPDATABLE_FIELDS = [
+    "main_category", "display_name", "unit", "factor_kg_co2e",
+    "source_name", "source_year", "source_type", "source_detail",
+    "source_url", "notes",
+]
+
+
+def _require_admin(
+    token: Optional[str] = Query(default=None),
+    x_admin_token: Optional[str] = Header(default=None),
+):
+    """Acepta el token como query param (?token=) o como cabecera X-Admin-Token."""
+    received = token or x_admin_token
+    if not received or received != settings.admin_token:
+        raise HTTPException(status_code=401, detail="Token de administrador inválido o ausente")
+
+
+@router.post("/admin/seed-upsert", dependencies=[Depends(_require_admin)])
+def seed_upsert(dry_run: bool = False, db: Session = Depends(get_db)):
+    """
+    Ejecuta el upsert de factores de emisión desde seed_data.py.
+
+    Protegido con token (query param ?token= o cabecera X-Admin-Token).
+    Añade ?dry_run=true para simular sin escribir en la BD.
+    """
+    existing: dict[str, EmissionFactor] = {
+        f.category: f for f in db.query(EmissionFactor).all()
+    }
+
+    results: dict[str, list] = {"inserted": [], "updated": [], "skipped": []}
+
+    for data in EMISSION_FACTORS:
+        category = data["category"]
+
+        if category not in existing:
+            if not dry_run:
+                db.add(EmissionFactor(**data))
+            results["inserted"].append(category)
+        else:
+            record = existing[category]
+            changes = {}
+            for field in _UPDATABLE_FIELDS:
+                new_val = data.get(field)
+                old_val = getattr(record, field)
+                if new_val != old_val:
+                    changes[field] = {"old": old_val, "new": new_val}
+
+            if changes:
+                if not dry_run:
+                    for field, vals in changes.items():
+                        setattr(record, field, vals["new"])
+                results["updated"].append({"category": category, "changes": changes})
+            else:
+                results["skipped"].append(category)
+
+    if not dry_run:
+        db.commit()
+
+    log.info(
+        "seed-upsert %s — insertados: %d, actualizados: %d, sin cambios: %d",
+        "DRY-RUN" if dry_run else "COMMIT",
+        len(results["inserted"]),
+        len(results["updated"]),
+        len(results["skipped"]),
+    )
+
+    return {
+        "dry_run": dry_run,
+        "inserted": len(results["inserted"]),
+        "updated": len(results["updated"]),
+        "skipped": len(results["skipped"]),
+        "detail": results,
+    }
