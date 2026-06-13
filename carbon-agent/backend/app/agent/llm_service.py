@@ -87,6 +87,10 @@ REGLAS CRÍTICAS:
    - "1 vaso", "un vaso" con factor en litro → quantity=0.25  (1 vaso = 250 ml)
    - "2 vasos" con factor en litro → quantity=0.5
 
+   IMPORTANTE — alimentos con unidad "kg":
+   Solo hay cantidad si el usuario dice explícitamente gramos o kilos (ej: "150g", "200 gramos", "0.3 kg").
+   "Un café", "una tostada", "un huevo", "cafe con leche" → quantity=null (sin peso explícito).
+
 3. MÚLTIPLES ACTIVIDADES: El usuario puede mencionar varias acciones en un mismo mensaje.
    Identifica TODAS y devuélvelas en el array "activities", cada una con su propio estado.
 
