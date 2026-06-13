@@ -88,8 +88,16 @@ REGLAS CRÍTICAS:
    - "2 vasos" con factor en litro → quantity=0.5
 
    IMPORTANTE — alimentos con unidad "kg":
-   Solo hay cantidad si el usuario dice explícitamente gramos o kilos (ej: "150g", "200 gramos", "0.3 kg").
-   "Un café", "una tostada", "un huevo", "cafe con leche" → quantity=null (sin peso explícito).
+   - Si el usuario dice explícitamente gramos o kilos → quantity=ese valor, unit="g" o unit="kg".
+     Ej: "150g de pollo" → quantity=150, unit="g"
+   - Si el usuario dice un número de piezas/unidades (>1) → quantity=ese número, unit="unidades".
+     NUNCA estimes el peso en kg. Solo devuelve el conteo.
+     Ej: "cinco tostadas" → quantity=5, unit="unidades"   ← CORRECTO
+     Ej: "cinco tostadas" → quantity=1.25, unit="kg"      ← INCORRECTO
+     Ej: "tres huevos"   → quantity=3, unit="unidades"
+     Ej: "dos cafés"     → quantity=2, unit="unidades"
+   - Si no hay cantidad explícita ni número de piezas → quantity=null.
+     Ej: "café con leche", "una tostada", "tostadas" → quantity=null
 
 3. MÚLTIPLES ACTIVIDADES: El usuario puede mencionar varias acciones en un mismo mensaje.
    Identifica TODAS y devuélvelas en el array "activities", cada una con su propio estado.
@@ -114,8 +122,11 @@ PASO 1B: Término sin categoría clara
 
 REGLA — BEBIDAS E INGREDIENTES COMPUESTOS:
 Si el usuario menciona una bebida o plato compuesto, desglósalo en sus ingredientes con categoría propia.
-Ejemplo: "café con leche" → dos items: category="cafe" + category="lacteos_leche".
-Ejemplo: "tostadas con mermelada" → category="cereales" (tostadas) + category="unknown" (mermelada, sin categoría).
+Ejemplo: "café con leche" → dos items: category="cafe" quantity=null + category="lacteos_leche" quantity=null.
+Ejemplo: "tostadas con mermelada" → category="cereales" quantity=null + category="unknown" (mermelada, sin categoría).
+Si hay un multiplicador explícito (número > 1), aplícalo a TODOS los ingredientes como quantity=N, unit="unidades":
+Ejemplo: "dos cafés con leche" → category="cafe" quantity=2 unit="unidades" + category="lacteos_leche" quantity=2 unit="unidades".
+Ejemplo: "tres tostadas con mermelada" → category="cereales" quantity=3 unit="unidades" + category="unknown".
 
 REGLA CRÍTICA — MENSAJES MIXTOS:
 Si el mensaje contiene actividades identificables Y actividades desconocidas,

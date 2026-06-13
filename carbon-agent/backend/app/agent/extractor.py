@@ -406,6 +406,15 @@ class Extractor:
             if factor.unit == "kg" and unit_given in ("g", "gr", "gramos", "gram", "grams"):
                 quantity = quantity / 1000
                 log.info("Conversión g→kg: %.1f g = %.4f kg para %s", quantity * 1000, quantity, category)
+            elif unit_given in ("unidades", "unidad", "piezas", "pieza", "ud", "uds"):
+                # Multiplicar el número de piezas por la porción estándar
+                _default_q = (user_portions or {}).get(category) or DEFAULT_PORTIONS.get(category)
+                if _default_q is not None:
+                    original_count = quantity
+                    quantity = quantity * _default_q
+                    item["description"] = description + f" (×{int(original_count) if original_count == int(original_count) else original_count})"
+                    description = item["description"]
+                    log.info("Conversión unidades: %.0f × %.4f %s = %.4f %s para %s", original_count, _default_q, factor.unit, quantity, factor.unit, category)
             elif factor.unit == "litro" and unit_given in ("vaso", "vasos"):
                 quantity = quantity * 0.25
                 log.info("Conversión vaso→litro: %.0f vaso(s) = %.3f L para %s", quantity / 0.25, quantity, category)

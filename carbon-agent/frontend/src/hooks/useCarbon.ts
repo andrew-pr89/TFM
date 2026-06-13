@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { carbonApi } from '../services/api'
-import type { UserProfile } from '../types'
+import type { UserProfile, ActivityOut } from '../types'
 
 export const QUERY_KEYS = {
   history: (userId: string) => ['history', userId],
@@ -72,8 +72,12 @@ export function useEditActivity(userId = 'default') {
   return useMutation({
     mutationFn: ({ id, rawText, createdAt }: { id: number; rawText: string; createdAt: string | null }) =>
       carbonApi.patchActivity(id, rawText, createdAt, userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.history(userId) })
+    onSuccess: (updated: ActivityOut) => {
+      queryClient.setQueryData(
+        QUERY_KEYS.history(userId),
+        (old: ActivityOut[] | undefined) =>
+          old?.map(a => a.id === updated.id ? updated : a) ?? [updated],
+      )
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.summary(userId) })
     },
   })
