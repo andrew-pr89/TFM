@@ -118,10 +118,10 @@ export function HistoryPanel({ userId = 'default' }: Props) {
             )
           }
 
-          // Una tarjeta por emisión
-          return activity.emissions.map((emission, idx) => (
-            <li key={emission.id} className="history-item">
-              {isEditing && idx === 0 ? (
+          // Una tarjeta por emisión; formulario de edición como li propio al principio del grupo
+          return [
+            isEditing && (
+              <li key={`edit-${activity.id}`} className="history-item history-item--editing">
                 <div className="history-item__edit-form">
                   <input type="datetime-local" className="history-edit__date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
                   <textarea className="history-edit__text" value={editText} rows={2} onChange={(e) => setEditText(e.target.value)} />
@@ -130,28 +130,33 @@ export function HistoryPanel({ userId = 'default' }: Props) {
                     <button className="btn-cancel-edit" onClick={cancelEdit}>Cancelar</button>
                   </div>
                 </div>
-              ) : (
-                <>
-                  <div className="history-item__top">
-                    <div className="history-item__text">
-                      <span>{emission.description || emission.factor.display_name}</span>
-                    </div>
-                    <div className="history-item__right">
-                      <span className="history-item__total" style={{ color: co2Color(emission.amount_kg_co2e) }}>
-                        {emission.amount_kg_co2e.toFixed(3)} kg
-                      </span>
-                      <button className="btn-edit-item" onClick={() => startEdit(activity)} title="Editar actividad" aria-label="Editar actividad"><PencilIcon /></button>
-                      <button className="btn-delete-item" onClick={() => deleteActivity.mutate(activity.id)} disabled={deleteActivity.isPending} title="Eliminar esta actividad" aria-label="Eliminar actividad"><TrashIcon /></button>
-                    </div>
+              </li>
+            ),
+            ...activity.emissions.map((emission, idx) => (
+              <li key={emission.id} className="history-item">
+                <div className="history-item__top">
+                  <div className="history-item__text">
+                    <span>{emission.description || emission.factor.display_name}</span>
                   </div>
-                  <div className="history-item__meta">
-                    <span className="history-item__qty">{emission.quantity} {emission.factor.unit}</span>
-                    {idx === 0 && <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>}
+                  <div className="history-item__right">
+                    <span className="history-item__total" style={{ color: co2Color(emission.amount_kg_co2e) }}>
+                      {emission.amount_kg_co2e.toFixed(3)} kg
+                    </span>
+                    {!isEditing && (
+                      <>
+                        <button className="btn-edit-item" onClick={() => startEdit(activity)} title="Editar actividad" aria-label="Editar actividad"><PencilIcon /></button>
+                        <button className="btn-delete-item" onClick={() => deleteActivity.mutate(activity.id)} disabled={deleteActivity.isPending} title="Eliminar esta actividad" aria-label="Eliminar actividad"><TrashIcon /></button>
+                      </>
+                    )}
                   </div>
-                </>
-              )}
-            </li>
-          ))
+                </div>
+                <div className="history-item__meta">
+                  <span className="history-item__qty">{emission.quantity} {emission.factor.unit}</span>
+                  {idx === 0 && <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>}
+                </div>
+              </li>
+            )),
+          ]
         })}
       </ul>
     </div>
