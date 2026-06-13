@@ -73,7 +73,7 @@ export function HistoryPanel({ userId = 'default' }: Props) {
   return (
     <div className="history-panel">
       <div className="history-header">
-        <span className="history-header__count">{activities.length} actividad{activities.length !== 1 ? 'es' : ''}</span>
+        <span className="history-header__count">{activities.reduce((s, a) => s + Math.max(a.emissions.length, 1), 0)} actividad{activities.reduce((s, a) => s + Math.max(a.emissions.length, 1), 0) !== 1 ? 'es' : ''}</span>
         <button
           className={`btn-clear ${confirmClear ? 'btn-clear--confirm' : ''}`}
           onClick={handleClearAll}
@@ -86,85 +86,76 @@ export function HistoryPanel({ userId = 'default' }: Props) {
 
       <ul className="history-list">
         {activities.map((activity) => {
-          const total = activity.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
           const isEditing = editingId === activity.id
 
-          return (
-            <li key={activity.id} className="history-item">
-              {isEditing ? (
+          // Actividad sin emisiones (mensaje sin CO₂ identificado)
+          if (activity.emissions.length === 0) {
+            return (
+              <li key={activity.id} className="history-item">
+                {isEditing ? (
+                  <div className="history-item__edit-form">
+                    <input type="datetime-local" className="history-edit__date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                    <textarea className="history-edit__text" value={editText} rows={2} onChange={(e) => setEditText(e.target.value)} />
+                    <div className="history-edit__actions">
+                      <button className="btn-save-edit" disabled={editActivity.isPending} onClick={() => saveEdit(activity.id)}>{editActivity.isPending ? 'Guardando…' : 'Guardar'}</button>
+                      <button className="btn-cancel-edit" onClick={cancelEdit}>Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="history-item__top">
+                      <div className="history-item__text"><span>{activity.raw_text}</span></div>
+                      <div className="history-item__right">
+                        <span className="history-item__total">—</span>
+                        <button className="btn-edit-item" onClick={() => startEdit(activity)} title="Editar actividad" aria-label="Editar actividad"><PencilIcon /></button>
+                        <button className="btn-delete-item" onClick={() => deleteActivity.mutate(activity.id)} disabled={deleteActivity.isPending} title="Eliminar esta actividad" aria-label="Eliminar actividad"><TrashIcon /></button>
+                      </div>
+                    </div>
+                    <div className="history-item__meta"><time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time></div>
+                  </>
+                )}
+              </li>
+            )
+          }
+
+          // Una tarjeta por emisión
+          return activity.emissions.map((emission, idx) => (
+            <li key={emission.id} className="history-item">
+              {isEditing && idx === 0 ? (
                 <div className="history-item__edit-form">
-                  <input
-                    type="datetime-local"
-                    className="history-edit__date"
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                  />
-                  <textarea
-                    className="history-edit__text"
-                    value={editText}
-                    rows={2}
-                    onChange={(e) => setEditText(e.target.value)}
-                  />
+                  <input type="datetime-local" className="history-edit__date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                  <textarea className="history-edit__text" value={editText} rows={2} onChange={(e) => setEditText(e.target.value)} />
                   <div className="history-edit__actions">
-                    <button
-                      className="btn-save-edit"
-                      disabled={editActivity.isPending}
-                      onClick={() => saveEdit(activity.id)}
-                    >
-                      {editActivity.isPending ? 'Guardando…' : 'Guardar'}
-                    </button>
-                    <button className="btn-cancel-edit" onClick={cancelEdit}>
-                      Cancelar
-                    </button>
+                    <button className="btn-save-edit" disabled={editActivity.isPending} onClick={() => saveEdit(activity.id)}>{editActivity.isPending ? 'Guardando…' : 'Guardar'}</button>
+                    <button className="btn-cancel-edit" onClick={cancelEdit}>Cancelar</button>
                   </div>
                 </div>
-              ) : (
+              ) : !isEditing ? (
                 <>
                   <div className="history-item__top">
                     <div className="history-item__text">
-                      {activity.emissions.length === 0 ? (
-                        <span>{activity.raw_text}</span>
-                      ) : (
-                        <ul className="history-item__desc-list">
-                          {activity.emissions.map((e) => (
-                            <li key={e.id}>
-                              <span>{e.description || e.factor.display_name}</span>
-                              <span className="history-item__qty">{e.quantity} {e.factor.unit}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      <span>{emission.description || emission.factor.display_name}</span>
                     </div>
                     <div className="history-item__right">
-                      <span className="history-item__total" style={{ color: co2Color(total) }}>
-                        {total > 0 ? `${total.toFixed(3)} kg` : '—'}
+                      <span className="history-item__total" style={{ color: co2Color(emission.amount_kg_co2e) }}>
+                        {emission.amount_kg_co2e.toFixed(3)} kg
                       </span>
-                      <button
-                        className="btn-edit-item"
-                        onClick={() => startEdit(activity)}
-                        title="Editar actividad"
-                        aria-label="Editar actividad"
-                      >
-                        <PencilIcon />
-                      </button>
-                      <button
-                        className="btn-delete-item"
-                        onClick={() => deleteActivity.mutate(activity.id)}
-                        disabled={deleteActivity.isPending}
-                        title="Eliminar esta actividad"
-                        aria-label="Eliminar actividad"
-                      >
-                        <TrashIcon />
-                      </button>
+                      {idx === 0 && (
+                        <>
+                          <button className="btn-edit-item" onClick={() => startEdit(activity)} title="Editar actividad" aria-label="Editar actividad"><PencilIcon /></button>
+                          <button className="btn-delete-item" onClick={() => deleteActivity.mutate(activity.id)} disabled={deleteActivity.isPending} title="Eliminar esta actividad" aria-label="Eliminar actividad"><TrashIcon /></button>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="history-item__meta">
-                    <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>
+                    <span className="history-item__qty">{emission.quantity} {emission.factor.unit}</span>
+                    {idx === 0 && <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>}
                   </div>
                 </>
-              )}
+              ) : null}
             </li>
-          )
+          ))
         })}
       </ul>
     </div>
