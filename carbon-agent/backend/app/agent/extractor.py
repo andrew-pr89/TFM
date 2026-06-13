@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.agent.distance_service import get_distance_km
-from app.agent.activity_classifier import classify_activity_by_keywords, get_clarification_question
 from app.agent.llm_service import LLMService
 from app.models.models import EmissionFactor
 
@@ -228,27 +227,10 @@ class Extractor:
             quantity_raw = item.get("quantity")
             description = item.get("description", category)
 
-            # Validar categoría
+            # Validar categoría — si el LLM devuelve una categoría que no existe, descartarla
             if category not in factors_by_category:
-                # Fallback: intentar clasificar por nombre/descripción si la categoría no existe
-                fallback_category, confidence = classify_activity_by_keywords(description)
-                
-                if fallback_category and fallback_category in factors_by_category and confidence > 0.6:
-                    log.info(
-                        "Categoría desconocida '%s' reclasificada a '%s' (confianza: %.2f) "
-                        "basado en descripción: '%s'",
-                        category, fallback_category, confidence, description
-                    )
-                    category = fallback_category
-                else:
-                    # Si no podemos clasificar con confianza, preguntar al usuario
-                    if category and "clarifying_question" not in item:
-                        question = get_clarification_question(description)
-                        result.append({  # type: ignore[arg-type]
-                            "clarifying_question": question,
-                        })
-                        log.info("No se pudo clasificar actividad '%s' — pidiendo clarificación", description)
-                    continue
+                log.warning("Categoría desconocida '%s' devuelta por el LLM — descartada", category)
+                continue
 
             if quantity_raw is None:
                 # Use default portion for non-transport categories before asking the user
