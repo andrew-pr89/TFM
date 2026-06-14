@@ -10,16 +10,14 @@ DELETE /history/{id}    → borra una actividad concreta
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.agent.extractor import DEFAULT_PORTIONS
 from app.agent.memory import MemoryService
 from app.agent.orchestrator import carbon_agent
-from app.core.auth import get_current_user
-from app.core.config import settings
+from app.core.auth import get_admin_user, get_current_user
 from app.db.database import get_db
 from app.db.seed_data import EMISSION_FACTORS
 from app.models.models import Activity, EmissionFactor
@@ -164,7 +162,7 @@ def update_profile(payload: UserProfile, user_id: str = Depends(get_current_user
 
 
 @router.get("/admin/unknown-items", response_model=list[UnknownItemOut])
-def get_unknown_items(status: str = "pending", limit: int = 100, db: Session = Depends(get_db)):
+def get_unknown_items(status: str = "pending", limit: int = 100, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
     """Lists items flagged as unknown by users, for admin review."""
     from app.models.models import UnknownItem
     return (
@@ -177,7 +175,7 @@ def get_unknown_items(status: str = "pending", limit: int = 100, db: Session = D
 
 
 @router.patch("/admin/unknown-items/{item_id}", response_model=UnknownItemOut)
-def update_unknown_item_status(item_id: int, status: str, db: Session = Depends(get_db)):
+def update_unknown_item_status(item_id: int, status: str, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
     """Update the review status of an unknown item (pending → added | rejected)."""
     from app.models.models import UnknownItem
     item = db.query(UnknownItem).filter(UnknownItem.id == item_id).first()
@@ -297,17 +295,7 @@ _UPDATABLE_FIELDS = [
 ]
 
 
-def _require_admin(
-    token: Optional[str] = Query(default=None),
-    x_admin_token: Optional[str] = Header(default=None),
-):
-    """Acepta el token como query param (?token=) o como cabecera X-Admin-Token."""
-    received = token or x_admin_token
-    if not received or received != settings.admin_token:
-        raise HTTPException(status_code=401, detail="Token de administrador inválido o ausente")
-
-
-@router.post("/admin/seed-upsert", dependencies=[Depends(_require_admin)])
+@router.post("/admin/seed-upsert", dependencies=[Depends(get_admin_user)])
 def seed_upsert(dry_run: bool = False, db: Session = Depends(get_db)):
     """
     Ejecuta el upsert de factores de emisión desde seed_data.py.

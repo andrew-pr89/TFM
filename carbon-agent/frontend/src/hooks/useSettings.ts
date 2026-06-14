@@ -4,7 +4,7 @@ export interface UserSettings {
   annualGoalTonnes: number  // 2–8 toneladas/año
 }
 
-const STORAGE_KEY = 'carbon_agent_settings'
+const STORAGE_KEY = 'planet_pulse_settings'
 const DEFAULTS: UserSettings = { annualGoalTonnes: 6 }
 
 function load(): UserSettings {

@@ -16,7 +16,7 @@ from geopy.exc import GeocoderTimedOut, GeocoderServiceError
 
 log = logging.getLogger(__name__)
 
-_geocoder = Nominatim(user_agent="carbon-agent-tfm/1.0")
+_geocoder = Nominatim(user_agent="planet-pulse-tfm/1.0")
 
 
 @lru_cache(maxsize=256)
