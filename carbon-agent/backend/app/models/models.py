@@ -40,6 +40,7 @@ class EmissionFactor(Base):
     source_detail: Mapped[str] = mapped_column(String(300), nullable=True)
     source_url: Mapped[str] = mapped_column(String(500), nullable=True)
     notes: Mapped[str] = mapped_column(Text, nullable=True)
+    default_quantity: Mapped[float] = mapped_column(Float, nullable=True)  # ración estándar admin-configurable
 
     emissions: Mapped[list["Emission"]] = relationship("Emission", back_populates="factor")
 

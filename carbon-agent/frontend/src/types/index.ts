@@ -91,6 +91,7 @@ export interface EmissionFactorOut {
   display_name: string
   unit: string
   factor_kg_co2e: number
+  default_quantity: number | null
   source_name: string | null
   source_year: number | null
   source_type: string | null
@@ -105,6 +106,7 @@ export interface EmissionFactorCreate {
   display_name: string
   unit: string
   factor_kg_co2e: number
+  default_quantity?: number | null
   source_name?: string | null
   source_year?: number | null
   source_type?: string | null
@@ -118,6 +120,7 @@ export interface EmissionFactorPatch {
   main_category?: string
   unit?: string
   factor_kg_co2e?: number
+  default_quantity?: number | null
   source_name?: string | null
   source_year?: number | null
   source_type?: string | null

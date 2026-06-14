@@ -11,6 +11,7 @@ Nunca toca factores de emisión ni hace aritmética.
 """
 
 import logging
+import unicodedata
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -18,6 +19,11 @@ from sqlalchemy.orm import Session
 from app.agent.distance_service import get_distance_km
 from app.agent.llm_service import LLMService
 from app.models.models import EmissionFactor
+
+
+def _norm(s: str) -> str:
+    """Lowercase + strip accents — used for fuzzy category matching."""
+    return unicodedata.normalize("NFD", s.lower()).encode("ascii", "ignore").decode("ascii")
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +94,27 @@ class Extractor:
     def __init__(self, llm: LLMService) -> None:
         self.llm = llm
 
+    @staticmethod
+    def _fuzzy_match_factor(term: str, factors_by_category: dict) -> "EmissionFactor | None":
+        """
+        Substring fuzzy match: returns the factor whose normalized display_name
+        contains the normalized term (or vice-versa). Used as last resort before
+        marking an item as unknown.
+        """
+        norm_term = _norm(term)
+        if not norm_term or len(norm_term) < 3:
+            return None
+        candidates = [
+            f for f in factors_by_category.values()
+            if norm_term in _norm(f.display_name) or _norm(f.display_name) in norm_term
+        ]
+        if len(candidates) == 1:
+            return candidates[0]
+        if len(candidates) > 1:
+            # Prefer the factor whose display_name is closest in length to the term
+            return min(candidates, key=lambda f: abs(len(_norm(f.display_name)) - len(norm_term)))
+        return None
+
     def _save_unknown_items(
         self,
         items: list[dict],
@@ -142,10 +169,13 @@ class Extractor:
           5. Devuelve lista de ExtractedActivity validadas
         """
         # 1. Categorías válidas desde BD
-        factors_by_category: dict[str, EmissionFactor] = {
-            f.category: f
-            for f in db.query(EmissionFactor).all()
-        }
+        factors_by_category: dict[str, EmissionFactor] = {}
+        factors_by_norm: dict[str, EmissionFactor] = {}
+        for f in db.query(EmissionFactor).all():
+            factors_by_category[f.category] = f
+            # Index by normalized category AND display_name so the LLM can return either
+            factors_by_norm[_norm(f.category)] = f
+            factors_by_norm[_norm(f.display_name)] = f
 
         if not factors_by_category:
             log.error("No hay factores de emisión en la BD — ejecuta init_db primero")
@@ -174,10 +204,47 @@ class Extractor:
             # Fallback: check if message contains unknown food/activity terms worth flagging
             unknown_candidates = self.llm.identify_unknown_items(raw_text)
             if unknown_candidates:
-                items_as_unknown = [
-                    {"category": "unknown", "description": c.get("term", ""), "guessed_type": c.get("guessed_type")}
-                    for c in unknown_candidates if c.get("term")
-                ]
+                fuzzy_pending: list[dict] = []
+                truly_unknown: list[dict] = []
+                for c in unknown_candidates:
+                    term = (c.get("term") or "").strip()
+                    if not term:
+                        continue
+                    factor = self._fuzzy_match_factor(term, factors_by_category)
+                    if factor:
+                        log.info("Fallback fuzzy: '%s' → '%s' (pedirá aclaración)", term, factor.category)
+                        _unit_questions: dict[str, str] = {
+                            "kg":     f"¿Cuántos gramos de {term} has consumido? (p.ej. 200 para una ración normal)",
+                            "litro":  f"¿Cuántos litros de {term}?",
+                            "kWh":    f"¿Cuántos kWh de {term}?",
+                            "hora":   f"¿Cuántas horas de {term}?",
+                            "unidad": f"¿Cuántas unidades de {term}?",
+                            "km":     f"¿Cuántos km de {term}?",
+                        }
+                        question = _unit_questions.get(factor.unit, f"¿Cuánto/a {term} has consumido?")
+                        fuzzy_pending.append({
+                            "set_pending_activity": {
+                                "category": factor.category,
+                                "description": term,
+                                "question": question,
+                            },
+                            "clarifying_question": question,
+                        })
+                    else:
+                        truly_unknown.append({"category": "unknown", "description": term, "guessed_type": c.get("guessed_type")})
+
+                if fuzzy_pending:
+                    unknown_names = self._save_unknown_items(truly_unknown, raw_text, user_id, db) if truly_unknown else []
+                    # Return the first pending question (subsequent ones handled in next turns)
+                    first = fuzzy_pending[0]
+                    pending_data = first["set_pending_activity"]
+                    pending_data["question"] = first["clarifying_question"]
+                    result_list: list = [{"set_pending_activity": pending_data}, {"clarifying_question": first["clarifying_question"]}]
+                    if unknown_names:
+                        result_list.append({"unknown_items": unknown_names})
+                    return result_list  # type: ignore[return-value]
+
+                items_as_unknown = truly_unknown
                 names = self._save_unknown_items(items_as_unknown, raw_text, user_id, db)
                 if names:
                     return [{"unknown_items": names}]  # type: ignore[list-item]
@@ -235,15 +302,20 @@ class Extractor:
             description = item.get("description", category)
 
             # Validar categoría — si el LLM devuelve una categoría que no existe en la BD,
-            # tratarla como unknown (en lugar de descartar silenciosamente).
+            # intentar un match normalizado (sin tildes, minúsculas) antes de descartar.
             if category not in factors_by_category:
-                log.warning("Categoría '%s' devuelta por LLM no existe en BD — tratando como unknown", category)
-                unknown_items.append({
-                    "category": "unknown",
-                    "description": description or category,
-                    "guessed_type": "otro",
-                })
-                continue
+                fallback = factors_by_norm.get(_norm(category))
+                if fallback:
+                    log.info("Categoría '%s' resuelta como '%s' por normalización", category, fallback.category)
+                    category = fallback.category
+                else:
+                    log.warning("Categoría '%s' devuelta por LLM no existe en BD — tratando como unknown", category)
+                    unknown_items.append({
+                        "category": "unknown",
+                        "description": description or category,
+                        "guessed_type": "otro",
+                    })
+                    continue
 
             if quantity_raw is None:
                 # Use default portion for non-transport categories before asking the user
@@ -252,8 +324,12 @@ class Extractor:
                 _origin_hint = (item.get("origin") or "").strip()
                 _dest_hint = (item.get("destination") or "").strip()
                 if not _is_transport and not _origin_hint and not _dest_hint:
-                    _default_q = (user_portions or {}).get(category) or DEFAULT_PORTIONS.get(category)
-                    # For admin-created "unidad" factors without a hardcoded default, assume 1 unit
+                    # Priority: user override > factor.default_quantity (admin) > DEFAULT_PORTIONS (hardcoded) > 1 for unidad
+                    _default_q = (user_portions or {}).get(category)
+                    if _default_q is None and _factor_unit and _factor_unit.default_quantity is not None:
+                        _default_q = _factor_unit.default_quantity
+                    if _default_q is None:
+                        _default_q = DEFAULT_PORTIONS.get(category)
                     if _default_q is None and _factor_unit and _factor_unit.unit == "unidad":
                         _default_q = 1.0
                     if _default_q is not None:

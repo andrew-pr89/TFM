@@ -31,6 +31,7 @@ const EMPTY_FACTOR: EmissionFactorCreate = {
   display_name: '',
   unit: 'unidad',
   factor_kg_co2e: 0,
+  default_quantity: null,
   source_name: '',
   source_year: null,
   source_type: 'estimated',
@@ -108,6 +109,16 @@ function FactorForm({ initial, onSave, onCancel, isSaving, showCategory = true }
           <span>Factor kg CO₂e / unidad *</span>
           <input type="number" step="0.0001" min="0" value={form.factor_kg_co2e}
             onChange={e => set('factor_kg_co2e', parseFloat(e.target.value) || 0)} />
+        </label>
+
+        <label className="admin-form__field">
+          <span>Ración estándar ({form.unit || 'unidad'})</span>
+          <input
+            type="number" step="0.001" min="0"
+            placeholder="Sin valor = preguntará al usuario"
+            value={form.default_quantity ?? ''}
+            onChange={e => set('default_quantity', e.target.value ? parseFloat(e.target.value) : null)}
+          />
         </label>
 
         <label className="admin-form__field">
@@ -214,6 +225,7 @@ function FactorsPanel() {
     display_name: f.display_name,
     unit: f.unit,
     factor_kg_co2e: f.factor_kg_co2e,
+    default_quantity: f.default_quantity,
     source_name: f.source_name,
     source_year: f.source_year,
     source_type: f.source_type,
@@ -311,6 +323,7 @@ function FactorsPanel() {
               <th>Categoría</th>
               <th>Factor CO₂e</th>
               <th>Unidad</th>
+              <th>Ración estándar</th>
               <th></th>
             </tr>
           </thead>
@@ -322,6 +335,9 @@ function FactorsPanel() {
                 <td className="admin-table__cat">{f.main_category}</td>
                 <td className="admin-table__num">{f.factor_kg_co2e.toFixed(4)}</td>
                 <td>{f.unit}</td>
+                <td className="admin-table__num">
+                  {f.default_quantity != null ? `${f.default_quantity} ${f.unit}` : <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>—</span>}
+                </td>
                 <td onClick={e => e.stopPropagation()}>
                   <button
                     className="admin-delete-btn"

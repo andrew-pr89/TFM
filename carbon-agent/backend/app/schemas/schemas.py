@@ -20,6 +20,7 @@ class EmissionFactorOut(BaseModel):
     display_name: str
     unit: str
     factor_kg_co2e: float
+    default_quantity: float | None
     source_name: str | None
     source_year: int | None
     source_type: str | None
@@ -142,6 +143,7 @@ class EmissionFactorCreate(BaseModel):
     display_name: str = Field(..., max_length=150)
     unit: str = Field(..., max_length=30)
     factor_kg_co2e: float = Field(..., gt=0)
+    default_quantity: float | None = None
     source_name: str | None = Field(default=None, max_length=200)
     source_year: int | None = None
     source_type: str | None = Field(default=None, max_length=50)
@@ -155,6 +157,7 @@ class EmissionFactorPatch(BaseModel):
     main_category: str | None = Field(default=None, max_length=50)
     unit: str | None = Field(default=None, max_length=30)
     factor_kg_co2e: float | None = Field(default=None, gt=0)
+    default_quantity: float | None = None
     source_name: str | None = Field(default=None, max_length=200)
     source_year: int | None = None
     source_type: str | None = Field(default=None, max_length=50)

@@ -361,7 +361,7 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
 
 
 _UPDATABLE_FIELDS = [
-    "main_category", "display_name", "unit", "factor_kg_co2e",
+    "main_category", "display_name", "unit", "factor_kg_co2e", "default_quantity",
     "source_name", "source_year", "source_type", "source_detail",
     "source_url", "notes",
 ]
