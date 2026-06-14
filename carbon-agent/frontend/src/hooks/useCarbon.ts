@@ -87,7 +87,7 @@ export function useEditActivity() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, rawText, createdAt }: { id: number; rawText: string; createdAt: string | null }) =>
-      carbonApi.patchActivity(id, rawText, createdAt, userId),
+      carbonApi.patchActivity(id, rawText, createdAt),
     onSuccess: (updated: ActivityOut) => {
       queryClient.setQueryData(
         QUERY_KEYS.history(userId),
