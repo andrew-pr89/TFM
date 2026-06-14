@@ -74,6 +74,58 @@ export interface PortionEntry {
   user_quantity: number | null
 }
 
+export interface UnknownItemOut {
+  id: number
+  user_id: string
+  raw_term: string
+  context: string | null
+  guessed_category: string | null
+  status: 'pending' | 'added' | 'rejected'
+  created_at: string
+}
+
+export interface EmissionFactorOut {
+  id: number
+  category: string
+  main_category: string
+  display_name: string
+  unit: string
+  factor_kg_co2e: number
+  source_name: string | null
+  source_year: number | null
+  source_type: string | null
+  source_detail: string | null
+  source_url: string | null
+  notes: string | null
+}
+
+export interface EmissionFactorCreate {
+  category: string
+  main_category: string
+  display_name: string
+  unit: string
+  factor_kg_co2e: number
+  source_name?: string | null
+  source_year?: number | null
+  source_type?: string | null
+  source_detail?: string | null
+  source_url?: string | null
+  notes?: string | null
+}
+
+export interface EmissionFactorPatch {
+  display_name?: string
+  main_category?: string
+  unit?: string
+  factor_kg_co2e?: number
+  source_name?: string | null
+  source_year?: number | null
+  source_type?: string | null
+  source_detail?: string | null
+  source_url?: string | null
+  notes?: string | null
+}
+
 // Estado del chat
 export type MessageRole = 'user' | 'assistant' | 'error'
 

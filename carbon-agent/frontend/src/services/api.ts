@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile, PortionEntry } from '../types'
+import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile, PortionEntry, UnknownItemOut, EmissionFactorOut, EmissionFactorCreate, EmissionFactorPatch } from '../types'
 
 const rawApiUrl = import.meta.env.VITE_API_URL
 const normalizedApiUrl = rawApiUrl
@@ -84,5 +84,43 @@ export const carbonApi = {
   updatePortions: async (portions: Record<string, number>): Promise<PortionEntry[]> => {
     const { data } = await api.patch<PortionEntry[]>('/portions', portions)
     return data
+  },
+
+  // ── Admin ──────────────────────────────────────────────────────────────────
+  getUnknownItems: async (status = 'pending'): Promise<UnknownItemOut[]> => {
+    const { data } = await api.get<UnknownItemOut[]>('/admin/unknown-items', { params: { status, limit: 200 } })
+    return data
+  },
+
+  deleteUnknownItem: async (id: number): Promise<void> => {
+    await api.delete(`/admin/unknown-items/${id}`)
+  },
+
+  batchDeleteUnknownItems: async (ids: number[]): Promise<void> => {
+    await api.delete('/admin/unknown-items', { data: ids })
+  },
+
+  updateUnknownItemStatus: async (id: number, status: string): Promise<UnknownItemOut> => {
+    const { data } = await api.patch<UnknownItemOut>(`/admin/unknown-items/${id}`, null, { params: { status } })
+    return data
+  },
+
+  listFactors: async (search = ''): Promise<EmissionFactorOut[]> => {
+    const { data } = await api.get<EmissionFactorOut[]>('/admin/factors', { params: search ? { search } : {} })
+    return data
+  },
+
+  createFactor: async (payload: EmissionFactorCreate): Promise<EmissionFactorOut> => {
+    const { data } = await api.post<EmissionFactorOut>('/admin/factors', payload)
+    return data
+  },
+
+  updateFactor: async (id: number, payload: EmissionFactorPatch): Promise<EmissionFactorOut> => {
+    const { data } = await api.patch<EmissionFactorOut>(`/admin/factors/${id}`, payload)
+    return data
+  },
+
+  deleteFactor: async (id: number): Promise<void> => {
+    await api.delete(`/admin/factors/${id}`)
   },
 }

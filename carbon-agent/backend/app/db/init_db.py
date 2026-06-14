@@ -42,22 +42,33 @@ def _migrate_add_columns() -> None:
 def seed_emission_factors(db: Session) -> None:
     """
     Carga los factores de emisión iniciales.
-    Usa upsert manual: inserta si la categoría no existe, omite si ya existe.
+    Upsert: inserta si la categoría no existe, actualiza display_name si cambió.
+    Los factores creados por el admin (no presentes en EMISSION_FACTORS) no se tocan.
     """
     from app.models.models import EmissionFactor
-    
-    existing = {f.category for f in db.query(EmissionFactor.category).all()}
-    new_factors = [f for f in EMISSION_FACTORS if f["category"] not in existing]
 
-    if not new_factors:
-        log.info("Factores de emisión ya presentes — nada que insertar.")
-        return
+    existing_map = {f.category: f for f in db.query(EmissionFactor).all()}
+    seed_categories = {f["category"] for f in EMISSION_FACTORS}
 
-    for data in new_factors:
-        db.add(EmissionFactor(**data))
+    inserted = 0
+    updated = 0
+    for data in EMISSION_FACTORS:
+        cat = data["category"]
+        if cat not in existing_map:
+            db.add(EmissionFactor(**data))
+            inserted += 1
+        else:
+            # Update display_name and main_category from seed (keeps admin-created factors untouched)
+            factor = existing_map[cat]
+            if factor.display_name != data["display_name"]:
+                factor.display_name = data["display_name"]
+                updated += 1
 
     db.commit()
-    log.info("Insertados %d factores de emisión.", len(new_factors))
+    if inserted or updated:
+        log.info("Factores de emisión: %d insertados, %d actualizados.", inserted, updated)
+    else:
+        log.info("Factores de emisión ya al día — nada que cambiar.")
 
 
 def init_db() -> None:

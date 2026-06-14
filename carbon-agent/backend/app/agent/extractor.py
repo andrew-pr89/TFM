@@ -162,6 +162,13 @@ class Extractor:
             pending_activity=pending_activity,
         )
 
+        log.info("LLM devolvió %d actividades para: '%s'", len(raw_activities), raw_text[:60])
+        if raw_activities:
+            log.info("Actividades LLM: %s", [
+                {"cat": a.get("category"), "qty": a.get("quantity")}
+                for a in raw_activities if isinstance(a, dict)
+            ])
+
         if not raw_activities:
             log.info("El LLM no identificó actividades con impacto CO₂ en: '%s'", raw_text[:80])
             # Fallback: check if message contains unknown food/activity terms worth flagging
@@ -227,9 +234,15 @@ class Extractor:
             quantity_raw = item.get("quantity")
             description = item.get("description", category)
 
-            # Validar categoría — si el LLM devuelve una categoría que no existe, descartarla
+            # Validar categoría — si el LLM devuelve una categoría que no existe en la BD,
+            # tratarla como unknown (en lugar de descartar silenciosamente).
             if category not in factors_by_category:
-                log.warning("Categoría desconocida '%s' devuelta por el LLM — descartada", category)
+                log.warning("Categoría '%s' devuelta por LLM no existe en BD — tratando como unknown", category)
+                unknown_items.append({
+                    "category": "unknown",
+                    "description": description or category,
+                    "guessed_type": "otro",
+                })
                 continue
 
             if quantity_raw is None:
@@ -240,6 +253,9 @@ class Extractor:
                 _dest_hint = (item.get("destination") or "").strip()
                 if not _is_transport and not _origin_hint and not _dest_hint:
                     _default_q = (user_portions or {}).get(category) or DEFAULT_PORTIONS.get(category)
+                    # For admin-created "unidad" factors without a hardcoded default, assume 1 unit
+                    if _default_q is None and _factor_unit and _factor_unit.unit == "unidad":
+                        _default_q = 1.0
                     if _default_q is not None:
                         quantity_raw = _default_q
                         item["description"] = description + " (ración estándar)"
@@ -386,7 +402,23 @@ class Extractor:
                     })
                     continue
                 else:
-                    log.warning("Actividad sin cantidad ni ciudades ignorada: %s", category)
+                    # Generate a clarifying question based on the factor's unit instead of silently dropping
+                    _factor_for_q = factors_by_category.get(category)
+                    _unit_for_q = _factor_for_q.unit if _factor_for_q else "unidad"
+                    _unit_questions: dict[str, str] = {
+                        "kg":    f"¿Cuántos gramos de {description} has consumido? (p.ej. 200 para una ración normal)",
+                        "litro": f"¿Cuántos litros de {description}? (p.ej. 0.5 para una botella estándar)",
+                        "kWh":   f"¿Cuántos kWh de {description}?",
+                        "hora":  f"¿Cuántas horas de {description}?",
+                        "unidad": f"¿Cuántas unidades de {description}?",
+                        "km":    f"¿Cuántos km de {description}?",
+                    }
+                    question = _unit_questions.get(_unit_for_q, f"¿Cuánto/a {description} has consumido?")
+                    log.info("Pregunta aclaratoria generada para actividad sin cantidad: %s", category)
+                    result.append({  # type: ignore[arg-type]
+                        "set_pending_activity": {"category": category, "description": description},
+                        "clarifying_question": question,
+                    })
                     continue
 
             # Validar cantidad

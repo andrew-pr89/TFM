@@ -21,7 +21,7 @@ from app.core.auth import get_admin_user, get_current_user
 from app.db.database import get_db
 from app.db.seed_data import EMISSION_FACTORS
 from app.models.models import Activity, EmissionFactor
-from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, ImprovementSuggestion, ImprovementsOut, PortionEntry, SummaryOut, UnknownItemOut, UserProfile
+from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, EmissionFactorCreate, EmissionFactorOut, EmissionFactorPatch, ImprovementSuggestion, ImprovementsOut, PortionEntry, SummaryOut, UnknownItemOut, UserProfile
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["activities"])
@@ -187,6 +187,78 @@ def update_unknown_item_status(item_id: int, status: str, _: str = Depends(get_a
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.delete("/admin/unknown-items/{item_id}", status_code=204)
+def delete_unknown_item(item_id: int, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """Delete a single unknown item permanently."""
+    from app.models.models import UnknownItem
+    item = db.query(UnknownItem).filter(UnknownItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    db.delete(item)
+    db.commit()
+
+
+@router.delete("/admin/unknown-items", status_code=204)
+def batch_delete_unknown_items(ids: list[int], _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """Delete multiple unknown items by ID."""
+    from app.models.models import UnknownItem
+    db.query(UnknownItem).filter(UnknownItem.id.in_(ids)).delete(synchronize_session=False)
+    db.commit()
+
+
+@router.get("/admin/factors", response_model=list[EmissionFactorOut])
+def list_factors(search: str = "", _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """List all emission factors, optionally filtered by search term."""
+    q = db.query(EmissionFactor)
+    if search:
+        term = f"%{search}%"
+        q = q.filter(
+            EmissionFactor.display_name.ilike(term) |
+            EmissionFactor.category.ilike(term) |
+            EmissionFactor.main_category.ilike(term)
+        )
+    return q.order_by(EmissionFactor.main_category, EmissionFactor.display_name).all()
+
+
+@router.post("/admin/factors", response_model=EmissionFactorOut, status_code=201)
+def create_factor(payload: EmissionFactorCreate, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """Create a new emission factor and add it to the database."""
+    existing = db.query(EmissionFactor).filter(EmissionFactor.category == payload.category).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Factor '{payload.category}' already exists")
+    factor = EmissionFactor(**payload.model_dump())
+    db.add(factor)
+    db.commit()
+    db.refresh(factor)
+    log.info("Nuevo factor creado: %s (%.4f kg/%s)", payload.category, payload.factor_kg_co2e, payload.unit)
+    return factor
+
+
+@router.patch("/admin/factors/{factor_id}", response_model=EmissionFactorOut)
+def update_factor(factor_id: int, payload: EmissionFactorPatch, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """Update an existing emission factor (partial update)."""
+    factor = db.query(EmissionFactor).filter(EmissionFactor.id == factor_id).first()
+    if not factor:
+        raise HTTPException(status_code=404, detail="Factor not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(factor, field, value)
+    db.commit()
+    db.refresh(factor)
+    log.info("Factor actualizado: %s", factor.category)
+    return factor
+
+
+@router.delete("/admin/factors/{factor_id}", status_code=204)
+def delete_factor(factor_id: int, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """Delete an emission factor permanently."""
+    factor = db.query(EmissionFactor).filter(EmissionFactor.id == factor_id).first()
+    if not factor:
+        raise HTTPException(status_code=404, detail="Factor not found")
+    db.delete(factor)
+    db.commit()
+    log.info("Factor eliminado: %s", factor.category)
 
 
 @router.get("/portions", response_model=list[PortionEntry])

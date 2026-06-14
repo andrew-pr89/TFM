@@ -104,6 +104,13 @@ REGLAS CRÍTICAS:
 
 POR CADA ACTIVIDAD IDENTIFICADA sigue esta lógica:
 
+REGLA FUNDAMENTAL — LA LISTA ES LA VERDAD:
+Todas las categorías de la lista tienen huella de carbono real y validada.
+Si la actividad del usuario coincide semánticamente con el display_name de una categoría,
+DEBES incluirla aunque personalmente creas que su impacto es pequeño o que no es "una actividad CO₂ típica".
+Ejemplos: agua embotellada, streaming, caminar — todo lo que está en la lista tiene impacto medido.
+NUNCA omitas una actividad porque creas que su CO₂ es bajo o irrelevante.
+
 PASO 1: ¿Se puede asociar SEMÁNTICAMENTE a alguna categoría de la lista?
 Cada categoría tiene un display_name con sinónimos y términos equivalentes que te sirven de guía.
 Usa el display_name para hacer el mapeo semántico — no necesitas coincidencia literal, basta con que el término del usuario sea semánticamente equivalente.
@@ -285,12 +292,13 @@ CASO Sin CO₂ y sin ciudad:
         """
         system = """Eres un detector de términos con posible huella de carbono.
 Se te dará un texto de usuario. Tu tarea es identificar palabras o frases que suenen a:
-- alimento o bebida (plato, ingrediente, producto de supermercado…)
+- alimento o bebida (plato, ingrediente, producto de supermercado, bebida embotellada…)
 - medio de transporte o desplazamiento
 - consumo de energía o electrodoméstico
 - compra de producto de consumo
 
-IMPORTANTE: Solo incluye términos que realmente suenen a actividades con impacto ambiental.
+IMPORTANTE: Incluye cualquier término que suene a alimento, bebida, transporte o consumo,
+incluso si su impacto CO₂ parece pequeño (ej: agua embotellada, fruta, zumo, botella de agua).
 No incluyas verbos, adverbios ni palabras genéricas ("he", "comido", "y", etc.).
 
 RESPONDE ÚNICAMENTE con un array JSON. Sin texto extra. Sin markdown.
