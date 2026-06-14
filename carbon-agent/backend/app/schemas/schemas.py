@@ -134,6 +134,35 @@ class PortionEntry(BaseModel):
     user_quantity: float | None    # user override (None = using system default)
 
 
+# ── EmissionFactor create / patch ────────────────────────────────────────────
+
+class EmissionFactorCreate(BaseModel):
+    category: str = Field(..., max_length=100)
+    main_category: str = Field(..., max_length=50)
+    display_name: str = Field(..., max_length=150)
+    unit: str = Field(..., max_length=30)
+    factor_kg_co2e: float = Field(..., gt=0)
+    source_name: str | None = Field(default=None, max_length=200)
+    source_year: int | None = None
+    source_type: str | None = Field(default=None, max_length=50)
+    source_detail: str | None = Field(default=None, max_length=300)
+    source_url: str | None = Field(default=None, max_length=500)
+    notes: str | None = None
+
+
+class EmissionFactorPatch(BaseModel):
+    display_name: str | None = Field(default=None, max_length=150)
+    main_category: str | None = Field(default=None, max_length=50)
+    unit: str | None = Field(default=None, max_length=30)
+    factor_kg_co2e: float | None = Field(default=None, gt=0)
+    source_name: str | None = Field(default=None, max_length=200)
+    source_year: int | None = None
+    source_type: str | None = Field(default=None, max_length=50)
+    source_detail: str | None = Field(default=None, max_length=300)
+    source_url: str | None = Field(default=None, max_length=500)
+    notes: str | None = None
+
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 class SummaryOut(BaseModel):

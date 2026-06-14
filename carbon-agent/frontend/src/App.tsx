@@ -8,14 +8,16 @@ import { ImprovementsPanel } from './components/ImprovementsPanel'
 import { DailyDashboard } from './components/DailyDashboard'
 import { SettingsPanel } from './components/SettingsPanel'
 import { LoginPage } from './components/LoginPage'
+import { AdminPanel } from './components/AdminPanel'
 import { useSettings } from './hooks/useSettings'
 import { usePostActivity } from './hooks/useCarbon'
+import { useIsAdmin } from './hooks/useIsAdmin'
 import { setupAuthInterceptor } from './services/api'
 import type { ChatMessage } from './types'
 
-type Tab = 'chat' | 'history' | 'dashboard' | 'summary' | 'improvements' | 'settings'
+type Tab = 'chat' | 'history' | 'dashboard' | 'summary' | 'improvements' | 'settings' | 'admin'
 
-const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
+const BASE_NAV: { id: Tab; label: string; icon: string }[] = [
   { id: 'chat',         label: 'Chat',         icon: '💬' },
   { id: 'history',      label: 'Historial',    icon: '📋' },
   { id: 'dashboard',    label: 'Hoy',          icon: '🎯' },
@@ -24,11 +26,15 @@ const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
   { id: 'settings',     label: 'Ajustes',      icon: '⚙️' },
 ]
 
+const ADMIN_NAV = { id: 'admin' as Tab, label: 'Admin', icon: '🛡️' }
+
 let msgCounter = 0
 const uid = () => `msg-${++msgCounter}`
 
 export default function App() {
   const { isAuthenticated, isLoading, getAccessTokenSilently, logout, user } = useAuth0()
+  const isAdmin = useIsAdmin()
+  const NAV_ITEMS = isAdmin ? [...BASE_NAV, ADMIN_NAV] : BASE_NAV
   const [tab, setTab] = useState<Tab>('chat')
   const { annualGoalKg } = useSettings()
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -204,6 +210,12 @@ export default function App() {
           {tab === 'settings' && (
             <div className="panel-layout">
               <SettingsPanel />
+            </div>
+          )}
+
+          {tab === 'admin' && isAdmin && (
+            <div className="panel-layout">
+              <AdminPanel />
             </div>
           )}
         </div>
