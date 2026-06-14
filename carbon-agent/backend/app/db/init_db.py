@@ -38,6 +38,12 @@ def _migrate_add_columns() -> None:
             conn.commit()
             log.info("Migración: columna 'description' añadida a emissions.")
 
+        factor_cols = {c["name"] for c in inspector.get_columns("emission_factors")}
+        if "default_quantity" not in factor_cols:
+            conn.execute(text("ALTER TABLE emission_factors ADD COLUMN default_quantity REAL"))
+            conn.commit()
+            log.info("Migración: columna 'default_quantity' añadida a emission_factors.")
+
 
 def seed_emission_factors(db: Session) -> None:
     """

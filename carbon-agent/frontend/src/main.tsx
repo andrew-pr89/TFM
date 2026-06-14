@@ -29,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         redirect_uri: window.location.origin,
         audience,
       }}
+      cacheLocation="localstorage"
     >
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>

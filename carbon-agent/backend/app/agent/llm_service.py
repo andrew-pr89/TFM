@@ -122,10 +122,16 @@ Para vuelos aplica esta lógica obligatoria:
 Si SÍ hay categoría identificada → Ir al PASO 2
 Si NO hay categoría claramente relacionada → Ir al PASO 1B
 
-PASO 1B: Término sin categoría clara
-- Si la actividad tiene huella de carbono, elige la categoría semánticamente más cercana
-- Si no hay certeza suficiente → category="unknown", description=<término exacto del usuario>
-- Si no tiene huella de carbono → omítela (no la incluyas)
+PASO 1B: Término sin categoría exacta
+REGLA DE ORO: siempre es mejor usar la categoría más cercana que devolver "unknown" o type="none".
+- Si el término del usuario coincide PARCIALMENTE con el display_name de una categoría, USA ESA CATEGORÍA.
+  Los calificativos de presentación (en conserva, fresco, enlatado, crudo, cocido…) NO cambian el cálculo CO₂ de forma significativa.
+  Ejemplos:
+    · usuario dice "espárragos blancos" → lista tiene "Espárragos blancos en conserva" → usa esa categoría ✓
+    · usuario dice "salmón" → lista tiene "Salmón (de piscifactoría)" → usa esa categoría ✓
+    · usuario dice "pan integral" → lista tiene "Pan (barra, integral)" → usa esa categoría ✓
+- Solo usa category="unknown" si NINGUNA categoría de la lista se parece remotamente al término del usuario.
+- Si no tiene huella de carbono en absoluto → omítela (no la incluyas)
 
 REGLA — BEBIDAS E INGREDIENTES COMPUESTOS:
 Si el usuario menciona una bebida o plato compuesto, desglósalo en sus ingredientes con categoría propia.

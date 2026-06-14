@@ -151,10 +151,10 @@ class CarbonAgent:
             response = _empty(user_id, raw_text)
             if unknown_names:
                 names_str = ", ".join(f'"{n}"' for n in unknown_names)
+                es_varios = len(unknown_names) > 1
                 response.message = (
                     f"No tengo datos de huella de carbono para {names_str}. "
-                    f"He registrado {'este término' if len(unknown_names) == 1 else 'estos términos'} "
-                    f"para revisión y {'podría' if len(unknown_names) == 1 else 'podrían'} añadirse al catálogo pronto."
+                    f"{'Lo he' if not es_varios else 'Los he'} anotado para añadirlo{'s' if es_varios else ''} al catálogo pronto."
                 )
             else:
                 response.message = (
@@ -215,10 +215,10 @@ class CarbonAgent:
         # Append unknown items note to the recommendation if any were flagged
         if unknown_names:
             names_str = ", ".join(f'"{n}"' for n in unknown_names)
+            es_varios = len(unknown_names) > 1
             recommendation += (
-                f"\n\n⚠️ No tengo datos para {names_str}. "
-                f"{'Este término ha sido registrado' if len(unknown_names) == 1 else 'Estos términos han sido registrados'} "
-                f"para revisión y {'podría' if len(unknown_names) == 1 else 'podrían'} añadirse al catálogo pronto."
+                f"\n\n⚠️ No tengo datos para {names_str} — "
+                f"{'lo he' if not es_varios else 'los he'} anotado para añadirlo{'s' if es_varios else ''} al catálogo."
             )
 
         log.info("Actividad procesada: user=%s total=%.3f kg CO₂e", user_id, total)
