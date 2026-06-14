@@ -10,15 +10,14 @@ DELETE /history/{id}    → borra una actividad concreta
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.agent.extractor import DEFAULT_PORTIONS
 from app.agent.memory import MemoryService
 from app.agent.orchestrator import carbon_agent
-from app.core.config import settings
+from app.core.auth import get_admin_user, get_current_user
 from app.db.database import get_db
 from app.db.seed_data import EMISSION_FACTORS
 from app.models.models import Activity, EmissionFactor
@@ -29,11 +28,11 @@ router = APIRouter(prefix="/api", tags=["activities"])
 
 
 @router.post("/activity", response_model=ActivityResponse, status_code=201)
-def create_activity(payload: ActivityCreate, db: Session = Depends(get_db)):
+def create_activity(payload: ActivityCreate, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         return carbon_agent.process_activity(
             raw_text=payload.raw_text,
-            user_id=payload.user_id,
+            user_id=user_id,
             db=db,
         )
     except Exception as exc:
@@ -42,7 +41,7 @@ def create_activity(payload: ActivityCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/history", response_model=list[ActivityOut])
-def get_history(user_id: str = "default", limit: int = 50, db: Session = Depends(get_db)):
+def get_history(limit: int = 50, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Devuelve el historial de actividades de un usuario, más reciente primero."""
     return (
         db.query(Activity)
@@ -54,7 +53,7 @@ def get_history(user_id: str = "default", limit: int = 50, db: Session = Depends
 
 
 @router.delete("/history", status_code=204)
-def delete_history(user_id: str = "default", db: Session = Depends(get_db)):
+def delete_history(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Borra todo el historial del usuario (cascade elimina las emisiones asociadas)."""
     deleted = (
         db.query(Activity)
@@ -66,7 +65,7 @@ def delete_history(user_id: str = "default", db: Session = Depends(get_db)):
 
 
 @router.delete("/history/{activity_id}", status_code=204)
-def delete_activity(activity_id: int, user_id: str = "default", db: Session = Depends(get_db)):
+def delete_activity(activity_id: int, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Borra una actividad concreta y sus emisiones."""
     activity = (
         db.query(Activity)
@@ -81,7 +80,7 @@ def delete_activity(activity_id: int, user_id: str = "default", db: Session = De
 
 
 @router.patch("/history/{activity_id}", response_model=ActivityOut)
-def patch_activity(activity_id: int, payload: ActivityPatch, user_id: str = "default", db: Session = Depends(get_db)):
+def patch_activity(activity_id: int, payload: ActivityPatch, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Edita el texto y/o fecha de una actividad y recalcula sus emisiones."""
     result = carbon_agent.reprocess_activity(
         activity_id=activity_id,
@@ -97,7 +96,7 @@ def patch_activity(activity_id: int, payload: ActivityPatch, user_id: str = "def
 
 
 @router.get("/summary", response_model=SummaryOut)
-def get_summary(user_id: str = "default", period_days: int = 30, annual_goal_kg: int = 6000, db: Session = Depends(get_db)):
+def get_summary(period_days: int = 30, annual_goal_kg: int = 6000, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Resumen agregado de emisiones del usuario en los últimos N días."""
     from collections import defaultdict
 
@@ -134,7 +133,7 @@ def get_summary(user_id: str = "default", period_days: int = 30, annual_goal_kg:
 
 
 @router.get("/profile", response_model=UserProfile)
-def get_profile(user_id: str = "default", db: Session = Depends(get_db)):
+def get_profile(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Devuelve el perfil del usuario guardado en memoria."""
     memory = MemoryService()
     data = memory.get_memory(user_id=user_id, db=db)
@@ -146,7 +145,7 @@ def get_profile(user_id: str = "default", db: Session = Depends(get_db)):
 
 
 @router.patch("/profile", response_model=UserProfile)
-def update_profile(payload: UserProfile, user_id: str = "default", db: Session = Depends(get_db)):
+def update_profile(payload: UserProfile, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Guarda o actualiza el perfil del usuario."""
     memory = MemoryService()
     updates: dict[str, str] = {}
@@ -163,7 +162,7 @@ def update_profile(payload: UserProfile, user_id: str = "default", db: Session =
 
 
 @router.get("/admin/unknown-items", response_model=list[UnknownItemOut])
-def get_unknown_items(status: str = "pending", limit: int = 100, db: Session = Depends(get_db)):
+def get_unknown_items(status: str = "pending", limit: int = 100, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
     """Lists items flagged as unknown by users, for admin review."""
     from app.models.models import UnknownItem
     return (
@@ -176,7 +175,7 @@ def get_unknown_items(status: str = "pending", limit: int = 100, db: Session = D
 
 
 @router.patch("/admin/unknown-items/{item_id}", response_model=UnknownItemOut)
-def update_unknown_item_status(item_id: int, status: str, db: Session = Depends(get_db)):
+def update_unknown_item_status(item_id: int, status: str, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
     """Update the review status of an unknown item (pending → added | rejected)."""
     from app.models.models import UnknownItem
     item = db.query(UnknownItem).filter(UnknownItem.id == item_id).first()
@@ -191,7 +190,7 @@ def update_unknown_item_status(item_id: int, status: str, db: Session = Depends(
 
 
 @router.get("/portions", response_model=list[PortionEntry])
-def get_portions(user_id: str = "default", db: Session = Depends(get_db)):
+def get_portions(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Returns portion defaults for all non-transport categories, with user overrides applied."""
     memory = MemoryService()
     user_portions = memory.get_portions(user_id=user_id, db=db)
@@ -213,7 +212,7 @@ def get_portions(user_id: str = "default", db: Session = Depends(get_db)):
 
 
 @router.patch("/portions", response_model=list[PortionEntry])
-def update_portions(payload: dict[str, float], user_id: str = "default", db: Session = Depends(get_db)):
+def update_portions(payload: dict[str, float], user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Saves user-defined default portions. Send only the categories you want to override."""
     memory = MemoryService()
     memory.set_portions(user_id=user_id, portions=payload, db=db)
@@ -222,7 +221,7 @@ def update_portions(payload: dict[str, float], user_id: str = "default", db: Ses
 
 
 @router.get("/improvements", response_model=ImprovementsOut)
-def get_improvements(user_id: str = "default", period_days: int = 30, annual_goal_kg: int = 6000, db: Session = Depends(get_db)):
+def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Genera sugerencias de mejora personalizadas basadas en el consumo real del usuario."""
     from collections import defaultdict
     from app.agent.llm_service import LLMService
@@ -296,17 +295,7 @@ _UPDATABLE_FIELDS = [
 ]
 
 
-def _require_admin(
-    token: Optional[str] = Query(default=None),
-    x_admin_token: Optional[str] = Header(default=None),
-):
-    """Acepta el token como query param (?token=) o como cabecera X-Admin-Token."""
-    received = token or x_admin_token
-    if not received or received != settings.admin_token:
-        raise HTTPException(status_code=401, detail="Token de administrador inválido o ausente")
-
-
-@router.post("/admin/seed-upsert", dependencies=[Depends(_require_admin)])
+@router.post("/admin/seed-upsert", dependencies=[Depends(get_admin_user)])
 def seed_upsert(dry_run: bool = False, db: Session = Depends(get_db)):
     """
     Ejecuta el upsert de factores de emisión desde seed_data.py.

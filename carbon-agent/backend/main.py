@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Carbon Agent API",
+    title="Planet Pulse API",
     description="Agente IA para registrar actividades y estimar huella de carbono.",
     version="0.1.0",
     lifespan=lifespan,

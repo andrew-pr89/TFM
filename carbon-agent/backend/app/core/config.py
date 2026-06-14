@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # Admin — token para endpoints protegidos (cámbialo en .env en producción)
     admin_token: str = "change-me"
 
+    # Auth0 — JWT validation
+    auth0_domain: str = ""
+    auth0_audience: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

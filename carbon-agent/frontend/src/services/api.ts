@@ -1,8 +1,6 @@
 import axios from 'axios'
 import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile, PortionEntry } from '../types'
 
-// En desarrollo: baseURL='/api' → Vite proxy → localhost:8000
-// En producción: VITE_API_URL apunta al backend de Railway (debe incluir https://)
 const rawApiUrl = import.meta.env.VITE_API_URL
 const normalizedApiUrl = rawApiUrl
   ? rawApiUrl.startsWith('http') ? rawApiUrl : `https://${rawApiUrl}`
@@ -14,69 +12,77 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+let _interceptorId: number | null = null
+
+export function setupAuthInterceptor(getToken: () => Promise<string>) {
+  if (_interceptorId !== null) {
+    api.interceptors.request.eject(_interceptorId)
+  }
+  _interceptorId = api.interceptors.request.use(async (config) => {
+    const token = await getToken()
+    config.headers.Authorization = `Bearer ${token}`
+    return config
+  })
+}
+
 export const carbonApi = {
-  postActivity: async (rawText: string, userId = 'default'): Promise<ActivityResponse> => {
-    const { data } = await api.post<ActivityResponse>('/activity', {
-      raw_text: rawText,
-      user_id: userId,
-    })
+  postActivity: async (rawText: string): Promise<ActivityResponse> => {
+    const { data } = await api.post<ActivityResponse>('/activity', { raw_text: rawText })
     return data
   },
 
-  getHistory: async (userId = 'default', limit = 50): Promise<ActivityOut[]> => {
-    const { data } = await api.get<ActivityOut[]>('/history', {
-      params: { user_id: userId, limit },
-    })
+  getHistory: async (limit = 50): Promise<ActivityOut[]> => {
+    const { data } = await api.get<ActivityOut[]>('/history', { params: { limit } })
     return data
   },
 
-  getSummary: async (userId = 'default', periodDays = 30, annualGoalKg = 6000): Promise<SummaryOut> => {
+  getSummary: async (periodDays = 30, annualGoalKg = 6000): Promise<SummaryOut> => {
     const { data } = await api.get<SummaryOut>('/summary', {
-      params: { user_id: userId, period_days: periodDays, annual_goal_kg: annualGoalKg },
+      params: { period_days: periodDays, annual_goal_kg: annualGoalKg },
     })
     return data
   },
 
-  deleteHistory: async (userId = 'default'): Promise<void> => {
-    await api.delete('/history', { params: { user_id: userId } })
+  deleteHistory: async (): Promise<void> => {
+    await api.delete('/history')
   },
 
-  deleteActivity: async (activityId: number, userId = 'default'): Promise<void> => {
-    await api.delete(`/history/${activityId}`, { params: { user_id: userId } })
+  deleteActivity: async (activityId: number): Promise<void> => {
+    await api.delete(`/history/${activityId}`)
   },
 
-  patchActivity: async (activityId: number, rawText: string, createdAt: string | null, userId = 'default'): Promise<ActivityOut> => {
+  patchActivity: async (activityId: number, rawText: string, createdAt: string | null): Promise<ActivityOut> => {
     const { data } = await api.patch<ActivityOut>(`/history/${activityId}`, {
       raw_text: rawText,
       created_at: createdAt,
-    }, { params: { user_id: userId } })
-    return data
-  },
-
-  getImprovements: async (userId = 'default', periodDays = 30, annualGoalKg = 6000): Promise<ImprovementsOut> => {
-    const { data } = await api.get<ImprovementsOut>('/improvements', {
-      params: { user_id: userId, period_days: periodDays, annual_goal_kg: annualGoalKg },
     })
     return data
   },
 
-  getProfile: async (userId = 'default'): Promise<UserProfile> => {
-    const { data } = await api.get<UserProfile>('/profile', { params: { user_id: userId } })
+  getImprovements: async (periodDays = 30, annualGoalKg = 6000): Promise<ImprovementsOut> => {
+    const { data } = await api.get<ImprovementsOut>('/improvements', {
+      params: { period_days: periodDays, annual_goal_kg: annualGoalKg },
+    })
     return data
   },
 
-  updateProfile: async (profile: UserProfile, userId = 'default'): Promise<UserProfile> => {
-    const { data } = await api.patch<UserProfile>('/profile', profile, { params: { user_id: userId } })
+  getProfile: async (): Promise<UserProfile> => {
+    const { data } = await api.get<UserProfile>('/profile')
     return data
   },
 
-  getPortions: async (userId = 'default'): Promise<PortionEntry[]> => {
-    const { data } = await api.get<PortionEntry[]>('/portions', { params: { user_id: userId } })
+  updateProfile: async (profile: UserProfile): Promise<UserProfile> => {
+    const { data } = await api.patch<UserProfile>('/profile', profile)
     return data
   },
 
-  updatePortions: async (portions: Record<string, number>, userId = 'default'): Promise<PortionEntry[]> => {
-    const { data } = await api.patch<PortionEntry[]>('/portions', portions, { params: { user_id: userId } })
+  getPortions: async (): Promise<PortionEntry[]> => {
+    const { data } = await api.get<PortionEntry[]>('/portions')
+    return data
+  },
+
+  updatePortions: async (portions: Record<string, number>): Promise<PortionEntry[]> => {
+    const { data } = await api.patch<PortionEntry[]>('/portions', portions)
     return data
   },
 }

@@ -4,9 +4,6 @@ import { es } from 'date-fns/locale'
 import { useHistory, useDeleteHistory, useDeleteActivity, useEditActivity } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
 
-interface Props {
-  userId?: string
-}
 
 const TrashIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
@@ -28,11 +25,11 @@ function co2Color(kg: number) {
   return 'var(--c-high)'
 }
 
-export function HistoryPanel({ userId = 'default' }: Props) {
-  const { data: activities, isLoading, isError } = useHistory(userId)
-  const deleteHistory = useDeleteHistory(userId)
-  const deleteActivity = useDeleteActivity(userId)
-  const editActivity = useEditActivity(userId)
+export function HistoryPanel() {
+  const { data: activities, isLoading, isError } = useHistory()
+  const deleteHistory = useDeleteHistory()
+  const deleteActivity = useDeleteActivity()
+  const editActivity = useEditActivity()
   const [confirmClear, setConfirmClear] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingEmissionId, setEditingEmissionId] = useState<number | null>(null)

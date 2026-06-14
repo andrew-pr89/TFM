@@ -5,7 +5,6 @@ import type { ActivityOut } from '../types'
 type ViewMode = 'day' | 'week' | 'month'
 
 interface Props {
-  userId?: string
   annualGoalKg?: number
 }
 
@@ -110,8 +109,8 @@ function formatPeriod(mode: ViewMode, start: Date, end: Date): string {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DailyDashboard({ userId = 'default', annualGoalKg = 6000 }: Props) {
-  const { data: activities, isLoading, isError } = useHistory(userId)
+export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
+  const { data: activities, isLoading, isError } = useHistory()
   const [mode, setMode] = useState<ViewMode>('day')
   const [anchor, setAnchor] = useState(() => new Date())
 

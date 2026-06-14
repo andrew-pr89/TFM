@@ -34,7 +34,6 @@ class EmissionFactorOut(BaseModel):
 
 class ActivityCreate(BaseModel):
     raw_text: str = Field(..., min_length=1, max_length=1000, description="Texto libre del usuario")
-    user_id: str = Field(default="default", max_length=100)
 
 
 class EmissionOut(BaseModel):

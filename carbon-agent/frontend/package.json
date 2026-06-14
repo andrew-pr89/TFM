@@ -1,5 +1,5 @@
 {
-  "name": "carbon-agent-frontend",
+  "name": "planet-pulse-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,19 +9,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "serve": "^14.2.3",
-    "react-dom": "^18.3.1",
+    "@auth0/auth0-react": "^2.17.0",
     "@tanstack/react-query": "^5.40.0",
     "axios": "^1.7.2",
     "date-fns": "^3.6.0",
-    "recharts": "^2.12.7"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7",
+    "serve": "^14.2.3"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "typescript": "^5.4.5",
-    "vite": "^5.3.1"
+    "vite": "^8.0.16"
   }
 }
