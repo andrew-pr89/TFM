@@ -3,7 +3,6 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieCha
 import { useSummary, useHistory } from '../hooks/useCarbon'
 
 interface Props {
-  userId?: string
   annualGoalKg?: number
 }
 
@@ -68,9 +67,9 @@ function BudgetCard({ total, budget, periodDays }: { total: number; budget: numb
   )
 }
 
-export function SummaryPanel({ userId = 'default', annualGoalKg = 6000 }: Props) {
-  const { data: summary, isLoading: summaryLoading, isError: summaryError } = useSummary(userId, annualGoalKg)
-  const { data: activities, isLoading: activitiesLoading } = useHistory(userId)
+export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
+  const { data: summary, isLoading: summaryLoading, isError: summaryError } = useSummary(annualGoalKg)
+  const { data: activities, isLoading: activitiesLoading } = useHistory()
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
   if (summaryLoading || activitiesLoading) return <div className="panel-state">Cargando…</div>

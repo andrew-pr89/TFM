@@ -2,7 +2,6 @@ import { useImprovements } from '../hooks/useCarbon'
 import type { ImprovementSuggestion } from '../types'
 
 interface Props {
-  userId?: string
   annualGoalKg?: number
 }
 
@@ -62,8 +61,8 @@ function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }
   )
 }
 
-export function ImprovementsPanel({ userId = 'default', annualGoalKg = 6000 }: Props) {
-  const { data, isLoading, isError, refetch, isFetching } = useImprovements(userId, annualGoalKg)
+export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
+  const { data, isLoading, isError, refetch, isFetching } = useImprovements(annualGoalKg)
 
   if (isLoading || isFetching) return (
     <div className="panel-state">
