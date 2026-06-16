@@ -78,8 +78,8 @@ export function ChatBubble({ message }: Props) {
                   className="emission-item__bar"
                   style={{
                     width: `${Math.min((e.amount_kg_co2e / Math.max(total, 0.001)) * 100, 100)}%`,
-                    background: co2Color(e.amount_kg_co2e),
-                  }}
+                    '--bar-color': co2Color(e.amount_kg_co2e),
+                  } as React.CSSProperties}
                 />
               </span>
               <span className="emission-item__value">{co2Label(e.amount_kg_co2e)}</span>

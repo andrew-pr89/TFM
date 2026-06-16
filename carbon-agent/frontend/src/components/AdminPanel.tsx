@@ -19,10 +19,10 @@ const STATUS_LABEL: Record<string, string> = {
   all: 'Todos',
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  pending: '#facc15',
-  added: '#4ade80',
-  rejected: '#ef4444',
+const STATUS_CLASS: Record<string, string> = {
+  pending: 'status--pending',
+  added: 'status--added',
+  rejected: 'status--rejected',
 }
 
 const EMPTY_FACTOR: EmissionFactorCreate = {
@@ -336,7 +336,7 @@ function FactorsPanel() {
                 <td className="admin-table__num">{f.factor_kg_co2e.toFixed(4)}</td>
                 <td>{f.unit}</td>
                 <td className="admin-table__num">
-                  {f.default_quantity != null ? `${f.default_quantity} ${f.unit}` : <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>—</span>}
+                  {f.default_quantity != null ? `${f.default_quantity} ${f.unit}` : <span className="admin-table__placeholder">—</span>}
                 </td>
                 <td onClick={e => e.stopPropagation()}>
                   <button
@@ -516,7 +516,7 @@ function UnknownItemsPanel() {
                     <td className="admin-table__term">{item.raw_term}</td>
                     <td className="admin-table__cat">{item.guessed_category ?? '—'}</td>
                     <td>
-                      <span className="admin-status-badge" style={{ color: STATUS_COLOR[item.status] }}>
+                      <span className={`admin-status-badge ${STATUS_CLASS[item.status]}`}>
                         {STATUS_LABEL[item.status]}
                       </span>
                     </td>
@@ -547,7 +547,7 @@ function UnknownItemsPanel() {
 
             <div className="admin-detail__meta">
               <div><span>Estado</span>
-                <span style={{ color: STATUS_COLOR[activeItem.status] }}>{STATUS_LABEL[activeItem.status]}</span>
+                <span className={STATUS_CLASS[activeItem.status]}>{STATUS_LABEL[activeItem.status]}</span>
               </div>
               <div><span>Categoría sugerida</span><span>{activeItem.guessed_category ?? '—'}</span></div>
               <div><span>Usuario</span><span className="admin-detail__userid">{activeItem.user_id}</span></div>

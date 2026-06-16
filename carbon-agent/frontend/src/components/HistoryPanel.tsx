@@ -18,11 +18,11 @@ const PencilIcon = () => (
   </svg>
 )
 
-function co2Color(kg: number) {
-  if (kg === 0) return 'var(--c-neutral)'
-  if (kg < 1) return 'var(--c-low)'
-  if (kg < 5) return 'var(--c-mid)'
-  return 'var(--c-high)'
+function co2ColorClass(kg: number) {
+  if (kg === 0) return 'history-item__total--neutral'
+  if (kg < 1) return 'history-item__total--low'
+  if (kg < 5) return 'history-item__total--mid'
+  return 'history-item__total--high'
 }
 
 export function HistoryPanel() {
@@ -138,7 +138,7 @@ export function HistoryPanel() {
                         <span>{emission.description || emission.factor.display_name}</span>
                       </div>
                       <div className="history-item__right">
-                        <span className="history-item__total" style={{ color: co2Color(emission.amount_kg_co2e) }}>
+                        <span className={`history-item__total ${co2ColorClass(emission.amount_kg_co2e)}`}>
                           {emission.amount_kg_co2e.toFixed(3)} kg
                         </span>
                         {!isEditing && (

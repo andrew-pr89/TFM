@@ -6,7 +6,7 @@ import { HistoryPanel } from './components/HistoryPanel'
 import { SummaryPanel } from './components/SummaryPanel'
 import { ImprovementsPanel } from './components/ImprovementsPanel'
 import { DailyDashboard } from './components/DailyDashboard'
-import { SettingsPanel } from './components/SettingsPanel'
+import { SettingsPanel, SETTINGS_SUBTABS, type SettingsSubTab } from './components/SettingsPanel'
 import { LoginPage } from './components/LoginPage'
 import { AdminPanel } from './components/AdminPanel'
 import { useSettings } from './hooks/useSettings'
@@ -36,6 +36,12 @@ export default function App() {
   const isAdmin = useIsAdmin()
   const NAV_ITEMS = isAdmin ? [...BASE_NAV, ADMIN_NAV] : BASE_NAV
   const [tab, setTab] = useState<Tab>('chat')
+  const [settingsTab, setSettingsTab] = useState<SettingsSubTab>('goal')
+  const [lightTheme, setLightTheme] = useState(false)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', lightTheme ? 'light' : 'dark')
+  }, [lightTheme])
   const { annualGoalKg } = useSettings()
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -103,7 +109,7 @@ export default function App() {
       <div className="login-page">
         <div className="login-card">
           <div className="login-card__logo">🌿</div>
-          <p style={{ color: 'var(--text-muted)' }}>Cargando…</p>
+          <p className="login-card__loading">Cargando…</p>
         </div>
       </div>
     )
@@ -130,6 +136,21 @@ export default function App() {
                 <span className="nav-item__icon">{item.icon}</span>
                 <span className="nav-item__label">{item.label}</span>
               </button>
+              {item.id === 'settings' && tab === 'settings' && (
+                <ul className="nav-subtabs">
+                  {SETTINGS_SUBTABS.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        className={`nav-subitem ${settingsTab === s.id ? 'nav-subitem--active' : ''}`}
+                        onClick={() => setSettingsTab(s.id)}
+                      >
+                        <span className="nav-subitem__icon">{s.icon}</span>
+                        <span className="nav-subitem__label">{s.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
@@ -158,9 +179,21 @@ export default function App() {
       <main className="main">
         <header className="topbar">
           <h1 className="topbar__title">
-            {NAV_ITEMS.find((n) => n.id === tab)?.icon}{' '}
-            {NAV_ITEMS.find((n) => n.id === tab)?.label}
+            {tab === 'settings'
+              ? <>{SETTINGS_SUBTABS.find(s => s.id === settingsTab)?.icon}{' '}{SETTINGS_SUBTABS.find(s => s.id === settingsTab)?.label}</>
+              : <>{NAV_ITEMS.find((n) => n.id === tab)?.icon}{' '}{NAV_ITEMS.find((n) => n.id === tab)?.label}</>
+            }
           </h1>
+          <div className="topbar__actions">
+            <button
+              className="contrast-toggle"
+              onClick={() => setLightTheme(v => !v)}
+              title={lightTheme ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
+            >
+              <span className="contrast-toggle__icon">{lightTheme ? '🌙' : '☀️'}</span>
+              {lightTheme ? 'Oscuro' : 'Claro'}
+            </button>
+          </div>
         </header>
 
         <div className="content">
@@ -209,7 +242,7 @@ export default function App() {
 
           {tab === 'settings' && (
             <div className="panel-layout">
-              <SettingsPanel />
+              <SettingsPanel tab={settingsTab} />
             </div>
           )}
 

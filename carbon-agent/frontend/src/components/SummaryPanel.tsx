@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
 import { useSummary, useHistory } from '../hooks/useCarbon'
+import { format } from 'date-fns'
 
 interface Props {
   annualGoalKg?: number
@@ -8,11 +9,11 @@ interface Props {
 
 const COLORS = ['#4ade80', '#86efac', '#a3e635', '#facc15', '#fb923c', '#f97316', '#ef4444']
 
-function co2Color(kg: number) {
-  if (kg === 0) return 'var(--c-neutral)'
-  if (kg < 1) return 'var(--c-low)'
-  if (kg < 5) return 'var(--c-mid)'
-  return 'var(--c-high)'
+function co2ColorClass(kg: number) {
+  if (kg === 0) return 'emission-row__value--neutral'
+  if (kg < 1) return 'emission-row__value--low'
+  if (kg < 5) return 'emission-row__value--mid'
+  return 'emission-row__value--high'
 }
 
 const tooltipStyle = {
@@ -36,16 +37,19 @@ function StatCard({ label, value, unit }: { label: string; value: string | numbe
   )
 }
 
-function BudgetCard({ total, budget, periodDays }: { total: number; budget: number; periodDays: number }) {
+function BudgetCard({ total, budget, periodDays, dateFrom, dateTo }: { total: number; budget: number; periodDays: number; dateFrom?: string; dateTo?: string }) {
   const pct = Math.min((total / budget) * 100, 100)
   const over = total > budget
-  const barColor = pct < 50 ? '#4ade80' : pct < 80 ? '#facc15' : '#ef4444'
+  const barSeverity = pct < 50 ? 'low' : pct < 80 ? 'mid' : 'high'
+  const periodLabel = dateFrom && dateTo
+    ? `${format(new Date(dateFrom), 'dd/MM/yyyy')} – ${format(new Date(dateTo), 'dd/MM/yyyy')}`
+    : `últimos ${periodDays} días`
 
   return (
-    <div className="stat-card" style={{ gridColumn: '1 / -1' }}>
-      <span className="stat-card__label">Total CO₂e — últimos {periodDays} días</span>
+    <div className="stat-card stat-card--full">
+      <span className="stat-card__label">Total CO₂e — {periodLabel}</span>
       <div className="budget-card-row">
-        <span className="stat-card__value" style={{ color: over ? '#ef4444' : 'inherit' }}>
+        <span className={`stat-card__value${over ? ' stat-card__value--over' : ''}`}>
           {total.toFixed(2)}
         </span>
         <span className="stat-card__unit">
@@ -54,8 +58,8 @@ function BudgetCard({ total, budget, periodDays }: { total: number; budget: numb
       </div>
       <div className="budget-bar">
         <div
-          className="budget-bar__fill"
-          style={{ width: `${pct}%`, background: barColor }}
+          className={`budget-bar__fill budget-bar__fill--${barSeverity}`}
+          style={{ width: `${pct}%` }}
         />
       </div>
       <span className="budget-pct">
@@ -68,8 +72,13 @@ function BudgetCard({ total, budget, periodDays }: { total: number; budget: numb
 }
 
 export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
-  const { data: summary, isLoading: summaryLoading, isError: summaryError } = useSummary(annualGoalKg)
-  const { data: activities, isLoading: activitiesLoading } = useHistory()
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const activeFrom = dateFrom && dateTo ? dateFrom : undefined
+  const activeTo = dateFrom && dateTo ? dateTo : undefined
+
+  const { data: summary, isLoading: summaryLoading, isError: summaryError } = useSummary(annualGoalKg, activeFrom, activeTo)
+  const { data: activities, isLoading: activitiesLoading } = useHistory(activeFrom, activeTo)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
   if (summaryLoading || activitiesLoading) return <div className="panel-state">Cargando…</div>
@@ -139,7 +148,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
               {Object.entries(byFactor).map(([name, kg]) => (
                 <div key={name} className="emission-row">
                   <span>{name}</span>
-                  <span style={{ color: co2Color(kg), fontWeight: 500 }}>
+                  <span className={`emission-row__value ${co2ColorClass(kg)}`}>
                     {kg.toFixed(3)} kg
                   </span>
                 </div>
@@ -163,6 +172,34 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
 
   return (
     <div className="summary-panel">
+      <div className="date-range-filter">
+        <label className="date-range-filter__label">Desde</label>
+        <input
+          type="date"
+          className="date-range-filter__input"
+          value={dateFrom}
+          max={dateTo || undefined}
+          onChange={e => setDateFrom(e.target.value)}
+        />
+        <label className="date-range-filter__label">Hasta</label>
+        <input
+          type="date"
+          className="date-range-filter__input"
+          value={dateTo}
+          min={dateFrom || undefined}
+          max={new Date().toISOString().split('T')[0]}
+          onChange={e => setDateTo(e.target.value)}
+        />
+        {(dateFrom || dateTo) && (
+          <button
+            className="date-range-filter__clear"
+            onClick={() => { setDateFrom(''); setDateTo('') }}
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+
       <div className="activities-tabs">
         <button
           className={`tab-btn${selectedCategory === null ? ' tab-btn--active' : ''}`}
@@ -182,7 +219,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
       </div>
 
       <div className="stat-grid">
-        <BudgetCard total={summary.total_kg_co2e} budget={summary.budget_kg_co2e} periodDays={summary.period_days} />
+        <BudgetCard total={summary.total_kg_co2e} budget={summary.budget_kg_co2e} periodDays={summary.period_days} dateFrom={activeFrom} dateTo={activeTo} />
         <StatCard label="Actividades" value={summary.total_activities} />
         <StatCard label="Media/actividad" value={perActivity} unit="kg" />
       </div>

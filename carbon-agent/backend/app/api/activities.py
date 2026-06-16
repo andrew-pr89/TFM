@@ -10,6 +10,7 @@ DELETE /history/{id}    → borra una actividad concreta
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -41,15 +42,14 @@ def create_activity(payload: ActivityCreate, user_id: str = Depends(get_current_
 
 
 @router.get("/history", response_model=list[ActivityOut])
-def get_history(limit: int = 50, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_history(limit: int = 200, date_from: Optional[str] = None, date_to: Optional[str] = None, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Devuelve el historial de actividades de un usuario, más reciente primero."""
-    return (
-        db.query(Activity)
-        .filter(Activity.user_id == user_id)
-        .order_by(Activity.created_at.desc())
-        .limit(limit)
-        .all()
-    )
+    q = db.query(Activity).filter(Activity.user_id == user_id)
+    if date_from:
+        q = q.filter(Activity.created_at >= datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc))
+    if date_to:
+        q = q.filter(Activity.created_at < datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc) + timedelta(days=1))
+    return q.order_by(Activity.created_at.desc()).limit(limit).all()
 
 
 @router.delete("/history", status_code=204)
@@ -96,16 +96,22 @@ def patch_activity(activity_id: int, payload: ActivityPatch, user_id: str = Depe
 
 
 @router.get("/summary", response_model=SummaryOut)
-def get_summary(period_days: int = 30, annual_goal_kg: int = 6000, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Resumen agregado de emisiones del usuario en los últimos N días."""
+def get_summary(period_days: int = 30, annual_goal_kg: int = 6000, date_from: Optional[str] = None, date_to: Optional[str] = None, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Resumen agregado de emisiones del usuario en los últimos N días o en un rango de fechas."""
     from collections import defaultdict
 
-    since = datetime.now(timezone.utc) - timedelta(days=period_days)
-    activities = (
-        db.query(Activity)
-        .filter(Activity.user_id == user_id, Activity.created_at >= since)
-        .all()
-    )
+    if date_from and date_to:
+        since = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
+        until = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc) + timedelta(days=1)
+        period_days = max((until - since).days, 1)
+    else:
+        since = datetime.now(timezone.utc) - timedelta(days=period_days)
+        until = None
+
+    q = db.query(Activity).filter(Activity.user_id == user_id, Activity.created_at >= since)
+    if until:
+        q = q.filter(Activity.created_at < until)
+    activities = q.all()
 
     total_kg = sum(e.amount_kg_co2e for a in activities for e in a.emissions)
 

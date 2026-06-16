@@ -16,21 +16,21 @@ function useUserId() {
   return user?.sub ?? 'unknown'
 }
 
-export function useHistory() {
+export function useHistory(dateFrom?: string, dateTo?: string) {
   const userId = useUserId()
   return useQuery({
-    queryKey: QUERY_KEYS.history(userId),
-    queryFn: () => carbonApi.getHistory(),
+    queryKey: [...QUERY_KEYS.history(userId), dateFrom, dateTo],
+    queryFn: () => carbonApi.getHistory(200, dateFrom, dateTo),
     staleTime: 30_000,
     enabled: userId !== 'unknown',
   })
 }
 
-export function useSummary(annualGoalKg = 6000) {
+export function useSummary(annualGoalKg = 6000, dateFrom?: string, dateTo?: string) {
   const userId = useUserId()
   return useQuery({
-    queryKey: [...QUERY_KEYS.summary(userId), annualGoalKg],
-    queryFn: () => carbonApi.getSummary(30, annualGoalKg),
+    queryKey: [...QUERY_KEYS.summary(userId), annualGoalKg, dateFrom, dateTo],
+    queryFn: () => carbonApi.getSummary(30, annualGoalKg, dateFrom, dateTo),
     staleTime: 30_000,
     enabled: userId !== 'unknown',
   })

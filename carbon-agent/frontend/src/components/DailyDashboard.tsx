@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type CSSProperties } from 'react'
 import { useHistory } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
 
@@ -48,17 +48,17 @@ function Ring({ value, max, size, stroke, color, children }: RingProps) {
   const over = value > max
 
   return (
-    <svg width={size} height={size} style={{ display: 'block' }}>
+    <svg width={size} height={size} className="ring-svg">
       <circle cx={size / 2} cy={size / 2} r={r} fill="none"
         stroke="rgba(255,255,255,0.07)" strokeWidth={stroke} />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke={over ? '#ef4444' : color}
+        stroke={over ? 'var(--c-high)' : color}
         strokeWidth={stroke}
         strokeDasharray={circ}
         strokeDashoffset={circ * (1 - pct)}
         strokeLinecap="round"
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+        className="ring-progress"
       />
       {children && (
         <foreignObject x={stroke} y={stroke} width={size - stroke * 2} height={size - stroke * 2}>
@@ -97,6 +97,12 @@ function stepDate(mode: ViewMode, date: Date, dir: -1 | 1): Date {
   if (mode === 'week')  d.setDate(d.getDate() + dir * 7)
   if (mode === 'month') d.setMonth(d.getMonth() + dir)
   return d
+}
+
+function kgSeverityClass(kg: number): string {
+  if (kg > 5) return 'dashboard__activity-kg--high'
+  if (kg > 1) return 'dashboard__activity-kg--mid'
+  return 'dashboard__activity-kg--low'
 }
 
 function formatPeriod(mode: ViewMode, start: Date, end: Date): string {
@@ -176,8 +182,8 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
 
       {/* ── Main ring ────────────────────────────────────────────────────── */}
       <div className="dashboard__ring-wrapper">
-        <Ring value={total} max={budget} size={220} stroke={18} color="#4ade80">
-          <div className="ring-center__value" style={{ color: total > budget ? '#ef4444' : 'var(--text)' }}>
+        <Ring value={total} max={budget} size={220} stroke={18} color="var(--accent)">
+          <div className={`ring-center__value${total > budget ? ' ring-center__value--over' : ''}`}>
             {total.toFixed(2)}
           </div>
           <div className="ring-center__unit">kg CO₂e</div>
@@ -197,9 +203,9 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
             const color = CATEGORY_COLORS[cat] ?? DEFAULT_COLOR
             const catBudget = budget * (kg / total)
             return (
-              <div key={cat} className="dashboard__category-item">
+              <div key={cat} className="dashboard__category-item" style={{ '--cat-color': color } as CSSProperties}>
                 <Ring value={kg} max={catBudget > 0 ? catBudget : budget * 0.5} size={80} stroke={8} color={color}>
-                  <span className="dashboard__category-value" style={{ color }}>
+                  <span className="dashboard__category-value">
                     {kg.toFixed(2)}
                   </span>
                 </Ring>
@@ -224,10 +230,7 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
                   </p>
                   <p className="dashboard__activity-sub">{a.main_category}</p>
                 </div>
-                <span
-                  className="dashboard__activity-kg"
-                  style={{ color: kg > 5 ? '#ef4444' : kg > 1 ? '#fb923c' : '#4ade80' }}
-                >
+                <span className={`dashboard__activity-kg ${kgSeverityClass(kg)}`}>
                   {kg.toFixed(3)} kg
                 </span>
               </div>

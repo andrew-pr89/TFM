@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { useImprovements } from '../hooks/useCarbon'
 import type { ImprovementSuggestion } from '../types'
 
@@ -23,13 +24,13 @@ function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }
   const color = IMPACT_COLOR(first.pct_of_total)
 
   return (
-    <div className="suggestion-card">
+    <div className="suggestion-card" style={{ '--impact-color': color } as CSSProperties}>
       <div className="suggestion-card__header">
         <div className="suggestion-card__title-group">
           <span className="suggestion-card__icon">{icon}</span>
           <div>
             <span className="suggestion-card__category">{first.category}</span>
-            <span className="suggestion-card__stats" style={{ color }}>
+            <span className="suggestion-card__stats">
               {first.current_kg.toFixed(2)} kg · {first.pct_of_total.toFixed(0)}% del total
             </span>
           </div>
@@ -39,7 +40,7 @@ function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }
       <div className="suggestion-card__bar">
         <div
           className="suggestion-card__bar-fill"
-          style={{ width: `${Math.min(first.pct_of_total, 100)}%`, background: color }}
+          style={{ width: `${Math.min(first.pct_of_total, 100)}%` }}
         />
       </div>
 
@@ -94,13 +95,7 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
 
   return (
     <div className="summary-panel">
-      <div
-        className="suggestions-context"
-        style={{
-          background: overBudget ? 'rgba(239,68,68,0.1)' : 'rgba(74,222,128,0.1)',
-          border: `1px solid ${overBudget ? '#ef4444' : '#4ade80'}`,
-        }}
-      >
+      <div className={`suggestions-context ${overBudget ? 'suggestions-context--over' : 'suggestions-context--ok'}`}>
         {overBudget
           ? `⚠️ Estás ${gap} kg por encima del presupuesto sostenible de ${data.budget_kg.toFixed(0)} kg/mes. Aquí tienes las áreas donde reducir más impacto:`
           : `✅ Estás dentro del presupuesto sostenible (${data.total_kg.toFixed(1)} kg de ${data.budget_kg.toFixed(0)} kg). Sigue mejorando con estos consejos:`
