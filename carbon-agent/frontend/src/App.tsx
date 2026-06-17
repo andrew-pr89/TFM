@@ -1,5 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
+import {
+  MessageCircle, ClipboardList, Target, BarChart2,
+  Leaf, SlidersHorizontal, ShieldCheck, Sun, Moon,
+} from 'lucide-react'
 import { ChatBubble } from './components/ChatBubble'
 import { ChatInput } from './components/ChatInput'
 import { HistoryPanel } from './components/HistoryPanel'
@@ -17,16 +21,18 @@ import type { ChatMessage } from './types'
 
 type Tab = 'chat' | 'history' | 'dashboard' | 'summary' | 'improvements' | 'settings' | 'admin'
 
-const BASE_NAV: { id: Tab; label: string; icon: string }[] = [
-  { id: 'chat',         label: 'Chat',         icon: '💬' },
-  { id: 'history',      label: 'Historial',    icon: '📋' },
-  { id: 'dashboard',    label: 'Hoy',          icon: '🎯' },
-  { id: 'summary',      label: 'Estadísticas', icon: '📊' },
-  { id: 'improvements', label: 'Mejoras',      icon: '🌱' },
-  { id: 'settings',     label: 'Ajustes',      icon: '⚙️' },
+const NAV_ICON_PROPS = { size: 18, strokeWidth: 1.5 }
+
+const BASE_NAV: { id: Tab; label: string; icon: ReactNode }[] = [
+  { id: 'chat',         label: 'Chat',         icon: <MessageCircle  {...NAV_ICON_PROPS} /> },
+  { id: 'history',      label: 'Historial',    icon: <ClipboardList  {...NAV_ICON_PROPS} /> },
+  { id: 'dashboard',    label: 'Hoy',          icon: <Target         {...NAV_ICON_PROPS} /> },
+  { id: 'summary',      label: 'Estadísticas', icon: <BarChart2      {...NAV_ICON_PROPS} /> },
+  { id: 'improvements', label: 'Mejoras',      icon: <Leaf           {...NAV_ICON_PROPS} /> },
+  { id: 'settings',     label: 'Ajustes',      icon: <SlidersHorizontal {...NAV_ICON_PROPS} /> },
 ]
 
-const ADMIN_NAV = { id: 'admin' as Tab, label: 'Admin', icon: '🛡️' }
+const ADMIN_NAV = { id: 'admin' as Tab, label: 'Admin', icon: <ShieldCheck {...NAV_ICON_PROPS} /> as ReactNode }
 
 let msgCounter = 0
 const uid = () => `msg-${++msgCounter}`
@@ -37,7 +43,7 @@ export default function App() {
   const NAV_ITEMS = isAdmin ? [...BASE_NAV, ADMIN_NAV] : BASE_NAV
   const [tab, setTab] = useState<Tab>('chat')
   const [settingsTab, setSettingsTab] = useState<SettingsSubTab>('goal')
-  const [lightTheme, setLightTheme] = useState(false)
+  const [lightTheme, setLightTheme] = useState(true)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', lightTheme ? 'light' : 'dark')
@@ -175,6 +181,18 @@ export default function App() {
         </div>
       </nav>
 
+      {/* ── Theme toggle (fixed top-right) ── */}
+      <div className="theme-toggle-fixed">
+        <button
+          className="contrast-toggle"
+          onClick={() => setLightTheme(v => !v)}
+          title={lightTheme ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
+        >
+          {lightTheme ? <Moon size={15} strokeWidth={1.5} /> : <Sun size={15} strokeWidth={1.5} />}
+          {lightTheme ? 'Oscuro' : 'Claro'}
+        </button>
+      </div>
+
       {/* ── Main content ── */}
       <main className="main">
         <header className="topbar">
@@ -184,16 +202,6 @@ export default function App() {
               : <>{NAV_ITEMS.find((n) => n.id === tab)?.icon}{' '}{NAV_ITEMS.find((n) => n.id === tab)?.label}</>
             }
           </h1>
-          <div className="topbar__actions">
-            <button
-              className="contrast-toggle"
-              onClick={() => setLightTheme(v => !v)}
-              title={lightTheme ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
-            >
-              <span className="contrast-toggle__icon">{lightTheme ? '🌙' : '☀️'}</span>
-              {lightTheme ? 'Oscuro' : 'Claro'}
-            </button>
-          </div>
         </header>
 
         <div className="content">

@@ -9,14 +9,14 @@ interface Props {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Alimentación: '#fb923c',
-  Transporte:   '#60a5fa',
-  Energía:      '#facc15',
-  Residuos:     '#34d399',
-  Compras:      '#a78bfa',
-  Ocio:         '#f472b6',
+  Alimentación: 'var(--cat-alimentacion)',
+  Transporte:   'var(--cat-transporte)',
+  Energía:      'var(--cat-energia)',
+  Residuos:     'var(--cat-residuos)',
+  Compras:      'var(--cat-compras)',
+  Ocio:         'var(--cat-ocio)',
 }
-const DEFAULT_COLOR = '#94a3b8'
+const DEFAULT_COLOR = 'var(--c-neutral)'
 
 function getBudgets(annualKg: number): Record<ViewMode, number> {
   return {
@@ -38,10 +38,12 @@ interface RingProps {
   size: number
   stroke: number
   color: string
+  trackColor?: string
+  keepColor?: boolean
   children?: React.ReactNode
 }
 
-function Ring({ value, max, size, stroke, color, children }: RingProps) {
+function Ring({ value, max, size, stroke, color, trackColor = 'var(--surface)', keepColor = false, children }: RingProps) {
   const r = (size - stroke) / 2
   const circ = 2 * Math.PI * r
   const pct = max > 0 ? Math.min(value / max, 1) : 0
@@ -50,9 +52,9 @@ function Ring({ value, max, size, stroke, color, children }: RingProps) {
   return (
     <svg width={size} height={size} className="ring-svg">
       <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke="rgba(255,255,255,0.07)" strokeWidth={stroke} />
+        stroke={trackColor} strokeWidth={stroke} />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke={over ? 'var(--c-high)' : color}
+        stroke={!keepColor && over ? 'var(--c-high)' : color}
         strokeWidth={stroke}
         strokeDasharray={circ}
         strokeDashoffset={circ * (1 - pct)}
@@ -99,10 +101,11 @@ function stepDate(mode: ViewMode, date: Date, dir: -1 | 1): Date {
   return d
 }
 
-function kgSeverityClass(kg: number): string {
-  if (kg > 5) return 'dashboard__activity-kg--high'
-  if (kg > 1) return 'dashboard__activity-kg--mid'
-  return 'dashboard__activity-kg--low'
+function kgBadgeVars(kg: number): { '--badge-color': string; '--badge-text-color': string } {
+  if (kg === 0) return { '--badge-color': 'var(--c-neutral)', '--badge-text-color': 'var(--c-neutral-text)' }
+  if (kg <= 1)  return { '--badge-color': 'var(--c-low)',     '--badge-text-color': 'var(--c-low-text)'     }
+  if (kg <= 5)  return { '--badge-color': 'var(--c-mid)',     '--badge-text-color': 'var(--c-mid-text)'     }
+  return           { '--badge-color': 'var(--c-high)',    '--badge-text-color': 'var(--c-high-text)'    }
 }
 
 function formatPeriod(mode: ViewMode, start: Date, end: Date): string {
@@ -141,7 +144,11 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
     for (const a of filtered)
       for (const e of a.emissions)
         map[e.factor.main_category] = (map[e.factor.main_category] ?? 0) + e.amount_kg_co2e
-    return Object.entries(map).sort((a, b) => b[1] - a[1])
+    // Always show all predefined categories; put those with data first
+    const allCats = Object.keys(CATEGORY_COLORS)
+    return allCats
+      .map(cat => [cat, map[cat] ?? 0] as [string, number])
+      .sort((a, b) => b[1] - a[1])
   }, [filtered])
 
   const budget = getBudgets(annualGoalKg)[mode]
@@ -197,24 +204,21 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
       </div>
 
       {/* ── Category rings ───────────────────────────────────────────────── */}
-      {byCategory.length > 0 && (
-        <div className="dashboard__categories">
-          {byCategory.map(([cat, kg]) => {
-            const color = CATEGORY_COLORS[cat] ?? DEFAULT_COLOR
-            const catBudget = budget * (kg / total)
-            return (
-              <div key={cat} className="dashboard__category-item" style={{ '--cat-color': color } as CSSProperties}>
-                <Ring value={kg} max={catBudget > 0 ? catBudget : budget * 0.5} size={80} stroke={8} color={color}>
-                  <span className="dashboard__category-value">
-                    {kg.toFixed(2)}
-                  </span>
-                </Ring>
-                <span className="dashboard__category-name">{cat}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      <div className="dashboard__categories">
+        {byCategory.map(([cat, kg]) => {
+          const color = CATEGORY_COLORS[cat] ?? DEFAULT_COLOR
+          return (
+            <div key={cat} className="dashboard__category-item" style={{ '--cat-color': color } as CSSProperties}>
+              <Ring value={kg} max={budget} size={80} stroke={8} color={color} keepColor>
+                <span className="dashboard__category-value">
+                  {kg > 0 ? kg.toFixed(2) : '—'}
+                </span>
+              </Ring>
+              <span className="dashboard__category-name">{cat}</span>
+            </div>
+          )
+        })}
+      </div>
 
       {/* ── Activity list ─────────────────────────────────────────────────── */}
       {filtered.length > 0 && (
@@ -230,7 +234,7 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
                   </p>
                   <p className="dashboard__activity-sub">{a.main_category}</p>
                 </div>
-                <span className={`dashboard__activity-kg ${kgSeverityClass(kg)}`}>
+                <span className="co2-badge" style={kgBadgeVars(kg) as CSSProperties}>
                   {kg.toFixed(3)} kg
                 </span>
               </div>

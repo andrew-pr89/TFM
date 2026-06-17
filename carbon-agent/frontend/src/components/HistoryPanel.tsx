@@ -1,40 +1,61 @@
-import { useState } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { Trash2, Pencil, ChevronUp, ChevronDown } from 'lucide-react'
 import { useHistory, useDeleteHistory, useDeleteActivity, useEditActivity } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
+import type { CSSProperties } from 'react'
 
+type SortCol = 'date' | 'description' | 'category' | 'quantity' | 'co2'
+type SortDir = 'asc' | 'desc'
 
-const TrashIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
-    <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
-  </svg>
-)
+interface FlatRow {
+  key:         string
+  activityId:  number
+  emissionId:  number | null
+  date:        Date
+  description: string
+  category:    string
+  quantity:    string
+  quantityNum: number
+  co2:         number | null
+  activity:    ActivityOut
+}
 
-const PencilIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="13" height="13">
-    <path d="m5.433 13.917 1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
-    <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
-  </svg>
-)
+function co2BadgeVars(kg: number): { '--badge-color': string; '--badge-text-color': string } {
+  if (kg === 0) return { '--badge-color': 'var(--c-neutral)', '--badge-text-color': 'var(--c-neutral-text)' }
+  if (kg < 1)   return { '--badge-color': 'var(--c-low)',     '--badge-text-color': 'var(--c-low-text)'     }
+  if (kg < 5)   return { '--badge-color': 'var(--c-mid)',     '--badge-text-color': 'var(--c-mid-text)'     }
+  return           { '--badge-color': 'var(--c-high)',    '--badge-text-color': 'var(--c-high-text)'    }
+}
 
-function co2ColorClass(kg: number) {
-  if (kg === 0) return 'history-item__total--neutral'
-  if (kg < 1) return 'history-item__total--low'
-  if (kg < 5) return 'history-item__total--mid'
-  return 'history-item__total--high'
+function SortArrows({ col, active, dir }: { col: SortCol; active: SortCol; dir: SortDir }) {
+  const isActive = col === active
+  return (
+    <span className="sort-arrows">
+      <ChevronUp  size={10} className={`sort-arrows__up   ${isActive && dir === 'asc'  ? 'sort-arrows--on' : ''}`} />
+      <ChevronDown size={10} className={`sort-arrows__down ${isActive && dir === 'desc' ? 'sort-arrows--on' : ''}`} />
+    </span>
+  )
 }
 
 export function HistoryPanel() {
   const { data: activities, isLoading, isError } = useHistory()
-  const deleteHistory = useDeleteHistory()
+  const deleteHistory  = useDeleteHistory()
   const deleteActivity = useDeleteActivity()
-  const editActivity = useEditActivity()
-  const [confirmClear, setConfirmClear] = useState(false)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const editActivity   = useEditActivity()
+
+  const [confirmClear,      setConfirmClear]      = useState(false)
+  const [editingId,         setEditingId]         = useState<number | null>(null)
   const [editingEmissionId, setEditingEmissionId] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
   const [editDate, setEditDate] = useState('')
+
+  const [filterText, setFilterText] = useState('')
+  const [filterDate, setFilterDate] = useState('')
+  const [sortCol,    setSortCol]    = useState<SortCol>('date')
+  const [sortDir,    setSortDir]    = useState<SortDir>('desc')
+  const tableWrapRef = useRef<HTMLDivElement>(null)
 
   const startEdit = (activity: ActivityOut, emissionId?: number) => {
     setEditingId(activity.id)
@@ -42,9 +63,7 @@ export function HistoryPanel() {
     setEditText(activity.raw_text)
     setEditDate(new Date(activity.created_at).toISOString().slice(0, 16))
   }
-
   const cancelEdit = () => { setEditingId(null); setEditingEmissionId(null) }
-
   const saveEdit = (id: number) => {
     editActivity.mutate(
       { id, rawText: editText, createdAt: editDate ? new Date(editDate).toISOString() : null },
@@ -52,9 +71,82 @@ export function HistoryPanel() {
     )
   }
 
-  if (isLoading) return <div className="panel-state">Cargando historial…</div>
-  if (isError) return <div className="panel-state panel-state--error">Error al cargar el historial.</div>
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
 
+  const handleClearAll = () => {
+    if (!confirmClear) { setConfirmClear(true); return }
+    deleteHistory.mutate()
+    setConfirmClear(false)
+  }
+
+  const rows = useMemo<FlatRow[]>(() => {
+    if (!activities) return []
+    const flat: FlatRow[] = []
+    for (const activity of activities) {
+      const date = new Date(activity.created_at)
+      if (activity.emissions.length === 0) {
+        flat.push({
+          key: `a-${activity.id}`,
+          activityId: activity.id,
+          emissionId: null,
+          date,
+          description: activity.raw_text,
+          category: '',
+          quantity: '',
+          quantityNum: 0,
+          co2: null,
+          activity,
+        })
+      } else {
+        for (const em of activity.emissions) {
+          flat.push({
+            key: `e-${em.id}`,
+            activityId: activity.id,
+            emissionId: em.id,
+            date,
+            description: em.description || em.factor.display_name,
+            category: em.factor.main_category,
+            quantity: `${em.quantity} ${em.factor.unit}`,
+            quantityNum: em.quantity,
+            co2: em.amount_kg_co2e,
+            activity,
+          })
+        }
+      }
+    }
+    return flat
+  }, [activities])
+
+  const filtered = useMemo(() => {
+    let r = rows
+    if (filterText.trim()) {
+      const q = filterText.toLowerCase()
+      r = r.filter(row =>
+        row.description.toLowerCase().includes(q) ||
+        row.category.toLowerCase().includes(q)
+      )
+    }
+    if (filterDate) {
+      r = r.filter(row => format(row.date, 'yyyy-MM-dd') === filterDate)
+    }
+    return [...r].sort((a, b) => {
+      let cmp = 0
+      switch (sortCol) {
+        case 'date':        cmp = a.date.getTime() - b.date.getTime(); break
+        case 'description': cmp = a.description.localeCompare(b.description); break
+        case 'category':    cmp = a.category.localeCompare(b.category); break
+        case 'quantity':    cmp = a.quantityNum - b.quantityNum; break
+        case 'co2':         cmp = (a.co2 ?? -1) - (b.co2 ?? -1); break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [rows, filterText, filterDate, sortCol, sortDir])
+
+  if (isLoading) return <div className="panel-state">Cargando historial…</div>
+  if (isError)   return <div className="panel-state panel-state--error">Error al cargar el historial.</div>
   if (!activities?.length) return (
     <div className="panel-state">
       <span className="panel-state__icon">📋</span>
@@ -63,103 +155,115 @@ export function HistoryPanel() {
     </div>
   )
 
-  const handleClearAll = () => {
-    if (!confirmClear) { setConfirmClear(true); return }
-    deleteHistory.mutate()
-    setConfirmClear(false)
-  }
-
   return (
     <div className="history-panel">
       <div className="history-header">
-        <span className="history-header__count">{activities.reduce((s, a) => s + Math.max(a.emissions.length, 1), 0)} actividad{activities.reduce((s, a) => s + Math.max(a.emissions.length, 1), 0) !== 1 ? 'es' : ''}</span>
-        <button
-          className={`btn-clear ${confirmClear ? 'btn-clear--confirm' : ''}`}
-          onClick={handleClearAll}
-          onBlur={() => setConfirmClear(false)}
-          disabled={deleteHistory.isPending}
-        >
-          {deleteHistory.isPending ? 'Borrando…' : confirmClear ? '¿Seguro? Pulsa de nuevo' : '🗑 Borrar todo'}
-        </button>
+        <div className="history-filters">
+          <input
+            className="history-filter__input"
+            type="search"
+            placeholder="Buscar actividad…"
+            value={filterText}
+            onChange={e => setFilterText(e.target.value)}
+          />
+          <input
+            className="history-filter__date"
+            type="date"
+            value={filterDate}
+            onChange={e => setFilterDate(e.target.value)}
+          />
+          {(filterText || filterDate) && (
+            <button className="history-filter__clear" onClick={() => { setFilterText(''); setFilterDate('') }}>
+              Limpiar
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span className="history-header__count">{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</span>
+          <button
+            className={`btn-clear ${confirmClear ? 'btn-clear--confirm' : ''}`}
+            onClick={handleClearAll}
+            onBlur={() => setConfirmClear(false)}
+            disabled={deleteHistory.isPending}
+          >
+            {deleteHistory.isPending ? 'Borrando…' : confirmClear ? '¿Seguro? Pulsa de nuevo' : 'Borrar todo'}
+          </button>
+        </div>
       </div>
 
-      <ul className="history-list">
-        {activities.map((activity) => {
-          const isEditing = editingId === activity.id
-
-          // Actividad sin emisiones (mensaje sin CO₂ identificado)
-          if (activity.emissions.length === 0) {
-            return (
-              <li key={activity.id} className="history-item">
-                {isEditing ? (
-                  <div className="history-item__edit-form">
-                    <input type="datetime-local" className="history-edit__date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
-                    <textarea className="history-edit__text" value={editText} rows={2} onChange={(e) => setEditText(e.target.value)} />
-                    <div className="history-edit__actions">
-                      <button className="btn-save-edit" disabled={editActivity.isPending} onClick={() => saveEdit(activity.id)}>{editActivity.isPending ? 'Guardando…' : 'Guardar'}</button>
-                      <button className="btn-cancel-edit" onClick={cancelEdit}>Cancelar</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="history-item__top">
-                      <div className="history-item__text"><span>{activity.raw_text}</span></div>
-                      <div className="history-item__right">
-                        <span className="history-item__total">—</span>
-                        <button className="btn-edit-item" onClick={() => startEdit(activity)} title="Editar actividad" aria-label="Editar actividad"><PencilIcon /></button>
-                        <button className="btn-delete-item" onClick={() => deleteActivity.mutate(activity.id)} disabled={deleteActivity.isPending} title="Eliminar esta actividad" aria-label="Eliminar actividad"><TrashIcon /></button>
+      <div className="admin-table-wrap" ref={tableWrapRef}>
+        <table className="admin-table">
+          <thead>
+            <tr>
+              {([
+                ['date',        'Fecha'],
+                ['description', 'Actividad'],
+                ['category',    'Categoría'],
+                ['quantity',    'Cantidad'],
+                ['co2',         'CO₂e'],
+              ] as [SortCol, string][]).map(([col, label]) => (
+                <th key={col} className="history-th--sortable" onClick={() => handleSort(col)}>
+                  <span className="history-th__inner">
+                    {sortCol === col && <span className="sort-dot" />}
+                    {label}
+                    <SortArrows col={col} active={sortCol} dir={sortDir} />
+                  </span>
+                </th>
+              ))}
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(row => {
+              const isEditing = editingId === row.activityId && editingEmissionId === row.emissionId
+              return (
+                <tr key={row.key} className="admin-table__row">
+                  {isEditing ? (
+                    <td colSpan={6}>
+                      <div className="history-item__edit-form">
+                        <input type="datetime-local" className="history-edit__date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+                        <textarea className="history-edit__text" value={editText} rows={2} onChange={e => setEditText(e.target.value)} />
+                        <div className="history-edit__actions">
+                          <button className="btn-save-edit" disabled={editActivity.isPending} onClick={() => saveEdit(row.activityId)}>
+                            {editActivity.isPending ? 'Guardando…' : 'Guardar'}
+                          </button>
+                          <button className="btn-cancel-edit" onClick={cancelEdit}>Cancelar</button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="history-item__meta"><time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time></div>
-                  </>
-                )}
-              </li>
-            )
-          }
-
-          // Una tarjeta por emisión; el formulario reemplaza la tarjeta donde se hizo clic
-          return activity.emissions.map((emission, idx) => {
-            const isThisEditing = isEditing && editingEmissionId === emission.id
-            return (
-              <li key={emission.id} className="history-item">
-                {isThisEditing ? (
-                  <div className="history-item__edit-form">
-                    <input type="datetime-local" className="history-edit__date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
-                    <textarea className="history-edit__text" value={editText} rows={2} onChange={(e) => setEditText(e.target.value)} />
-                    <div className="history-edit__actions">
-                      <button className="btn-save-edit" disabled={editActivity.isPending} onClick={() => saveEdit(activity.id)}>{editActivity.isPending ? 'Guardando…' : 'Guardar'}</button>
-                      <button className="btn-cancel-edit" onClick={cancelEdit}>Cancelar</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="history-item__top">
-                      <div className="history-item__text">
-                        <span>{emission.description || emission.factor.display_name}</span>
-                      </div>
-                      <div className="history-item__right">
-                        <span className={`history-item__total ${co2ColorClass(emission.amount_kg_co2e)}`}>
-                          {emission.amount_kg_co2e.toFixed(3)} kg
-                        </span>
-                        {!isEditing && (
-                          <>
-                            <button className="btn-edit-item" onClick={() => startEdit(activity, emission.id)} title="Editar actividad" aria-label="Editar actividad"><PencilIcon /></button>
-                            <button className="btn-delete-item" onClick={() => deleteActivity.mutate(activity.id)} disabled={deleteActivity.isPending} title="Eliminar esta actividad" aria-label="Eliminar actividad"><TrashIcon /></button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="history-item__meta">
-                      <span className="history-item__qty">{emission.quantity} {emission.factor.unit}</span>
-                      {idx === 0 && <time>{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</time>}
-                    </div>
-                  </>
-                )}
-              </li>
-            )
-          })
-        })}
-      </ul>
+                    </td>
+                  ) : (
+                    <>
+                      <td className="admin-table__date">{format(row.date, "dd/MM/yyyy")}</td>
+                      <td className="admin-table__term">{row.description}</td>
+                      <td className="admin-table__cat">{row.category || <span className="admin-table__placeholder">—</span>}</td>
+                      <td className="admin-table__num">{row.quantity || <span className="admin-table__placeholder">—</span>}</td>
+                      <td>
+                        {row.co2 !== null
+                          ? <span className="co2-badge" style={co2BadgeVars(row.co2) as CSSProperties}>{row.co2.toFixed(3)} kg</span>
+                          : <span className="admin-table__placeholder">—</span>
+                        }
+                      </td>
+                      <td>
+                        <div className="history-item__right">
+                          <button className="btn-edit-item" onClick={() => startEdit(row.activity, row.emissionId ?? undefined)} title="Editar"><Pencil size={17} /></button>
+                          <button className="btn-delete-item" onClick={() => deleteActivity.mutate(row.activityId)} disabled={deleteActivity.isPending} title="Eliminar"><Trash2 size={17} /></button>
+                        </div>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              )
+            })}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                  Sin resultados para esta búsqueda.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

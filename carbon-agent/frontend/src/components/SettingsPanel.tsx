@@ -1,5 +1,5 @@
-import { useState, useEffect, type CSSProperties } from 'react'
-// note: useState kept for GoalPanel / ProfilePanel / PortionsPanel sub-panels
+import { useState, useEffect, type CSSProperties, type ReactNode } from 'react'
+import { Target, User, UtensilsCrossed } from 'lucide-react'
 import { useSettings } from '../hooks/useSettings'
 import { useProfile, useUpdateProfile, usePortions, useUpdatePortions } from '../hooks/useCarbon'
 
@@ -350,10 +350,12 @@ function PortionsPanel() {
 
 export type SettingsSubTab = 'goal' | 'profile' | 'portions'
 
-export const SETTINGS_SUBTABS: { id: SettingsSubTab; label: string; icon: string }[] = [
-  { id: 'goal',     label: 'Objetivo CO₂', icon: '🎯' },
-  { id: 'profile',  label: 'Preferencias', icon: '👤' },
-  { id: 'portions', label: 'Porciones',    icon: '🍽️' },
+const SUB_ICON_PROPS = { size: 15, strokeWidth: 1.5 }
+
+export const SETTINGS_SUBTABS: { id: SettingsSubTab; label: string; icon: ReactNode }[] = [
+  { id: 'goal',     label: 'Objetivo CO₂', icon: <Target          {...SUB_ICON_PROPS} /> },
+  { id: 'profile',  label: 'Preferencias', icon: <User            {...SUB_ICON_PROPS} /> },
+  { id: 'portions', label: 'Porciones',    icon: <UtensilsCrossed {...SUB_ICON_PROPS} /> },
 ]
 
 interface SettingsPanelProps {
