@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type CSSProperties } from 'react'
 import { useHistory } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
 
@@ -9,14 +9,14 @@ interface Props {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Alimentación: '#fb923c',
-  Transporte:   '#60a5fa',
-  Energía:      '#facc15',
-  Residuos:     '#34d399',
-  Compras:      '#a78bfa',
-  Ocio:         '#f472b6',
+  Alimentación: 'var(--cat-alimentacion)',
+  Transporte:   'var(--cat-transporte)',
+  Energía:      'var(--cat-energia)',
+  Residuos:     'var(--cat-residuos)',
+  Compras:      'var(--cat-compras)',
+  Ocio:         'var(--cat-ocio)',
 }
-const DEFAULT_COLOR = '#94a3b8'
+const DEFAULT_COLOR = 'var(--c-neutral)'
 
 function getBudgets(annualKg: number): Record<ViewMode, number> {
   return {
@@ -38,27 +38,29 @@ interface RingProps {
   size: number
   stroke: number
   color: string
+  trackColor?: string
+  keepColor?: boolean
   children?: React.ReactNode
 }
 
-function Ring({ value, max, size, stroke, color, children }: RingProps) {
+function Ring({ value, max, size, stroke, color, trackColor = 'var(--surface)', keepColor = false, children }: RingProps) {
   const r = (size - stroke) / 2
   const circ = 2 * Math.PI * r
   const pct = max > 0 ? Math.min(value / max, 1) : 0
   const over = value > max
 
   return (
-    <svg width={size} height={size} style={{ display: 'block' }}>
+    <svg width={size} height={size} className="ring-svg">
       <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke="rgba(255,255,255,0.07)" strokeWidth={stroke} />
+        stroke={trackColor} strokeWidth={stroke} />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke={over ? '#ef4444' : color}
+        stroke={!keepColor && over ? 'var(--c-high)' : color}
         strokeWidth={stroke}
         strokeDasharray={circ}
         strokeDashoffset={circ * (1 - pct)}
         strokeLinecap="round"
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+        className="ring-progress"
       />
       {children && (
         <foreignObject x={stroke} y={stroke} width={size - stroke * 2} height={size - stroke * 2}>
@@ -99,6 +101,13 @@ function stepDate(mode: ViewMode, date: Date, dir: -1 | 1): Date {
   return d
 }
 
+function kgBadgeVars(kg: number): { '--badge-color': string; '--badge-text-color': string } {
+  if (kg === 0) return { '--badge-color': 'var(--c-neutral)', '--badge-text-color': 'var(--c-neutral-text)' }
+  if (kg <= 1)  return { '--badge-color': 'var(--c-low)',     '--badge-text-color': 'var(--c-low-text)'     }
+  if (kg <= 5)  return { '--badge-color': 'var(--c-mid)',     '--badge-text-color': 'var(--c-mid-text)'     }
+  return           { '--badge-color': 'var(--c-high)',    '--badge-text-color': 'var(--c-high-text)'    }
+}
+
 function formatPeriod(mode: ViewMode, start: Date, end: Date): string {
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
   const locale = 'es-ES'
@@ -135,7 +144,11 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
     for (const a of filtered)
       for (const e of a.emissions)
         map[e.factor.main_category] = (map[e.factor.main_category] ?? 0) + e.amount_kg_co2e
-    return Object.entries(map).sort((a, b) => b[1] - a[1])
+    // Always show all predefined categories; put those with data first
+    const allCats = Object.keys(CATEGORY_COLORS)
+    return allCats
+      .map(cat => [cat, map[cat] ?? 0] as [string, number])
+      .sort((a, b) => b[1] - a[1])
   }, [filtered])
 
   const budget = getBudgets(annualGoalKg)[mode]
@@ -149,98 +162,96 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
   return (
     <div className="dashboard">
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <div className="dashboard__topbar">
-        <div className="dashboard__nav-group">
-          <button className="dashboard__nav-btn" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
-          <button className="dashboard__nav-btn" disabled={isFuture}
-            onClick={() => setAnchor(d => stepDate(mode, d, 1))}>›</button>
+      {/* ── Fixed: rings section ────────────────────────────────────────── */}
+      <div className="dashboard__fixed">
+        <div className="dashboard__topbar">
+          <div className="dashboard__nav-group">
+            <button className="dashboard__nav-btn" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
+            <button className="dashboard__nav-btn" disabled={isFuture}
+              onClick={() => setAnchor(d => stepDate(mode, d, 1))}>›</button>
+          </div>
+
+          <span className="dashboard__period-label">
+            {isToday ? 'Hoy' : formatPeriod(mode, start, end)}
+          </span>
+
+          <div className="dashboard__mode-group">
+            {(['day', 'week', 'month'] as ViewMode[]).map(m => (
+              <button
+                key={m}
+                className={`dashboard__mode-btn${mode === m ? ' dashboard__mode-btn--active' : ''}`}
+                onClick={() => { setMode(m); setAnchor(new Date()) }}
+              >
+                {VIEW_LABELS[m]}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <span className="dashboard__period-label">
-          {isToday ? 'Hoy' : formatPeriod(mode, start, end)}
-        </span>
-
-        <div className="dashboard__mode-group">
-          {(['day', 'week', 'month'] as ViewMode[]).map(m => (
-            <button
-              key={m}
-              className={`dashboard__mode-btn${mode === m ? ' dashboard__mode-btn--active' : ''}`}
-              onClick={() => { setMode(m); setAnchor(new Date()) }}
-            >
-              {VIEW_LABELS[m]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Main ring ────────────────────────────────────────────────────── */}
-      <div className="dashboard__ring-wrapper">
-        <Ring value={total} max={budget} size={220} stroke={18} color="#4ade80">
-          <div className="ring-center__value" style={{ color: total > budget ? '#ef4444' : 'var(--text)' }}>
-            {total.toFixed(2)}
-          </div>
-          <div className="ring-center__unit">kg CO₂e</div>
-          <div className="ring-center__budget">
-            {pctLabel} de {budget.toFixed(1)} kg
-          </div>
-          {filtered.length === 0 && (
-            <div className="ring-center__empty">sin actividad</div>
-          )}
-        </Ring>
-      </div>
-
-      {/* ── Category rings ───────────────────────────────────────────────── */}
-      {byCategory.length > 0 && (
-        <div className="dashboard__categories">
-          {byCategory.map(([cat, kg]) => {
-            const color = CATEGORY_COLORS[cat] ?? DEFAULT_COLOR
-            const catBudget = budget * (kg / total)
-            return (
-              <div key={cat} className="dashboard__category-item">
-                <Ring value={kg} max={catBudget > 0 ? catBudget : budget * 0.5} size={80} stroke={8} color={color}>
-                  <span className="dashboard__category-value" style={{ color }}>
-                    {kg.toFixed(2)}
-                  </span>
-                </Ring>
-                <span className="dashboard__category-name">{cat}</span>
+        <div className="dashboard__rings-row">
+          <div className="dashboard__ring-wrapper">
+            <Ring value={total} max={budget} size={220} stroke={28} color="var(--accent)">
+              <div className={`ring-center__value${total > budget ? ' ring-center__value--over' : ''}`}>
+                {total.toFixed(2)}
               </div>
-            )
-          })}
-        </div>
-      )}
+              <div className="ring-center__unit">kg CO₂e</div>
+              <div className="ring-center__budget">
+                {pctLabel} de {budget.toFixed(1)} kg
+              </div>
+              {filtered.length === 0 && (
+                <div className="ring-center__empty">sin actividad</div>
+              )}
+            </Ring>
+          </div>
 
-      {/* ── Activity list ─────────────────────────────────────────────────── */}
-      {filtered.length > 0 && (
-        <div className="dashboard__activity-list">
-          <p className="dashboard__activity-header">Actividades</p>
-          {filtered.map(a => {
-            const kg = a.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
-            return (
-              <div key={a.id} className="dashboard__activity-row">
-                <div>
-                  <p className="dashboard__activity-text">
-                    {a.raw_text.length > 60 ? a.raw_text.slice(0, 60) + '…' : a.raw_text}
-                  </p>
-                  <p className="dashboard__activity-sub">{a.main_category}</p>
+          <div className="dashboard__categories">
+            {byCategory.map(([cat, kg]) => {
+              const color = CATEGORY_COLORS[cat] ?? DEFAULT_COLOR
+              return (
+                <div key={cat} className="dashboard__category-item" style={{ '--cat-color': color } as CSSProperties}>
+                  <Ring value={kg} max={budget} size={80} stroke={8} color={color} keepColor>
+                    <span className="dashboard__category-value">
+                      {kg > 0 ? kg.toFixed(2) : '—'}
+                    </span>
+                  </Ring>
+                  <span className="dashboard__category-name">{cat}</span>
                 </div>
-                <span
-                  className="dashboard__activity-kg"
-                  style={{ color: kg > 5 ? '#ef4444' : kg > 1 ? '#fb923c' : '#4ade80' }}
-                >
-                  {kg.toFixed(3)} kg
-                </span>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
-      )}
 
-      {filtered.length === 0 && (
-        <div className="dashboard__empty">
-          No hay actividades registradas para este período.
-        </div>
-      )}
+        {filtered.length > 0 && (
+          <h3 className="dashboard__activity-header">Actividades</h3>
+        )}
+      </div>
+
+      {/* ── Scrollable: activity list ────────────────────────────────────── */}
+      <div className="dashboard__scroll">
+        {filtered.length > 0 ? (
+          <div className="dashboard__activity-list">
+            {filtered.map(a => {
+              const kg = a.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
+              return (
+                <div key={a.id} className="dashboard__activity-row">
+                  <p className="dashboard__activity-text">
+                    <span className="dashboard__activity-cat">{a.main_category}</span>
+                    <span className="dashboard__activity-sep"> | </span>
+                    {a.raw_text.length > 80 ? a.raw_text.slice(0, 80) + '…' : a.raw_text}
+                  </p>
+                  <span className="co2-badge" style={kgBadgeVars(kg) as CSSProperties}>
+                    {kg.toFixed(3)} kg
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="dashboard__empty">
+            No hay actividades registradas para este período.
+          </div>
+        )}
+      </div>
     </div>
   )
 }

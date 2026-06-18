@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+import { RefreshCw, Utensils, Car, Zap, Recycle, ShoppingBag, Music, Leaf, type LucideIcon } from 'lucide-react'
 import { useImprovements } from '../hooks/useCarbon'
 import type { ImprovementSuggestion } from '../types'
 
@@ -5,31 +7,46 @@ interface Props {
   annualGoalKg?: number
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  Alimentación: '🥗',
-  Transporte: '🚗',
-  Energía: '⚡',
-  Residuos: '♻️',
-  Compras: '🛍️',
-  Ocio: '🎭',
+interface CategoryConfig { icon: LucideIcon; colorVar: string }
+
+const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
+  Alimentación: { icon: Utensils,    colorVar: 'var(--cat-alimentacion)' },
+  Transporte:   { icon: Car,         colorVar: 'var(--cat-transporte)'   },
+  Energía:      { icon: Zap,         colorVar: 'var(--cat-energia)'      },
+  Residuos:     { icon: Recycle,     colorVar: 'var(--cat-residuos)'     },
+  Compras:      { icon: ShoppingBag, colorVar: 'var(--cat-compras)'      },
+  Ocio:         { icon: Music,       colorVar: 'var(--cat-ocio)'         },
+}
+
+function CategoryIconBadge({ category }: { category: string }) {
+  const cfg = CATEGORY_CONFIG[category]
+  const Icon = cfg?.icon ?? Leaf
+  const color = cfg?.colorVar ?? 'var(--c-neutral)'
+  return (
+    <span
+      className="cat-icon-badge"
+      style={{ '--cat-icon-color': color } as CSSProperties}
+    >
+      <Icon size={15} strokeWidth={1.5} />
+    </span>
+  )
 }
 
 const IMPACT_COLOR = (pct: number) =>
-  pct >= 40 ? '#ef4444' : pct >= 20 ? '#fb923c' : '#facc15'
+  pct >= 40 ? 'var(--c-high)' : pct >= 20 ? 'var(--c-mid)' : 'var(--c-neutral)'
 
 function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }) {
   const first = suggestions[0]
-  const icon = CATEGORY_ICONS[first.category] ?? '🌿'
   const color = IMPACT_COLOR(first.pct_of_total)
 
   return (
-    <div className="suggestion-card">
+    <div className="suggestion-card" style={{ '--impact-color': color } as CSSProperties}>
       <div className="suggestion-card__header">
         <div className="suggestion-card__title-group">
-          <span className="suggestion-card__icon">{icon}</span>
+          <CategoryIconBadge category={first.category} />
           <div>
             <span className="suggestion-card__category">{first.category}</span>
-            <span className="suggestion-card__stats" style={{ color }}>
+            <span className="suggestion-card__stats">
               {first.current_kg.toFixed(2)} kg · {first.pct_of_total.toFixed(0)}% del total
             </span>
           </div>
@@ -39,7 +56,7 @@ function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }
       <div className="suggestion-card__bar">
         <div
           className="suggestion-card__bar-fill"
-          style={{ width: `${Math.min(first.pct_of_total, 100)}%`, background: color }}
+          style={{ width: `${Math.min(first.pct_of_total, 100)}%` }}
         />
       </div>
 
@@ -66,7 +83,7 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
 
   if (isLoading || isFetching) return (
     <div className="panel-state">
-      <span className="panel-state__icon">🤖</span>
+      <span className="spinner" />
       <p>Analizando tu huella de carbono…</p>
     </div>
   )
@@ -94,16 +111,10 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
 
   return (
     <div className="summary-panel">
-      <div
-        className="suggestions-context"
-        style={{
-          background: overBudget ? 'rgba(239,68,68,0.1)' : 'rgba(74,222,128,0.1)',
-          border: `1px solid ${overBudget ? '#ef4444' : '#4ade80'}`,
-        }}
-      >
+      <div className={`suggestions-context ${overBudget ? 'suggestions-context--over' : 'suggestions-context--ok'}`}>
         {overBudget
-          ? `⚠️ Estás ${gap} kg por encima del presupuesto sostenible de ${data.budget_kg.toFixed(0)} kg/mes. Aquí tienes las áreas donde reducir más impacto:`
-          : `✅ Estás dentro del presupuesto sostenible (${data.total_kg.toFixed(1)} kg de ${data.budget_kg.toFixed(0)} kg). Sigue mejorando con estos consejos:`
+          ? `Estás ${gap} kg por encima del presupuesto sostenible de ${data.budget_kg.toFixed(0)} kg/mes. Aquí tienes las áreas donde reducir más impacto:`
+          : `Estás dentro del presupuesto sostenible (${data.total_kg.toFixed(1)} kg de ${data.budget_kg.toFixed(0)} kg). Sigue mejorando con estos consejos:`
         }
       </div>
 
@@ -111,8 +122,9 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
         <CategoryGroup key={category} suggestions={suggestions} />
       ))}
 
-      <button className="suggestions-regen-btn" onClick={() => refetch()}>
-        🔄 Regenerar sugerencias
+      <button className="btn-solid suggestions-regen-btn" onClick={() => refetch()}>
+        <RefreshCw size={15} strokeWidth={1.5} />
+        Regenerar sugerencias
       </button>
     </div>
   )

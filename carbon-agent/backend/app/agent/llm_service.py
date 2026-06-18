@@ -241,13 +241,29 @@ CASO Sin CO₂ y sin ciudad:
                 f" El origin será el lugar que mencione el usuario en este mensaje."
                 if known_destination else ""
             )
+            # Determine what unit a bare number implies based on what the question asked for
+            question_lower = question.lower()
+            if "gramo" in question_lower:
+                implied_unit_hint = 'Si el usuario responde SOLO con un número sin unidad (ej: "200"), trátalo como GRAMOS → devuelve quantity=<número>, unit="g".'
+            elif "litro" in question_lower or "ml" in question_lower:
+                implied_unit_hint = 'Si el usuario responde SOLO con un número sin unidad, trátalo como LITROS → devuelve quantity=<número>, unit="litro".'
+            elif "km" in question_lower or "kilómetro" in question_lower:
+                implied_unit_hint = 'Si el usuario responde SOLO con un número sin unidad, trátalo como KM → devuelve quantity=<número>, unit="km".'
+            elif "kwh" in question_lower:
+                implied_unit_hint = 'Si el usuario responde SOLO con un número sin unidad, trátalo como kWh → devuelve quantity=<número>, unit="kWh".'
+            elif "hora" in question_lower:
+                implied_unit_hint = 'Si el usuario responde SOLO con un número sin unidad, trátalo como HORAS → devuelve quantity=<número>, unit="hora".'
+            else:
+                implied_unit_hint = f'Si el usuario responde SOLO con un número sin unidad, úsalo directamente como quantity=<número>.'
+
             pending_section = (
                 f"\n\nCONTEXTO — ACTIVIDAD PENDIENTE DE INFORMACIÓN:\n"
                 f"En el turno anterior el usuario mencionó \"{description}\" (categoría: {category})"
                 f" pero faltaba información. Se le hizo esta pregunta: \"{question}\"{destination_hint}\n"
                 f"IMPORTANTE: El mensaje actual ES UNA RESPUESTA a esa pregunta pendiente.\n"
-                f"- Si el usuario da un número (ej: '300', '200 gramos', '5 km') → devuelve la actividad con quantity=<número>.\n"
-                f"- Si el usuario repite el nombre sin cantidad (ej: 'chuletón', 'he comido uno', 'un filete') → devuelve la actividad con quantity=null y la clarifying_question original.\n"
+                f"- {implied_unit_hint}\n"
+                f"- Si el usuario especifica la unidad explícitamente (ej: '200 gramos', '0.5 kg', '5 km') → úsala tal cual.\n"
+                f"- Si el usuario repite el nombre sin cantidad → devuelve quantity=null y la clarifying_question original.\n"
                 f"- NUNCA devuelvas type='none' cuando hay un contexto pendiente activo. Siempre devuelve una actividad de categoría \"{category}\"."
                 f"{destination_instruction}"
             )

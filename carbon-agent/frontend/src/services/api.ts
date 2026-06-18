@@ -31,15 +31,21 @@ export const carbonApi = {
     return data
   },
 
-  getHistory: async (limit = 50): Promise<ActivityOut[]> => {
-    const { data } = await api.get<ActivityOut[]>('/history', { params: { limit } })
+  getHistory: async (limit = 200, dateFrom?: string, dateTo?: string): Promise<ActivityOut[]> => {
+    const params: Record<string, unknown> = { limit }
+    if (dateFrom) params.date_from = dateFrom
+    if (dateTo) params.date_to = dateTo
+    const { data } = await api.get<ActivityOut[]>('/history', { params })
     return data
   },
 
-  getSummary: async (periodDays = 30, annualGoalKg = 6000): Promise<SummaryOut> => {
-    const { data } = await api.get<SummaryOut>('/summary', {
-      params: { period_days: periodDays, annual_goal_kg: annualGoalKg },
-    })
+  getSummary: async (periodDays = 30, annualGoalKg = 6000, dateFrom?: string, dateTo?: string): Promise<SummaryOut> => {
+    const params: Record<string, unknown> = { period_days: periodDays, annual_goal_kg: annualGoalKg }
+    if (dateFrom && dateTo) {
+      params.date_from = dateFrom
+      params.date_to = dateTo
+    }
+    const { data } = await api.get<SummaryOut>('/summary', { params })
     return data
   },
 

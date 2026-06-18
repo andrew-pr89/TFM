@@ -1,12 +1,16 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
+import {
+  MessageCircle, ClipboardList, Target, BarChart2,
+  Leaf, SlidersHorizontal, ShieldCheck, Sun, Moon,
+} from 'lucide-react'
 import { ChatBubble } from './components/ChatBubble'
 import { ChatInput } from './components/ChatInput'
 import { HistoryPanel } from './components/HistoryPanel'
 import { SummaryPanel } from './components/SummaryPanel'
 import { ImprovementsPanel } from './components/ImprovementsPanel'
 import { DailyDashboard } from './components/DailyDashboard'
-import { SettingsPanel } from './components/SettingsPanel'
+import { SettingsPanel, SETTINGS_SUBTABS, type SettingsSubTab } from './components/SettingsPanel'
 import { LoginPage } from './components/LoginPage'
 import { AdminPanel } from './components/AdminPanel'
 import { useSettings } from './hooks/useSettings'
@@ -17,16 +21,18 @@ import type { ChatMessage } from './types'
 
 type Tab = 'chat' | 'history' | 'dashboard' | 'summary' | 'improvements' | 'settings' | 'admin'
 
-const BASE_NAV: { id: Tab; label: string; icon: string }[] = [
-  { id: 'chat',         label: 'Chat',         icon: '💬' },
-  { id: 'history',      label: 'Historial',    icon: '📋' },
-  { id: 'dashboard',    label: 'Hoy',          icon: '🎯' },
-  { id: 'summary',      label: 'Estadísticas', icon: '📊' },
-  { id: 'improvements', label: 'Mejoras',      icon: '🌱' },
-  { id: 'settings',     label: 'Ajustes',      icon: '⚙️' },
+const NAV_ICON_PROPS = { size: 18, strokeWidth: 1.5 }
+
+const BASE_NAV: { id: Tab; label: string; icon: ReactNode }[] = [
+  { id: 'chat',         label: 'Chat',         icon: <MessageCircle  {...NAV_ICON_PROPS} /> },
+  { id: 'history',      label: 'Historial',    icon: <ClipboardList  {...NAV_ICON_PROPS} /> },
+  { id: 'dashboard',    label: 'Hoy',          icon: <Target         {...NAV_ICON_PROPS} /> },
+  { id: 'summary',      label: 'Estadísticas', icon: <BarChart2      {...NAV_ICON_PROPS} /> },
+  { id: 'improvements', label: 'Mejoras',      icon: <Leaf           {...NAV_ICON_PROPS} /> },
+  { id: 'settings',     label: 'Ajustes',      icon: <SlidersHorizontal {...NAV_ICON_PROPS} /> },
 ]
 
-const ADMIN_NAV = { id: 'admin' as Tab, label: 'Admin', icon: '🛡️' }
+const ADMIN_NAV = { id: 'admin' as Tab, label: 'Admin', icon: <ShieldCheck {...NAV_ICON_PROPS} /> as ReactNode }
 
 let msgCounter = 0
 const uid = () => `msg-${++msgCounter}`
@@ -36,6 +42,12 @@ export default function App() {
   const isAdmin = useIsAdmin()
   const NAV_ITEMS = isAdmin ? [...BASE_NAV, ADMIN_NAV] : BASE_NAV
   const [tab, setTab] = useState<Tab>('chat')
+  const [settingsTab, setSettingsTab] = useState<SettingsSubTab>('goal')
+  const [lightTheme, setLightTheme] = useState(true)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', lightTheme ? 'light' : 'dark')
+  }, [lightTheme])
   const { annualGoalKg } = useSettings()
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -103,7 +115,7 @@ export default function App() {
       <div className="login-page">
         <div className="login-card">
           <div className="login-card__logo">🌿</div>
-          <p style={{ color: 'var(--text-muted)' }}>Cargando…</p>
+          <p className="login-card__loading">Cargando…</p>
         </div>
       </div>
     )
@@ -130,6 +142,21 @@ export default function App() {
                 <span className="nav-item__icon">{item.icon}</span>
                 <span className="nav-item__label">{item.label}</span>
               </button>
+              {item.id === 'settings' && tab === 'settings' && (
+                <ul className="nav-subtabs">
+                  {SETTINGS_SUBTABS.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        className={`nav-subitem ${settingsTab === s.id ? 'nav-subitem--active' : ''}`}
+                        onClick={() => setSettingsTab(s.id)}
+                      >
+                        <span className="nav-subitem__icon">{s.icon}</span>
+                        <span className="nav-subitem__label">{s.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
@@ -146,7 +173,7 @@ export default function App() {
             </div>
           </div>
           <button
-            className="logout-btn"
+            className="btn-light"
             onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
           >
             Cerrar sesión
@@ -154,12 +181,26 @@ export default function App() {
         </div>
       </nav>
 
+      {/* ── Theme toggle (fixed top-right) ── */}
+      <div className="theme-toggle-fixed">
+        <button
+          className="contrast-toggle"
+          onClick={() => setLightTheme(v => !v)}
+          title={lightTheme ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
+        >
+          {lightTheme ? <Moon size={15} strokeWidth={1.5} /> : <Sun size={15} strokeWidth={1.5} />}
+          {lightTheme ? 'Oscuro' : 'Claro'}
+        </button>
+      </div>
+
       {/* ── Main content ── */}
       <main className="main">
         <header className="topbar">
           <h1 className="topbar__title">
-            {NAV_ITEMS.find((n) => n.id === tab)?.icon}{' '}
-            {NAV_ITEMS.find((n) => n.id === tab)?.label}
+            {tab === 'settings'
+              ? SETTINGS_SUBTABS.find(s => s.id === settingsTab)?.label
+              : NAV_ITEMS.find((n) => n.id === tab)?.label
+            }
           </h1>
         </header>
 
@@ -190,7 +231,7 @@ export default function App() {
           )}
 
           {tab === 'dashboard' && (
-            <div className="panel-layout">
+            <div className="dashboard-layout">
               <DailyDashboard annualGoalKg={annualGoalKg} />
             </div>
           )}
@@ -209,7 +250,7 @@ export default function App() {
 
           {tab === 'settings' && (
             <div className="panel-layout">
-              <SettingsPanel />
+              <SettingsPanel tab={settingsTab} />
             </div>
           )}
 

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties, type ReactNode } from 'react'
+import { Target, User, UtensilsCrossed } from 'lucide-react'
 import { useSettings } from '../hooks/useSettings'
 import { useProfile, useUpdateProfile, usePortions, useUpdatePortions } from '../hooks/useCarbon'
 
@@ -56,94 +57,86 @@ function GoalPanel() {
   const dailyKg = (t * 1000 / 365).toFixed(1)
 
   return (
-    <>
-      <div className="settings__card">
-        <div className="settings__card-header">
-          <div>
-            <p className="settings__goal-label">META ANUAL</p>
-            <p className="settings__goal-value" style={{ color: level.color }}>
-              {t} t
-              <span className="settings__goal-unit">CO₂/año</span>
-            </p>
-          </div>
-          <div className="settings__goal-equiv">
-            <div className="settings__equiv-label">equivale a</div>
-            <div className="settings__equiv-values">
-              <span style={{ color: level.color }}>{monthlyKg} kg</span>
-              <span style={{ color: 'var(--text-muted)' }}>/mes · </span>
-              <span style={{ color: level.color }}>{dailyKg} kg</span>
-              <span style={{ color: 'var(--text-muted)' }}>/día</span>
+    <div className="goal-layout">
+      {/* Top row: slider (2/3) + level info (1/3) */}
+      <div className="goal-layout__top">
+        <div className="settings__card" style={{ '--level-color': level.color } as CSSProperties}>
+          <div className="settings__card-header">
+            <div>
+              <p className="settings__goal-label">META ANUAL</p>
+              <p className="settings__goal-value settings__goal-value--level">
+                {t} t
+                <span className="settings__goal-unit">CO₂/año</span>
+              </p>
+            </div>
+            <div className="settings__goal-equiv">
+              <div className="settings__equiv-label">equivale a</div>
+              <div className="settings__equiv-values">
+                <span className="settings__equiv-value--level">{monthlyKg} kg</span>
+                <span className="settings__equiv-value--muted">/mes · </span>
+                <span className="settings__equiv-value--level">{dailyKg} kg</span>
+                <span className="settings__equiv-value--muted">/día</span>
+              </div>
             </div>
           </div>
+
+          <div className="settings__slider-wrap">
+            <input
+              type="range"
+              min={2} max={8} step={1}
+              value={t}
+              onChange={e => update({ annualGoalTonnes: Number(e.target.value) })}
+              className="settings__slider"
+            />
+          </div>
+
+          <div className="settings__ticks">
+            {[2, 3, 4, 5, 6, 7, 8].map(v => (
+              <span key={v} className={v === t ? 'settings__tick--active' : 'settings__tick'}>
+                {v}t
+              </span>
+            ))}
+          </div>
+
+          <div className="settings__level-btns">
+            {LEVELS.map(l => (
+              <button
+                key={l.t}
+                onClick={() => update({ annualGoalTonnes: l.t })}
+                className={`settings__level-btn ${t === l.t ? 'settings__level-btn--active' : ''}`}
+                style={{ '--level-color': l.color } as CSSProperties}
+              >
+                {l.t} t
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="settings__slider-wrap">
-          <input
-            type="range"
-            min={2} max={8} step={1}
-            value={t}
-            onChange={e => update({ annualGoalTonnes: Number(e.target.value) })}
-            className="settings__slider"
-          />
-        </div>
-
-        <div className="settings__ticks">
-          {[2, 3, 4, 5, 6, 7, 8].map(v => (
-            <span key={v} style={{ color: v === t ? level.color : 'var(--text-muted)', fontWeight: v === t ? 600 : 400 }}>
-              {v}t
-            </span>
-          ))}
-        </div>
-
-        <div className="settings__level-btns">
-          {LEVELS.map(l => (
-            <button
-              key={l.t}
-              onClick={() => update({ annualGoalTonnes: l.t })}
-              className="settings__level-btn"
-              style={{
-                border: `1px solid ${t === l.t ? l.color : 'var(--border)'}`,
-                background: t === l.t ? `${l.color}22` : 'transparent',
-                color: t === l.t ? l.color : 'var(--text-muted)',
-              }}
-            >
-              {l.t} t
-            </button>
-          ))}
+        <div className="settings__info-card" style={{ '--level-color': level.color, '--temp-color': level.tempColor } as CSSProperties}>
+          <div className="settings__info-header">
+            <span className="settings__info-name">{level.label}</span>
+            <span className="settings__temp-badge">🌡️ {level.temp}</span>
+          </div>
+          <p className="settings__info-desc">{level.desc}</p>
         </div>
       </div>
 
-      <div
-        className="settings__info-card"
-        style={{
-          border: `1px solid ${level.color}44`,
-          borderLeft: `4px solid ${level.color}`,
-        }}
-      >
-        <div className="settings__info-header">
-          <span className="settings__info-name" style={{ color: level.color }}>
-            {level.label}
-          </span>
-          <span
-            className="settings__temp-badge"
-            style={{ background: `${level.tempColor}22`, color: level.tempColor }}
-          >
-            🌡️ {level.temp}
-          </span>
+      {/* Bottom row: full-width context card with image */}
+      <div className="settings__context-box settings__context-box--brand goal-layout__bottom">
+        <div className="goal-context__img-placeholder">
+          <span className="goal-context__img-label">📷 Imagen ilustrativa</span>
         </div>
-        <p className="settings__info-desc">{level.desc}</p>
+        <div className="goal-context__text">
+          <p className="settings__context-title">¿Qué es la huella de carbono?</p>
+          <p className="settings__context-desc">
+            La huella de carbono mide la cantidad de gases de efecto invernadero (CO₂ y equivalentes) que generamos con nuestras actividades diarias: lo que comemos, cómo nos desplazamos, la energía que consumimos o lo que compramos.
+          </p>
+          <p className="settings__context-desc">
+            Cuanto más alta sea tu meta anual, menor presión sentirás al principio — pero mayor será tu impacto en el clima. La ciencia indica que para limitar el calentamiento a <strong>1,5 °C</strong> necesitamos reducir a <strong>~2 t/persona/año</strong> antes de 2050. Empieza donde puedas y ve bajando poco a poco.
+          </p>
+        </div>
       </div>
-
-      <div className="settings__context-box">
-        <p className="settings__context-title">¿Qué es la huella de carbono?</p>
-        <p className="settings__context-desc">
-          La huella de carbono mide la cantidad de gases de efecto invernadero (CO₂ y equivalentes) que generamos con nuestras actividades diarias: lo que comemos, cómo nos desplazamos, la energía que consumimos o lo que compramos.
-        </p>
-        <p className="settings__context-desc">
-          Cuanto más alta sea tu meta anual, menor presión sentirás al principio — pero mayor será tu impacto en el clima. La ciencia indica que para limitar el calentamiento a <strong style={{ color: '#4ade80' }}>1,5 °C</strong> necesitamos reducir a <strong style={{ color: '#4ade80' }}>~2 t/persona/año</strong> antes de 2050. Empieza donde puedas y ve bajando poco a poco.
-        </p>
-      </div>
-    </>
+    </div>
   )
 }
 
@@ -177,7 +170,7 @@ function ProfilePanel() {
 
   return (
     <div className="settings__profile">
-      <div className="settings__context-box" style={{ marginBottom: 0 }}>
+      <div className="settings__context-box settings__context-box--tight">
         <p className="settings__context-title">¿Para qué sirve esto?</p>
         <p className="settings__context-desc">
           Al guardar tu ciudad y lugar de trabajo, el asistente podrá calcular automáticamente
@@ -296,7 +289,7 @@ function PortionsPanel() {
 
   return (
     <div className="settings__profile">
-      <div className="settings__context-box" style={{ marginBottom: '1rem' }}>
+      <div className="settings__context-box settings__context-box--spaced">
         <p className="settings__context-title">¿Para qué sirve esto?</p>
         <p className="settings__context-desc">
           Cuando dices "he comido pollo" sin indicar gramos, el asistente usa estas cantidades por defecto.
@@ -353,35 +346,25 @@ function PortionsPanel() {
   )
 }
 
-// ── Panel principal con sub-tabs ──────────────────────────────────────────────
+// ── Panel principal ───────────────────────────────────────────────────────────
 
-type SubTab = 'goal' | 'profile' | 'portions'
+export type SettingsSubTab = 'goal' | 'profile' | 'portions'
 
-const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
-  { id: 'goal',     label: 'Objetivo CO₂', icon: '🎯' },
-  { id: 'profile',  label: 'Preferencias', icon: '👤' },
-  { id: 'portions', label: 'Porciones',    icon: '🍽️' },
+const SUB_ICON_PROPS = { size: 15, strokeWidth: 1.5 }
+
+export const SETTINGS_SUBTABS: { id: SettingsSubTab; label: string; icon: ReactNode }[] = [
+  { id: 'goal',     label: 'Objetivo CO₂', icon: <Target          {...SUB_ICON_PROPS} /> },
+  { id: 'profile',  label: 'Preferencias', icon: <User            {...SUB_ICON_PROPS} /> },
+  { id: 'portions', label: 'Porciones',    icon: <UtensilsCrossed {...SUB_ICON_PROPS} /> },
 ]
 
-export function SettingsPanel() {
-  const [tab, setTab] = useState<SubTab>('goal')
+interface SettingsPanelProps {
+  tab: SettingsSubTab
+}
 
+export function SettingsPanel({ tab }: SettingsPanelProps) {
   return (
     <div className="settings">
-      <h2 className="settings__title">Configuración</h2>
-
-      <div className="settings__tabs">
-        {SUB_TABS.map(t => (
-          <button
-            key={t.id}
-            className={`settings__tab ${tab === t.id ? 'settings__tab--active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            <span>{t.icon}</span> {t.label}
-          </button>
-        ))}
-      </div>
-
       {tab === 'goal'     && <GoalPanel />}
       {tab === 'profile'  && <ProfilePanel />}
       {tab === 'portions' && <PortionsPanel />}
