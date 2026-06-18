@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
 import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
 import { Trash2, Pencil, ChevronUp, ChevronDown } from 'lucide-react'
 import { useHistory, useDeleteHistory, useDeleteActivity, useEditActivity } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
