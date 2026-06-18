@@ -51,10 +51,11 @@ export function HistoryPanel() {
   const [editText, setEditText] = useState('')
   const [editDate, setEditDate] = useState('')
 
-  const [filterText, setFilterText] = useState('')
-  const [filterDate, setFilterDate] = useState('')
-  const [sortCol,    setSortCol]    = useState<SortCol>('date')
-  const [sortDir,    setSortDir]    = useState<SortDir>('desc')
+  const [filterText,     setFilterText]     = useState('')
+  const [filterDate,     setFilterDate]     = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [sortCol,        setSortCol]        = useState<SortCol>('date')
+  const [sortDir,        setSortDir]        = useState<SortDir>('desc')
   const tableWrapRef = useRef<HTMLDivElement>(null)
 
   const startEdit = (activity: ActivityOut, emissionId?: number) => {
@@ -120,6 +121,10 @@ export function HistoryPanel() {
     return flat
   }, [activities])
 
+  const categories = useMemo(() =>
+    Array.from(new Set(rows.map(r => r.category).filter(Boolean))).sort()
+  , [rows])
+
   const filtered = useMemo(() => {
     let r = rows
     if (filterText.trim()) {
@@ -132,6 +137,9 @@ export function HistoryPanel() {
     if (filterDate) {
       r = r.filter(row => format(row.date, 'yyyy-MM-dd') === filterDate)
     }
+    if (filterCategory) {
+      r = r.filter(row => row.category === filterCategory)
+    }
     return [...r].sort((a, b) => {
       let cmp = 0
       switch (sortCol) {
@@ -143,7 +151,7 @@ export function HistoryPanel() {
       }
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [rows, filterText, filterDate, sortCol, sortDir])
+  }, [rows, filterText, filterDate, filterCategory, sortCol, sortDir])
 
   if (isLoading) return <div className="panel-state">Cargando historial…</div>
   if (isError)   return <div className="panel-state panel-state--error">Error al cargar el historial.</div>
@@ -160,20 +168,30 @@ export function HistoryPanel() {
       <div className="history-header">
         <div className="history-filters">
           <input
-            className="history-filter__input"
+            className="date-range-filter__input"
             type="search"
             placeholder="Buscar actividad…"
             value={filterText}
             onChange={e => setFilterText(e.target.value)}
           />
           <input
-            className="history-filter__date"
+            className="date-range-filter__input"
             type="date"
             value={filterDate}
             onChange={e => setFilterDate(e.target.value)}
           />
-          {(filterText || filterDate) && (
-            <button className="history-filter__clear" onClick={() => { setFilterText(''); setFilterDate('') }}>
+          <select
+            className="date-range-filter__select"
+            value={filterCategory}
+            onChange={e => setFilterCategory(e.target.value)}
+          >
+            <option value="">Todas las categorías</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+          {(filterText || filterDate || filterCategory) && (
+            <button onClick={() => { setFilterText(''); setFilterDate(''); setFilterCategory('') }}>
               Limpiar
             </button>
           )}

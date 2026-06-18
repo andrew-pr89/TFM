@@ -17,9 +17,7 @@ export function LoginPage() {
         >
           {isLoading ? 'Cargando…' : 'Iniciar sesión'}
         </button>
-        <p className="login-card__hint">
-          Autenticación segura con Auth0
-        </p>
+        
       </div>
     </div>
   )

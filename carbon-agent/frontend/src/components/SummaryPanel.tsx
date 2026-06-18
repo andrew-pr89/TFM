@@ -192,21 +192,20 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
         />
         {(dateFrom || dateTo) && (
           <button
-            className="date-range-filter__clear"
+            className="btn-light"
             onClick={() => { setDateFrom(''); setDateTo('') }}
           >
             Limpiar
           </button>
         )}
+        <button
+          onClick={() => setSelectedCategory(null)}
+        >
+          Resumen general
+        </button>
       </div>
 
       <div className="activities-tabs">
-        <button
-          className={`tab-btn${selectedCategory === null ? ' tab-btn--active' : ''}`}
-          onClick={() => setSelectedCategory(null)}
-        >
-          📊 Resumen General
-        </button>
         {uniqueCategories.map(cat => (
           <button
             key={cat}

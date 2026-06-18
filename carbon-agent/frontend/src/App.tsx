@@ -173,7 +173,7 @@ export default function App() {
             </div>
           </div>
           <button
-            className="logout-btn"
+            className="btn-light"
             onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
           >
             Cerrar sesión
@@ -198,8 +198,8 @@ export default function App() {
         <header className="topbar">
           <h1 className="topbar__title">
             {tab === 'settings'
-              ? <>{SETTINGS_SUBTABS.find(s => s.id === settingsTab)?.icon}{' '}{SETTINGS_SUBTABS.find(s => s.id === settingsTab)?.label}</>
-              : <>{NAV_ITEMS.find((n) => n.id === tab)?.icon}{' '}{NAV_ITEMS.find((n) => n.id === tab)?.label}</>
+              ? SETTINGS_SUBTABS.find(s => s.id === settingsTab)?.label
+              : NAV_ITEMS.find((n) => n.id === tab)?.label
             }
           </h1>
         </header>
@@ -231,7 +231,7 @@ export default function App() {
           )}
 
           {tab === 'dashboard' && (
-            <div className="panel-layout">
+            <div className="dashboard-layout">
               <DailyDashboard annualGoalKg={annualGoalKg} />
             </div>
           )}
