@@ -42,13 +42,11 @@ function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }
   return (
     <div className="suggestion-card" style={{ '--impact-color': color } as CSSProperties}>
       <div className="suggestion-card__header">
-        <div className="suggestion-card__title-group">
+        <div>
           <CategoryIconBadge category={first.category} />
           <div>
-            <span className="suggestion-card__category">{first.category}</span>
-            <span className="suggestion-card__stats">
-              {first.current_kg.toFixed(2)} kg · {first.pct_of_total.toFixed(0)}% del total
-            </span>
+            <span>{first.category}</span>
+            <span>{first.current_kg.toFixed(2)} kg · {first.pct_of_total.toFixed(0)}% del total</span>
           </div>
         </div>
       </div>
@@ -64,13 +62,11 @@ function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }
         const saving = Math.round(s.current_kg * s.potential_saving_pct / 100)
         return (
           <div key={i} className="suggestion-card__item">
-            <div className="suggestion-card__item-header">
-              <p className="suggestion-card__action">{s.action}</p>
-              <span className="suggestion-card__badge">
-                −{s.potential_saving_pct}% · ahorra ~{saving} kg
-              </span>
+            <div>
+              <p>{s.action}</p>
+              <span className="suggestion-card__badge">−{s.potential_saving_pct}% · ahorra ~{saving} kg</span>
             </div>
-            <p className="suggestion-card__tip">{s.tip}</p>
+            <p>{s.tip}</p>
           </div>
         )
       })}
@@ -94,7 +90,6 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
 
   if (!data || data.suggestions.length === 0) return (
     <div className="panel-state">
-      <span className="panel-state__icon">🌱</span>
       <p>Sin datos suficientes aún.</p>
       <p className="panel-state__hint">Registra algunas actividades para recibir sugerencias personalizadas.</p>
     </div>
@@ -122,7 +117,7 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
         <CategoryGroup key={category} suggestions={suggestions} />
       ))}
 
-      <button className="btn-solid suggestions-regen-btn" onClick={() => refetch()}>
+      <button onClick={() => refetch()}>
         <RefreshCw size={15} strokeWidth={1.5} />
         Regenerar sugerencias
       </button>

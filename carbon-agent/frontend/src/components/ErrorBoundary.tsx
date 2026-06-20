@@ -31,9 +31,9 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="error-boundary">
-          <span className="error-boundary__icon">⚠️</span>
-          <h2 className="error-boundary__title">Algo ha ido mal</h2>
-          <p className="error-boundary__text">
+          <span>⚠️</span>
+          <h2>Algo ha ido mal</h2>
+          <p>
             La aplicación ha encontrado un error inesperado.
             Recarga la página para intentarlo de nuevo.
           </p>

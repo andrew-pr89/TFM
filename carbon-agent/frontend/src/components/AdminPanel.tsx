@@ -156,9 +156,8 @@ function FactorForm({ initial, onSave, onCancel, isSaving, showCategory = true }
       </div>
 
       <div className="admin-form__actions">
-        <button className="admin-form__cancel" onClick={onCancel}>Cancelar</button>
+        <button className="btn-light" onClick={onCancel}>Cancelar</button>
         <button
-          className="admin-form__save"
           disabled={isSaving || !form.display_name || form.factor_kg_co2e <= 0 || (showCategory && !form.category)}
           onClick={() => onSave(form)}
         >
@@ -290,7 +289,7 @@ function FactorsPanel() {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <button className="admin-factors__add-btn" onClick={() => setShowCreate(true)}>
+        <button onClick={() => setShowCreate(true)}>
           + Nuevo factor
         </button>
       </div>
@@ -299,7 +298,7 @@ function FactorsPanel() {
         {allCategories.map(cat => (
           <button
             key={cat}
-            className={`admin-tab ${activeCategory === cat ? 'admin-tab--active' : ''}`}
+            className={`tab-btn ${activeCategory === cat ? 'tab-btn--active' : ''}`}
             onClick={() => setActiveCategory(cat)}
           >
             {cat === 'all' ? 'Todos' : cat}
@@ -456,7 +455,7 @@ function UnknownItemsPanel() {
         {STATUS_TABS.map(tab => (
           <button
             key={tab}
-            className={`admin-tab ${statusTab === tab ? 'admin-tab--active' : ''}`}
+            className={`tab-btn ${statusTab === tab ? 'tab-btn--active' : ''}`}
             onClick={() => { setStatusTab(tab); setSelected(new Set()) }}
           >
             {STATUS_LABEL[tab]}
@@ -473,7 +472,6 @@ function UnknownItemsPanel() {
         />
         {selected.size > 0 && (
           <button
-            className="admin-batch-delete"
             disabled={batchDeleteMutation.isPending}
             onClick={() => batchDeleteMutation.mutate([...selected])}
           >
@@ -541,7 +539,7 @@ function UnknownItemsPanel() {
         {activeItem && (
           <div className="admin-detail">
             <div className="admin-detail__header">
-              <h3 className="admin-detail__term">{activeItem.raw_term}</h3>
+              <h3>{activeItem.raw_term}</h3>
               <button className="admin-detail__close" onClick={() => { setActiveItem(null); setShowForm(false) }}>✕</button>
             </div>
 
@@ -565,12 +563,12 @@ function UnknownItemsPanel() {
               {activeItem.status === 'pending' && (
                 <>
                   <button
-                    className="admin-detail__reject"
+                    className="btn-light"
                     onClick={() => { statusMutation.mutate({ id: activeItem.id, status: 'rejected' }); setActiveItem(null) }}
                   >
                     Rechazar
                   </button>
-                  <button className="admin-detail__add" onClick={() => setShowForm(true)}>
+                  <button onClick={() => setShowForm(true)}>
                     Crear factor de emisión
                   </button>
                 </>
@@ -608,16 +606,16 @@ export function AdminPanel() {
   return (
     <div className="admin-panel">
       <div className="admin-panel__header">
-        <h2 className="admin-panel__title">Panel de administración</h2>
+        <h2>Panel de administración</h2>
         <div className="admin-section-tabs">
           <button
-            className={`admin-section-tab ${section === 'unknown' ? 'admin-section-tab--active' : ''}`}
+            className={`tab-btn ${section === 'unknown' ? 'tab-btn--active' : ''}`}
             onClick={() => setSection('unknown')}
           >
             Items desconocidos
           </button>
           <button
-            className={`admin-section-tab ${section === 'factors' ? 'admin-section-tab--active' : ''}`}
+            className={`tab-btn ${section === 'factors' ? 'tab-btn--active' : ''}`}
             onClick={() => setSection('factors')}
           >
             Factores de emisión

@@ -3,8 +3,10 @@ Orquestador del agente — coordina todos los componentes.
 """
 
 import logging
-from datetime import datetime, timezone
+import re
+from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.agent.calculator import CO2Calculator
@@ -15,6 +17,58 @@ from app.models.models import Activity
 from app.schemas.schemas import ActivityOut, ActivityResponse
 
 log = logging.getLogger(__name__)
+
+_MONTHS_ES = {
+    'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4,
+    'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+    'septiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12,
+}
+_WEEKDAYS_ES = {
+    'lunes': 0, 'martes': 1, 'miércoles': 2, 'miercoles': 2,
+    'jueves': 3, 'viernes': 4, 'sábado': 5, 'sabado': 5, 'domingo': 6,
+}
+
+
+def _detect_activity_date(raw_text: str, today_iso: str) -> str | None:
+    """Detect Spanish temporal expressions and return ISO date, or None if today."""
+    try:
+        today_date = date.fromisoformat(today_iso)
+    except ValueError:
+        return None
+
+    t = raw_text.lower()
+
+    if re.search(r'\bayer\b', t):
+        return (today_date - timedelta(days=1)).isoformat()
+
+    if re.search(r'\banteayer\b', t):
+        return (today_date - timedelta(days=2)).isoformat()
+
+    # "el lunes pasado", "el martes", etc.
+    for name, dow in _WEEKDAYS_ES.items():
+        if re.search(rf'\b{name}\b', t):
+            days_back = (today_date.weekday() - dow) % 7
+            if days_back == 0:
+                days_back = 7
+            return (today_date - timedelta(days=days_back)).isoformat()
+
+    # "el 4 de abril", "el 15 de junio de 2025"
+    m = re.search(r'\b(\d{1,2})\s+de\s+(\w+)(?:\s+de\s+(\d{4}))?', t)
+    if m:
+        day, month_name, year_str = int(m.group(1)), m.group(2), m.group(3)
+        if month_name in _MONTHS_ES:
+            month = _MONTHS_ES[month_name]
+            year = int(year_str) if year_str else today_date.year
+            try:
+                candidate = date(year, month, day)
+                if candidate > today_date:
+                    candidate = date(year - 1, month, day)
+                if candidate < today_date:
+                    return candidate.isoformat()
+            except ValueError:
+                pass
+
+    return None
 
 
 def _empty(user_id: str, raw_text: str) -> ActivityResponse:
@@ -39,6 +93,13 @@ class CarbonAgent:
         self.memory = MemoryService()
 
     def process_activity(self, raw_text: str, user_id: str, db: Session) -> ActivityResponse:
+
+        today = datetime.now(timezone.utc).date().isoformat()
+
+        # Detect temporal expressions in plain Python — more reliable than LLM
+        activity_date_str: str | None = _detect_activity_date(raw_text, today)
+        if activity_date_str:
+            log.info("Fecha detectada por regex: %s para '%s'", activity_date_str, raw_text[:60])
 
         # ── 1. Cargar contexto de memoria antes de extraer ───────────────────
         home_city = self.memory.get_home_city(user_id=user_id, db=db)
@@ -65,18 +126,23 @@ class CarbonAgent:
             pending_activity=existing_pending_activity,
             user_portions=user_portions or None,
             user_id=user_id,
+            today=today,
         )
 
         # ── Separar marcadores especiales de actividades reales ──────────────
         new_home_city: str | None = None
         new_pending_activity: dict | None = None
         pending_question: str | None = None
+        # activity_date_str already set by regex above; LLM marker is a fallback
 
         unknown_names: list[str] = []
         filtered = []
         for item in extracted:
             if isinstance(item, dict) and "set_home_city" in item:
                 new_home_city = item["set_home_city"]
+            elif isinstance(item, dict) and "set_activity_date" in item:
+                if not activity_date_str:  # regex takes precedence
+                    activity_date_str = item["set_activity_date"]
             elif isinstance(item, dict) and "set_pending_activity" in item:
                 new_pending_activity = item["set_pending_activity"]
             elif isinstance(item, dict) and "clarifying_question" in item:
@@ -167,7 +233,20 @@ class CarbonAgent:
         # ── 2. Persistir Activity ────────────────────────────────────────────
         activity = Activity(user_id=user_id, raw_text=raw_text)
         db.add(activity)
-        db.flush()
+        db.flush()  # generates ID via autoincrement
+
+        if activity_date_str:
+            try:
+                override_dt = datetime.fromisoformat(activity_date_str).replace(tzinfo=timezone.utc)
+                # Use execute to bypass SQLAlchemy's server_default tracking
+                db.execute(
+                    text("UPDATE activities SET created_at = :ts WHERE id = :id"),
+                    {"ts": override_dt.strftime("%Y-%m-%d %H:%M:%S"), "id": activity.id},
+                )
+                db.expire(activity)  # force reload on next access
+                log.info("Fecha de actividad sobreescrita: %s para user=%s id=%s", activity_date_str, user_id, activity.id)
+            except Exception as exc:
+                log.warning("No se pudo sobreescribir created_at: %s", exc)
 
         # ── 3. Cálculo CO₂ (determinista, sin LLM) ──────────────────────────
         results = self.calculator.calculate(
@@ -260,7 +339,8 @@ class CarbonAgent:
         extracted = [
             e for e in extracted
             if not (isinstance(e, dict) and (
-                "clarifying_question" in e or "set_home_city" in e or "set_pending_activity" in e
+                "clarifying_question" in e or "set_home_city" in e
+                or "set_pending_activity" in e or "set_activity_date" in e
             ))
         ]
         if extracted:

@@ -114,8 +114,8 @@ export default function App() {
     return (
       <div className="login-page">
         <div className="login-card">
-          <div className="login-card__logo">🌿</div>
-          <p className="login-card__loading">Cargando…</p>
+          <div>🌿</div>
+          <p className="login-card__subtitle">Cargando…</p>
         </div>
       </div>
     )
@@ -139,8 +139,8 @@ export default function App() {
                 className={`nav-item ${tab === item.id ? 'nav-item--active' : ''}`}
                 onClick={() => setTab(item.id)}
               >
-                <span className="nav-item__icon">{item.icon}</span>
-                <span className="nav-item__label">{item.label}</span>
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
               </button>
               {item.id === 'settings' && tab === 'settings' && (
                 <ul className="nav-subtabs">
@@ -150,8 +150,8 @@ export default function App() {
                         className={`nav-subitem ${settingsTab === s.id ? 'nav-subitem--active' : ''}`}
                         onClick={() => setSettingsTab(s.id)}
                       >
-                        <span className="nav-subitem__icon">{s.icon}</span>
-                        <span className="nav-subitem__label">{s.label}</span>
+                        <span>{s.icon}</span>
+                        <span>{s.label}</span>
                       </button>
                     </li>
                   ))}

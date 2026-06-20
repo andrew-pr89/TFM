@@ -4,6 +4,15 @@ interface Props {
   message: ChatMessage
 }
 
+function qtyLabel(qty: number, unit: string): string {
+  if (unit === 'kg')    return qty < 1 ? `${Math.round(qty * 1000)} g` : `${qty} kg`
+  if (unit === 'litro') return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${qty.toFixed(2)} l`
+  if (unit === 'kWh')   return `${qty} kWh`
+  if (unit === 'hora')  return qty === 1 ? '1 h' : `${qty} h`
+  if (unit === 'km')    return `${qty} km`
+  return `${qty} ${unit}`
+}
+
 function co2Color(kg: number): string {
   if (kg === 0) return 'var(--c-neutral)'
   if (kg < 1) return 'var(--c-low)'
@@ -61,8 +70,8 @@ export function ChatBubble({ message }: Props) {
     <div className="bubble bubble--assistant">
       {/* Total badge */}
       <div className="emission-badge" style={{ '--badge-color': co2Color(total) } as React.CSSProperties}>
-        <span className="emission-badge__value">{co2Label(total)}</span>
-        <span className="emission-badge__label">CO₂e</span>
+        <span>{co2Label(total)}</span>
+        <span>CO₂e</span>
       </div>
 
       {/* Breakdown */}
@@ -70,8 +79,9 @@ export function ChatBubble({ message }: Props) {
         <ul className="emission-list">
           {emissions.map((e) => (
             <li key={e.id} className="emission-item">
-              <span className="emission-item__name">
-                {e.description || e.factor.display_name}
+              <span>
+                {(e.description || e.factor.display_name).replace(/\s*\(ración estándar\)/i, '').trim()}
+                <small>ración {qtyLabel(e.quantity, e.factor.unit)}</small>
               </span>
               <span className="emission-item__bar-wrap">
                 <span
@@ -82,7 +92,7 @@ export function ChatBubble({ message }: Props) {
                   } as React.CSSProperties}
                 />
               </span>
-              <span className="emission-item__value">{co2Label(e.amount_kg_co2e)}</span>
+              <span>{co2Label(e.amount_kg_co2e)} <small>CO₂e</small></span>
             </li>
           ))}
         </ul>
