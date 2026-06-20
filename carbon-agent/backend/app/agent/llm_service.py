@@ -12,6 +12,7 @@ Regla de arquitectura:
 
 import json
 import logging
+from datetime import date, timedelta
 
 from openai import OpenAI
 
@@ -26,6 +27,15 @@ class LLMService:
     def __init__(self) -> None:
         self.client = OpenAI(api_key=settings.openai_api_key)
         self.model = settings.openai_model
+
+    # ── Helpers ──────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _yesterday(today_iso: str) -> str:
+        try:
+            return (date.fromisoformat(today_iso) - timedelta(days=1)).isoformat()
+        except ValueError:
+            return "desconocida"
 
     # ── Método base ──────────────────────────────────────────────────────────
 
@@ -50,6 +60,7 @@ class LLMService:
         raw_text: str,
         factors_info: list[dict],
         pending_activity: dict | None = None,
+        today: str | None = None,
     ) -> list[dict]:
         """
         Convierte texto libre en una lista de actividades estructuradas.
@@ -65,9 +76,21 @@ class LLMService:
             for f in factors_info
         )
 
+        today_str = today or "desconocida"
         system = f"""Eres un extractor de actividades con huella de carbono.
 Tu tarea es analizar el texto del usuario e identificar TODAS las actividades
 que tengan impacto en CO₂. Puede haber una o varias en el mismo mensaje.
+
+La fecha de hoy es: {today_str}
+
+FECHA DE LA ACTIVIDAD (OBLIGATORIO COMPROBAR):
+Si el usuario menciona que la actividad ocurrió en un momento distinto a hoy
+(palabras como "ayer", "anteayer", "el lunes", "el martes pasado", "el 4 de abril", etc.)
+debes incluir "activity_date" en el JSON raíz con la fecha ISO calculada.
+Ejemplos usando hoy={today_str}:
+  - "ayer comí..." → activity_date: "{self._yesterday(today_str)}"
+  - "anteayer fui..." → activity_date: fecha de hace 2 días
+  - Si no hay referencia a otra fecha → omite activity_date
 
 Categorías válidas con su unidad de medida (usa EXACTAMENTE estos identificadores):
 {categories_str}
@@ -134,8 +157,14 @@ REGLA DE ORO: siempre es mejor usar la categoría más cercana que devolver "unk
 - Si no tiene huella de carbono en absoluto → omítela (no la incluyas)
 
 REGLA — BEBIDAS E INGREDIENTES COMPUESTOS:
-Si el usuario menciona una bebida o plato compuesto, desglósalo en sus ingredientes con categoría propia.
-Ejemplo: "café con leche" → dos items: category="cafe" quantity=null + category="lacteos_leche" quantity=null.
+IMPORTANTE — PRIORIDAD ABSOLUTA: Si el ítem del usuario coincide con un factor ESPECÍFICO de la lista
+(por display_name o category), usa ESE factor directamente. NO lo descompongas en ingredientes.
+Ejemplos de factor específico que NO debe descomponerse:
+  · "yogur de soja" → existe factor "yogur_de_soja" → usa esa categoría directamente ✓
+  · "leche de avena" → existe factor "leche_avena" → usa esa categoría directamente ✓
+  · "leche de soja"  → existe factor "leche_soja" → usa esa categoría directamente ✓
+Solo descompone en ingredientes cuando NO exista un factor específico para el ítem completo.
+Ejemplo donde SÍ aplica descomposición: "café con leche" → no hay factor "cafe_con_leche" → dos items: category="cafe" + category="lacteos_leche".
 Ejemplo: "tostadas con mermelada" → category="cereales" quantity=null + category="unknown" (mermelada, sin categoría).
 Si hay un multiplicador explícito (número > 1), aplícalo a TODOS los ingredientes como quantity=N, unit="unidades":
 Ejemplo: "dos cafés con leche" → category="cafe" quantity=2 unit="unidades" + category="lacteos_leche" quantity=2 unit="unidades".
@@ -200,6 +229,7 @@ CASO NORMAL - Una o más actividades identificadas:
 {{
   "type": "activity",
   "home_city": "<ciudad si el usuario la declara como habitual, si no omitir>",
+  "activity_date": "<YYYY-MM-DD si la actividad no fue hoy, si no omitir>",
   "activities": [
     {{
       "category": "<categoría>",
@@ -271,6 +301,7 @@ CASO Sin CO₂ y sin ciudad:
         user = f"Texto del usuario: {raw_text}\n{pending_section}" if pending_section else f"Texto del usuario: {raw_text}"
 
         raw = self._chat(system, user, temperature=0.1)
+        log.info("LLM extract raw: %s", raw[:400])
 
         # Limpiar posibles bloques markdown si el modelo los añade
         raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
@@ -292,6 +323,13 @@ CASO Sin CO₂ y sin ciudad:
                 # Propagar home_city como marcador al final si fue declarada
                 if result.get("home_city"):
                     activities = list(activities) + [{"set_home_city": result["home_city"]}]
+
+                # Propagar activity_date si el usuario mencionó una fecha pasada
+                if result.get("activity_date"):
+                    log.info("activity_date detectada por LLM: %s", result["activity_date"])
+                    activities = list(activities) + [{"set_activity_date": result["activity_date"]}]
+                else:
+                    log.info("activity_date NO detectada (campo ausente o null en respuesta LLM)")
 
                 return activities
 

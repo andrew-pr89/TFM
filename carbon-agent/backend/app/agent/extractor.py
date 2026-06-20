@@ -157,6 +157,7 @@ class Extractor:
         pending_activity: dict | None = None,
         user_portions: dict[str, float] | None = None,
         user_id: str = "default",
+        today: str | None = None,
     ) -> list[ExtractedActivity]:
         """
         Extrae actividades del texto y las cruza con los factores de la BD.
@@ -190,6 +191,7 @@ class Extractor:
             raw_text=raw_text,
             factors_info=factors_info,
             pending_activity=pending_activity,
+            today=today,
         )
 
         log.info("LLM devolvió %d actividades para: '%s'", len(raw_activities), raw_text[:60])
@@ -288,7 +290,7 @@ class Extractor:
 
         for item in raw_activities:
             # Pasar marcadores especiales sin procesarlos como actividades
-            if "set_home_city" in item or ("clarifying_question" in item and not item.get("category")):
+            if "set_home_city" in item or "set_activity_date" in item or ("clarifying_question" in item and not item.get("category")):
                 result.append(item)  # type: ignore[arg-type]
                 continue
 
@@ -334,8 +336,6 @@ class Extractor:
                         _default_q = 1.0
                     if _default_q is not None:
                         quantity_raw = _default_q
-                        item["description"] = description + " (ración estándar)"
-                        description = item["description"]
                         log.info("Usando porción estándar para %s: %s %s", category, _default_q, _factor_unit.unit if _factor_unit else "")
 
             if quantity_raw is None:

@@ -1,4 +1,13 @@
 import { useState, useMemo, useRef } from 'react'
+
+function formatQty(qty: number, unit: string): string {
+  if (unit === 'kg')    return qty < 1 ? `${Math.round(qty * 1000)} g` : `${qty} kg`
+  if (unit === 'litro') return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${qty.toFixed(2)} l`
+  if (unit === 'kWh')   return `${qty} kWh`
+  if (unit === 'hora')  return qty === 1 ? '1 h' : `${qty} h`
+  if (unit === 'km')    return `${qty} km`
+  return `${qty} ${unit}`
+}
 import { format } from 'date-fns'
 import { Trash2, Pencil, ChevronUp, ChevronDown } from 'lucide-react'
 import { useHistory, useDeleteHistory, useDeleteActivity, useEditActivity } from '../hooks/useCarbon'
@@ -32,8 +41,8 @@ function SortArrows({ col, active, dir }: { col: SortCol; active: SortCol; dir: 
   const isActive = col === active
   return (
     <span className="sort-arrows">
-      <ChevronUp  size={10} className={`sort-arrows__up   ${isActive && dir === 'asc'  ? 'sort-arrows--on' : ''}`} />
-      <ChevronDown size={10} className={`sort-arrows__down ${isActive && dir === 'desc' ? 'sort-arrows--on' : ''}`} />
+      <ChevronUp   size={10} className={isActive && dir === 'asc'  ? 'sort-arrows--on' : undefined} />
+      <ChevronDown size={10} className={isActive && dir === 'desc' ? 'sort-arrows--on' : undefined} />
     </span>
   )
 }
@@ -107,9 +116,9 @@ export function HistoryPanel() {
             activityId: activity.id,
             emissionId: em.id,
             date,
-            description: em.description || em.factor.display_name,
+            description: (em.description || em.factor.display_name).replace(/\s*\(ración estándar\)/i, '').trim(),
             category: em.factor.main_category,
-            quantity: `${em.quantity} ${em.factor.unit}`,
+            quantity: formatQty(em.quantity, em.factor.unit),
             quantityNum: em.quantity,
             co2: em.amount_kg_co2e,
             activity,
@@ -198,8 +207,7 @@ export function HistoryPanel() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="history-header__count">{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</span>
           <button
-            className={`btn-clear ${confirmClear ? 'btn-clear--confirm' : ''}`}
-            onClick={handleClearAll}
+                        onClick={handleClearAll}
             onBlur={() => setConfirmClear(false)}
             disabled={deleteHistory.isPending}
           >
@@ -220,7 +228,7 @@ export function HistoryPanel() {
                 ['co2',         'CO₂e'],
               ] as [SortCol, string][]).map(([col, label]) => (
                 <th key={col} className="history-th--sortable" onClick={() => handleSort(col)}>
-                  <span className="history-th__inner">
+                  <span>
                     {sortCol === col && <span className="sort-dot" />}
                     {label}
                     <SortArrows col={col} active={sortCol} dir={sortDir} />
@@ -241,10 +249,10 @@ export function HistoryPanel() {
                         <input type="datetime-local" className="history-edit__date" value={editDate} onChange={e => setEditDate(e.target.value)} />
                         <textarea className="history-edit__text" value={editText} rows={2} onChange={e => setEditText(e.target.value)} />
                         <div className="history-edit__actions">
-                          <button className="btn-save-edit" disabled={editActivity.isPending} onClick={() => saveEdit(row.activityId)}>
+                          <button disabled={editActivity.isPending} onClick={() => saveEdit(row.activityId)}>
                             {editActivity.isPending ? 'Guardando…' : 'Guardar'}
                           </button>
-                          <button className="btn-cancel-edit" onClick={cancelEdit}>Cancelar</button>
+                          <button className="btn-light" onClick={cancelEdit}>Cancelar</button>
                         </div>
                       </div>
                     </td>
@@ -262,8 +270,8 @@ export function HistoryPanel() {
                       </td>
                       <td>
                         <div className="history-item__right">
-                          <button className="btn-edit-item" onClick={() => startEdit(row.activity, row.emissionId ?? undefined)} title="Editar"><Pencil size={17} /></button>
-                          <button className="btn-delete-item" onClick={() => deleteActivity.mutate(row.activityId)} disabled={deleteActivity.isPending} title="Eliminar"><Trash2 size={17} /></button>
+                          <button onClick={() => startEdit(row.activity, row.emissionId ?? undefined)} title="Editar"><Pencil size={17} /></button>
+                          <button onClick={() => deleteActivity.mutate(row.activityId)} disabled={deleteActivity.isPending} title="Eliminar"><Trash2 size={17} /></button>
                         </div>
                       </td>
                     </>

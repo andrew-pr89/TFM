@@ -1089,7 +1089,287 @@ EMISSION_FACTORS = [{'category': 'coche_gasolina',
   'source_type': 'scientific_literature',
   'source_detail': 'Sugar cane / beet — Science 360(6392)',
   'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
-  'notes': 'Factor moderado. El azúcar de caña puede tener mayor impacto por transporte.'}]
+  'notes': 'Factor moderado. El azúcar de caña puede tener mayor impacto por transporte.'},
+
+ # ─── CARNES CURADAS / EMBUTIDOS ────────────────────────────────────────────
+ {'category': 'jamon_serrano',
+  'main_category': 'Alimentación',
+  'display_name': 'Jamón serrano / jamón curado',
+  'unit': 'kg',
+  'factor_kg_co2e': 18.0,
+  'source_name': 'Estimación propia',
+  'source_year': 2024,
+  'source_type': 'estimated',
+  'source_detail': 'Estimación: factor cerdo (12.1 kg/kg) × 1.45 rendimiento + procesado/curado',
+  'source_url': None,
+  'notes': 'Factor alto por pérdida de peso en el proceso de curación (~30%). El jamón ibérico de bellota puede tener huella similar o menor según ciclo productivo.'},
+ {'category': 'chorizo_embutido',
+  'main_category': 'Alimentación',
+  'display_name': 'Chorizo / salchichón / fuet / mortadela',
+  'unit': 'kg',
+  'factor_kg_co2e': 12.5,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Processed pork products — basado en Science 360(6392) + procesado',
+  'source_url': None,
+  'notes': 'Similar a carne_procesada. Diferenciado para capturar consumo frecuente en la dieta española.'},
+
+ # ─── MARISCO ESPECÍFICO (cont.) ────────────────────────────────────────────
+ {'category': 'mejillones_almejas',
+  'main_category': 'Alimentación',
+  'display_name': 'Mejillones / almejas / berberechos / ostras',
+  'unit': 'kg',
+  'factor_kg_co2e': 1.0,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Bivalves (shellfish) — Science 360(6392)',
+  'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
+  'notes': 'De las proteínas animales con menor huella. No requieren pienso y pueden mejorar la calidad del agua.'},
+ {'category': 'pulpo_calamar',
+  'main_category': 'Alimentación',
+  'display_name': 'Pulpo / calamar / sepia',
+  'unit': 'kg',
+  'factor_kg_co2e': 3.5,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Cephalopods, wild-caught — estimación basada en pescado blanco salvaje',
+  'source_url': None,
+  'notes': 'Estimación para cefalópodos de pesca extractiva. Menor factor que crustáceos de acuicultura.'},
+
+ # ─── PESCADOS ESPECÍFICOS (cont.) ──────────────────────────────────────────
+ {'category': 'pescado_dorada',
+  'main_category': 'Alimentación',
+  'display_name': 'Dorada / lubina (de piscifactoría)',
+  'unit': 'kg',
+  'factor_kg_co2e': 5.5,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Farmed fish (Mediterranean aquaculture) — Science 360(6392)',
+  'source_url': None,
+  'notes': 'Acuicultura mediterránea muy común en España. Huella inferior al salmón por menor dependencia de piensos.'},
+ {'category': 'pescado_trucha',
+  'main_category': 'Alimentación',
+  'display_name': 'Trucha (de piscifactoría)',
+  'unit': 'kg',
+  'factor_kg_co2e': 4.5,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Farmed trout — Science 360(6392)',
+  'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
+  'notes': 'Una de las opciones de piscifactoría con menor impacto. Consumida frecuentemente en España.'},
+
+ # ─── SETAS Y OTROS VEGETALES ──────────────────────────────────────────────
+ {'category': 'setas_champinones',
+  'main_category': 'Alimentación',
+  'display_name': 'Setas / champiñones',
+  'unit': 'kg',
+  'factor_kg_co2e': 1.1,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Mushrooms — Science 360(6392)',
+  'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
+  'notes': 'Producción con bajo impacto ambiental. Fuente de umami y proteína vegetal. Factor muy reducido.'},
+ {'category': 'aceitunas',
+  'main_category': 'Alimentación',
+  'display_name': 'Aceitunas',
+  'unit': 'kg',
+  'factor_kg_co2e': 2.5,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Olives — Science 360(6392)',
+  'source_url': None,
+  'notes': 'España es el mayor productor mundial. El aceite de oliva tiene factor más alto por el intenso procesado.'},
+
+ # ─── DESAYUNO / SNACKS ────────────────────────────────────────────────────
+ {'category': 'avena_copos',
+  'main_category': 'Alimentación',
+  'display_name': 'Avena / copos de avena',
+  'unit': 'kg',
+  'factor_kg_co2e': 1.6,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Oats — Science 360(6392)',
+  'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
+  'notes': 'Cereal con excelente perfil nutricional y baja huella. Recomendado en dietas sostenibles.'},
+ {'category': 'cereales_desayuno',
+  'main_category': 'Alimentación',
+  'display_name': 'Cereales de desayuno (muesli, corn flakes)',
+  'unit': 'kg',
+  'factor_kg_co2e': 3.0,
+  'source_name': 'Estimación propia',
+  'source_year': 2024,
+  'source_type': 'estimated',
+  'source_detail': 'Estimación: cereales base + azúcar + procesado industrial',
+  'source_url': None,
+  'notes': 'Factor variable: muesli natural ~2.0, cereales azucarados procesados ~4.0 kg CO2e/kg.'},
+ {'category': 'galletas_bolleria',
+  'main_category': 'Alimentación',
+  'display_name': 'Galletas / bollería / croissant',
+  'unit': 'kg',
+  'factor_kg_co2e': 4.5,
+  'source_name': 'Estimación propia',
+  'source_year': 2024,
+  'source_type': 'estimated',
+  'source_detail': 'Estimación: harina + mantequilla/aceite de palma + azúcar + procesado',
+  'source_url': None,
+  'notes': 'Factor elevado por contenido de grasas (mantequilla, aceite de palma) y azúcar.'},
+ {'category': 'helado',
+  'main_category': 'Alimentación',
+  'display_name': 'Helado / sorbete',
+  'unit': 'kg',
+  'factor_kg_co2e': 5.0,
+  'source_name': 'Estimación propia',
+  'source_year': 2024,
+  'source_type': 'estimated',
+  'source_detail': 'Estimación: base láctea (~60%) + azúcar + refrigeración industrial',
+  'source_url': None,
+  'notes': 'Factor variable: sorbete de fruta ~1.5 kg, helado de nata ~6-7 kg CO2e/kg.'},
+ {'category': 'miel',
+  'main_category': 'Alimentación',
+  'display_name': 'Miel',
+  'unit': 'kg',
+  'factor_kg_co2e': 0.5,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Honey — Science 360(6392)',
+  'source_url': None,
+  'notes': 'Baja huella de carbono. Endulzante natural con menor impacto que el azúcar refinado por kg.'},
+
+ # ─── BEBIDAS (cont.) ──────────────────────────────────────────────────────
+ {'category': 'sidra',
+  'main_category': 'Alimentación',
+  'display_name': 'Sidra',
+  'unit': 'litro',
+  'factor_kg_co2e': 1.0,
+  'source_name': 'Estimación propia',
+  'source_year': 2024,
+  'source_type': 'estimated',
+  'source_detail': 'Estimación: similar a la cerveza por proceso de fermentación de fruta',
+  'source_url': None,
+  'notes': 'Factor estimado. Menor impacto que el vino por menor % alcohol y procesado.'},
+ {'category': 'cava_espumoso',
+  'main_category': 'Alimentación',
+  'display_name': 'Cava / champán / espumoso',
+  'unit': 'litro',
+  'factor_kg_co2e': 1.8,
+  'source_name': 'Estimación propia',
+  'source_year': 2024,
+  'source_type': 'estimated',
+  'source_detail': 'Estimación: similar al vino + segunda fermentación + botella especial presurizada',
+  'source_url': None,
+  'notes': 'Similar al vino pero con proceso adicional. España produce cava principalmente en el Penedès.'},
+ {'category': 'licores',
+  'main_category': 'Alimentación',
+  'display_name': 'Licores / whisky / ron / vodka',
+  'unit': 'litro',
+  'factor_kg_co2e': 3.5,
+  'source_name': 'Estimación propia',
+  'source_year': 2024,
+  'source_type': 'estimated',
+  'source_detail': 'Estimación: destilación energéticamente intensiva + maduración en barrica',
+  'source_url': None,
+  'notes': 'Factor elevado por proceso de destilación. El whisky con larga maduración puede tener mayor impacto.'},
+
+ # ─── FRUTAS ESPECÍFICAS (cont.) ────────────────────────────────────────────
+ {'category': 'melon_sandia',
+  'main_category': 'Alimentación',
+  'display_name': 'Melón / sandía',
+  'unit': 'kg',
+  'factor_kg_co2e': 0.4,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Melons — Science 360(6392)',
+  'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
+  'notes': 'Factor muy bajo por alto contenido de agua. Producción española importante (Almería, Murcia).'},
+ {'category': 'melocoton_albaricoque',
+  'main_category': 'Alimentación',
+  'display_name': 'Melocotón / nectarina / albaricoque',
+  'unit': 'kg',
+  'factor_kg_co2e': 0.5,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Stone fruit (peach, nectarine, apricot) — Science 360(6392)',
+  'source_url': None,
+  'notes': 'Frutas de hueso típicas del verano español. Factor bajo si se consumen en temporada.'},
+ {'category': 'kiwi',
+  'main_category': 'Alimentación',
+  'display_name': 'Kiwi',
+  'unit': 'kg',
+  'factor_kg_co2e': 0.6,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Kiwi fruit — Science 360(6392)',
+  'source_url': None,
+  'notes': 'Factor bajo. Se importa principalmente de Italia y Nueva Zelanda por barco.'},
+ {'category': 'mango',
+  'main_category': 'Alimentación',
+  'display_name': 'Mango (importado)',
+  'unit': 'kg',
+  'factor_kg_co2e': 1.5,
+  'source_name': 'Estimación propia',
+  'source_year': 2024,
+  'source_type': 'estimated',
+  'source_detail': 'Estimación: fruta tropical + transporte marítimo desde América Central/Sudamérica',
+  'source_url': None,
+  'notes': 'Factor más alto que frutas locales por transporte intercontinental. Si es aéreo puede llegar a 4-5 kg CO2e/kg.'},
+
+ # ─── VERDURAS ESPECÍFICAS (cont.) ──────────────────────────────────────────
+ {'category': 'brocoli_coliflor',
+  'main_category': 'Alimentación',
+  'display_name': 'Brócoli / coliflor',
+  'unit': 'kg',
+  'factor_kg_co2e': 0.7,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Brassica vegetables — Science 360(6392)',
+  'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
+  'notes': 'Verdura con alta densidad nutricional y baja huella. Referente de alimentación saludable y sostenible.'},
+ {'category': 'pimiento',
+  'main_category': 'Alimentación',
+  'display_name': 'Pimiento rojo / verde / amarillo',
+  'unit': 'kg',
+  'factor_kg_co2e': 0.8,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Peppers — Science 360(6392)',
+  'source_url': None,
+  'notes': 'Cultivo muy extendido en España (Almería). Factor bajo si es de producción local y temporada.'},
+ {'category': 'maiz',
+  'main_category': 'Alimentación',
+  'display_name': 'Maíz (fresco, palomitas)',
+  'unit': 'kg',
+  'factor_kg_co2e': 0.9,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Maize — Science 360(6392)',
+  'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
+  'notes': 'Factor para maíz fresco y palomitas. El maíz destinado a pienso animal tiene impacto indirecto mucho mayor.'},
+ {'category': 'espinacas_acelgas',
+  'main_category': 'Alimentación',
+  'display_name': 'Espinacas / acelgas / col rizada',
+  'unit': 'kg',
+  'factor_kg_co2e': 0.6,
+  'source_name': 'Poore & Nemecek',
+  'source_year': 2018,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Leafy green vegetables — Science 360(6392)',
+  'source_url': 'https://ourworldindata.org/grapher/ghg-per-kg-poore',
+  'notes': 'Verduras de hoja verde con huella muy baja y alto valor nutricional.'}]
 
 # Alternativas para recomendaciones simples del MVP.
 # La recomendación puede comparar el factor de la actividad original con estas opciones.
@@ -1123,6 +1403,157 @@ RECOMMENDATION_ALTERNATIVES = {
  # Alimentos procesados
  'comida_rapida': ['pasta', 'legumbres', 'verduras', 'pan'],
  'pizza': ['pasta', 'legumbres', 'verduras'],
+ # Carnes curadas / embutidos
+ 'jamon_serrano': ['carne_conejo', 'carne_pollo', 'legumbres', 'frutos_secos'],
+ 'chorizo_embutido': ['carne_conejo', 'carne_pollo', 'legumbres', 'tofu_soja'],
+ # Marisco
+ 'pulpo_calamar': ['mejillones_almejas', 'pescado_sardina', 'legumbres'],
+ # Snacks / dulces
+ 'galletas_bolleria': ['fruta', 'frutos_secos', 'avena_copos'],
+ 'helado': ['fruta', 'fresas', 'frutos_secos'],
+ 'cereales_desayuno': ['avena_copos', 'pan', 'fruta'],
+ # Bebidas de alto impacto
+ 'licores': ['sidra', 'cava_espumoso', 'alcohol_vino'],
+ # Frutas importadas
+ 'mango': ['manzana_pera', 'naranja_citrico', 'melon_sandia', 'melocoton_albaricoque'],
+}
+
+# Cantidades por defecto por categoría (en la unidad del factor).
+# Permiten calcular sin preguntar al usuario en la mayoría de casos habituales.
+DEFAULT_QUANTITIES: dict[str, float] = {
+    # ── Transporte ──────────────────────────────────────────────────────────
+    'coche_gasolina':       20.0,   # km — trayecto medio diario
+    'coche_diesel':         20.0,
+    'coche_electrico':      20.0,
+    'moto':                 15.0,
+    'moto_electrica':       15.0,
+    'patinete_electrico':    3.0,
+    'taxi':                  8.0,
+    'avion_domestico':     600.0,   # km — Madrid-Barcelona aprox.
+    'avion_internacional': 2500.0,
+    'crucero':               1.0,   # días
+    'tren':                150.0,
+    'metro':                 8.0,
+    'autobus':               8.0,
+    'autobus_interurbano': 100.0,
+    'caminar':               2.0,
+    'bicicleta':             5.0,
+    'tren_alta_velocidad': 400.0,   # km — Madrid-Barcelona AVE
+    # ── Energía ─────────────────────────────────────────────────────────────
+    'electricidad_es':       5.0,   # kWh — consumo medio diario hogar
+    'gas_natural':           5.0,
+    'calefaccion_gasoil':    2.0,   # litros
+    'aire_acondicionado':    3.0,   # horas
+    'lavadora':              1.0,   # ciclos
+    'secadora':              1.0,
+    'lavavajillas':          1.0,
+    'television':            2.0,   # horas
+    'tender_ropa':           1.0,
+    # ── Carnes ──────────────────────────────────────────────────────────────
+    'carne_vacuno':          0.2,   # kg — ración de 200 g
+    'carne_cerdo':           0.2,
+    'carne_pollo':           0.2,
+    'carne_procesada':       0.1,   # kg — 100 g
+    'carne_cordero':         0.2,
+    'carne_pavo':            0.2,
+    'carne_conejo':          0.2,
+    'carne_ternera_lechal':  0.2,
+    'jamon_serrano':         0.05,  # kg — 50 g porción
+    'chorizo_embutido':      0.05,
+    # ── Pescados y mariscos ─────────────────────────────────────────────────
+    'pescado':               0.15,
+    'marisco':               0.15,
+    'pescado_salmon':        0.15,
+    'pescado_atun':          0.15,
+    'pescado_sardina':       0.1,   # kg — ración de sardinas
+    'pescado_merluza':       0.15,
+    'pescado_dorada':        0.15,
+    'pescado_trucha':        0.15,
+    'marisco_gambas':        0.15,
+    'mejillones_almejas':    0.2,   # kg — ración típica
+    'pulpo_calamar':         0.15,
+    # ── Lácteos y huevos ────────────────────────────────────────────────────
+    'lacteos_leche':         0.25,  # litros — vaso
+    'queso':                 0.04,  # kg — 40 g porción
+    'huevos':                2.0,   # unidades
+    'lacteos_yogur':         0.125, # kg — 1 yogur
+    'lacteos_mantequilla':   0.02,  # kg — 20 g porción
+    'leche_avena':           0.25,
+    'leche_almendra':        0.25,
+    'leche_soja':            0.25,
+    # ── Verduras ────────────────────────────────────────────────────────────
+    'verduras':              0.2,
+    'tomate':                0.15,
+    'lechuga_ensalada':      0.1,
+    'zanahoria':             0.1,
+    'aguacate':              0.15,  # kg — medio aguacate
+    'cebolla_ajo':           0.05,
+    'setas_champinones':     0.15,
+    'aceitunas':             0.05,
+    'brocoli_coliflor':      0.15,
+    'pimiento':              0.15,  # kg — 1 pimiento
+    'maiz':                  0.15,
+    'espinacas_acelgas':     0.1,
+    # ── Cereales, legumbres y derivados ─────────────────────────────────────
+    'cereales':              0.08,
+    'arroz':                 0.1,   # kg — 100 g seco
+    'patata':                0.15,
+    'legumbres':             0.1,
+    'tofu_soja':             0.15,
+    'pasta':                 0.1,
+    'pan':                   0.1,   # kg — media barra
+    'avena_copos':           0.08,  # kg — 80 g bowl
+    'cereales_desayuno':     0.05,
+    # ── Frutas ──────────────────────────────────────────────────────────────
+    'fruta':                 0.15,
+    'naranja_citrico':       0.15,  # kg — 1 naranja
+    'platano':               0.1,   # kg — 1 plátano
+    'manzana_pera':          0.15,
+    'uvas':                  0.1,
+    'fresas':                0.1,
+    'frutos_secos':          0.03,  # kg — 30 g puñado
+    'semillas':              0.02,
+    'melon_sandia':          0.3,   # kg — porción
+    'melocoton_albaricoque': 0.15,
+    'kiwi':                  0.1,   # kg — 1 kiwi
+    'mango':                 0.2,   # kg — medio mango
+    # ── Bebidas ─────────────────────────────────────────────────────────────
+    'cafe':                  0.007, # kg — ~7 g por taza espresso
+    'te_infusion':           0.002, # kg — 2 g por taza
+    'alcohol_cerveza':       0.33,  # litros — 1 lata/botella
+    'alcohol_vino':          0.15,  # litros — 1 copa
+    'refresco_lata':         1.0,   # unidades
+    'zumo':                  0.2,   # litros — vaso
+    'bebida_energetica':     1.0,
+    'sidra':                 0.33,
+    'cava_espumoso':         0.15,  # litros — copa
+    'licores':               0.04,  # litros — 40 ml copa
+    'agua_embotellada':      0.5,   # litros — botella pequeña
+    'agua_grifo':            1.0,
+    # ── Snacks y dulces ─────────────────────────────────────────────────────
+    'chocolate':             0.03,  # kg — 30 g tableta
+    'galletas_bolleria':     0.05,
+    'helado':                0.1,   # kg — ~2 bolas
+    'miel':                  0.02,  # kg — 1 cucharada
+    'aceite_oliva':          0.01,  # litros — 1 cucharada sopera
+    'aceite_girasol':        0.01,
+    'azucar':                0.01,  # kg — 1 cucharadita
+    # ── Comida preparada ────────────────────────────────────────────────────
+    'comida_rapida':         1.0,
+    'pizza':                 1.0,
+    # ── Residuos ────────────────────────────────────────────────────────────
+    'residuo_mixto':         0.5,
+    'residuo_reciclado':     0.3,
+    # ── Compras ─────────────────────────────────────────────────────────────
+    'ropa_nueva':            1.0,
+    'zapatillas':            1.0,
+    'libro_nuevo':           1.0,
+    'smartphone':            1.0,
+    'portatil':              1.0,
+    # ── Ocio ────────────────────────────────────────────────────────────────
+    'streaming':             1.0,   # mes
+    'gimnasio':              1.0,   # sesión
+    'hotel':                 1.0,   # noche
 }
 
 

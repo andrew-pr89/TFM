@@ -1,85 +1,160 @@
-import { useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts'
+import { useState, useMemo } from 'react'
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  PieChart, Pie, Label,
+} from 'recharts'
 import { useSummary, useHistory } from '../hooks/useCarbon'
-import { format } from 'date-fns'
+import { format, eachMonthOfInterval, startOfMonth, subMonths } from 'date-fns'
 
 interface Props {
   annualGoalKg?: number
 }
 
-const COLORS = ['#4ade80', '#86efac', '#a3e635', '#facc15', '#fb923c', '#f97316', '#ef4444']
+const css = (v: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
 
-function co2ColorClass(kg: number) {
-  if (kg === 0) return 'emission-row__value--neutral'
-  if (kg < 1) return 'emission-row__value--low'
-  if (kg < 5) return 'emission-row__value--mid'
-  return 'emission-row__value--high'
+function catColor(name: string, idx: number): string {
+  const map: Record<string, string> = {
+    'Alimentación': css('--cat-alimentacion'),
+    'Transporte':   css('--cat-transporte'),
+    'Energía':      css('--cat-energia'),
+    'Residuos':     css('--cat-residuos'),
+    'Compras':      css('--cat-compras'),
+    'Ocio':         css('--cat-ocio'),
+    'Otro':  css('--text-muted'),
+  }
+  const fallback = [
+    css('--c-success'), css('--c-level-adv'), css('--cat-energia'),
+    css('--cat-alimentacion'), css('--c-orange'), css('--c-danger'),
+  ]
+  return map[name] || fallback[idx % fallback.length]
 }
 
 const tooltipStyle = {
   background: 'var(--surface-2)',
   border: '1px solid var(--border)',
   borderRadius: '8px',
-  fontFamily: 'DM Mono',
   fontSize: '12px',
   color: 'var(--text)',
 }
 
-function StatCard({ label, value, unit }: { label: string; value: string | number; unit?: string }) {
+function KpiCard({ label, value, unit, sub }: { label: string; value: string | number; unit?: string; sub?: string }) {
   return (
-    <div className="stat-card">
-      <span className="stat-card__label">{label}</span>
-      <span className="stat-card__value">
-        {value}
-        {unit && <span className="stat-card__unit"> {unit}</span>}
-      </span>
+    <div className="kpi-card">
+      <span>{label}</span>
+      <div>
+        <strong>{value}</strong>
+        {unit && <span>{unit}</span>}
+      </div>
+      {sub && <small>{sub}</small>}
     </div>
   )
 }
 
-function BudgetCard({ total, budget, periodDays, dateFrom, dateTo }: { total: number; budget: number; periodDays: number; dateFrom?: string; dateTo?: string }) {
-  const pct = Math.min((total / budget) * 100, 100)
-  const over = total > budget
-  const barSeverity = pct < 50 ? 'low' : pct < 80 ? 'mid' : 'high'
-  const periodLabel = dateFrom && dateTo
-    ? `${format(new Date(dateFrom), 'dd/MM/yyyy')} – ${format(new Date(dateTo), 'dd/MM/yyyy')}`
-    : `últimos ${periodDays} días`
-
+function DonutCenterLabel({ viewBox, total }: { viewBox?: { cx: number; cy: number }; total: number }) {
+  const cx = viewBox?.cx ?? 0
+  const cy = viewBox?.cy ?? 0
   return (
-    <div className="stat-card stat-card--full">
-      <span className="stat-card__label">Total CO₂e — {periodLabel}</span>
-      <div className="budget-card-row">
-        <span className={`stat-card__value${over ? ' stat-card__value--over' : ''}`}>
-          {total.toFixed(2)}
-        </span>
-        <span className="stat-card__unit">
-          / {budget.toFixed(0)} kg presupuesto sostenible mensual
-        </span>
-      </div>
-      <div className="budget-bar">
-        <div
-          className={`budget-bar__fill budget-bar__fill--${barSeverity}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="budget-pct">
-        {pct.toFixed(1)}% del presupuesto{over ? ' — ¡superado!' : ''}
-        {' · '}
-        Ref: objetivo IPCC 1,5 °C (2 t CO₂/persona/año)
-      </span>
-    </div>
+    <g>
+      <text x={cx} y={cy - 7} textAnchor="middle" fill="var(--text-muted)" fontSize={11}>Total</text>
+      <text x={cx} y={cy + 11} textAnchor="middle" fill="var(--text)" fontSize={13} fontWeight={700}>
+        {total.toFixed(2)} kg
+      </text>
+    </g>
   )
 }
 
 export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+
   const activeFrom = dateFrom && dateTo ? dateFrom : undefined
-  const activeTo = dateFrom && dateTo ? dateTo : undefined
+  const activeTo   = dateFrom && dateTo ? dateTo   : undefined
 
   const { data: summary, isLoading: summaryLoading, isError: summaryError } = useSummary(annualGoalKg, activeFrom, activeTo)
-  const { data: activities, isLoading: activitiesLoading } = useHistory(activeFrom, activeTo)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const { data: rawActivities, isLoading: activitiesLoading } = useHistory(activeFrom, activeTo)
+
+  // ── All hooks must run unconditionally before any early returns ────────────
+
+  const allActivities = rawActivities ?? []
+
+  const uniqueCategories = useMemo(
+    () => [...new Set(allActivities.map(a => a.main_category))],
+    [allActivities],
+  )
+
+  const categoryTotals = useMemo(() => {
+    const map: Record<string, number> = {}
+    allActivities.forEach(a => {
+      const kg = a.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
+      map[a.main_category] = (map[a.main_category] ?? 0) + kg
+    })
+    return Object.entries(map)
+      .map(([cat, kg]) => ({ name: cat, value: parseFloat(kg.toFixed(3)) }))
+      .sort((a, b) => b.value - a.value)
+  }, [allActivities])
+
+  const barData = useMemo(() => {
+    const now   = new Date()
+    const start = activeFrom ? startOfMonth(new Date(activeFrom)) : startOfMonth(subMonths(now, 11))
+    const end   = activeTo   ? startOfMonth(new Date(activeTo))   : startOfMonth(now)
+    const months = eachMonthOfInterval({ start, end })
+
+    const source = selectedCategory
+      ? allActivities.filter(a => a.main_category === selectedCategory)
+      : allActivities
+    const map = new Map<string, number>()
+    source.forEach(a => {
+      const key = format(new Date(a.created_at), 'yyyy-MM')
+      const kg  = a.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
+      map.set(key, parseFloat(((map.get(key) ?? 0) + kg).toFixed(3)))
+    })
+
+    return months.map(d => ({
+      month: format(d, 'MMM yy'),
+      kg: map.get(format(d, 'yyyy-MM')) ?? 0,
+    }))
+  }, [allActivities, selectedCategory, activeFrom, activeTo])
+
+  const pieData = useMemo(() => {
+    if (!selectedCategory) return categoryTotals
+    const catActs = allActivities.filter(a => a.main_category === selectedCategory)
+    const map: Record<string, number> = {}
+    catActs.forEach(a =>
+      a.emissions.forEach(e => {
+        map[e.factor.display_name] = (map[e.factor.display_name] ?? 0) + e.amount_kg_co2e
+      }),
+    )
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(3)) }))
+      .sort((a, b) => b.value - a.value)
+  }, [allActivities, selectedCategory, categoryTotals])
+
+  const stackedData = useMemo(() => {
+    const now   = new Date()
+    const start = activeFrom ? startOfMonth(new Date(activeFrom)) : startOfMonth(subMonths(now, 11))
+    const end   = activeTo   ? startOfMonth(new Date(activeTo))   : startOfMonth(now)
+    const months = eachMonthOfInterval({ start, end })
+
+    const map = new Map<string, Record<string, unknown>>()
+    months.forEach(d => {
+      map.set(format(d, 'yyyy-MM'), { month: format(d, 'MMM yy') })
+    })
+
+    allActivities.forEach(a => {
+      const key  = format(new Date(a.created_at), 'yyyy-MM')
+      const kg   = a.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
+      const entry = map.get(key)
+      if (!entry) return
+      entry[a.main_category] = parseFloat((((entry[a.main_category] as number) ?? 0) + kg).toFixed(3))
+    })
+
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v)
+  }, [allActivities, activeFrom, activeTo])
+
+  // ── Early returns (after all hooks) ───────────────────────────────────────
 
   if (summaryLoading || activitiesLoading) return <div className="panel-state">Cargando…</div>
   if (summaryError) return <div className="panel-state panel-state--error">Error al cargar datos.</div>
@@ -91,87 +166,25 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
     </div>
   )
 
-  const uniqueCategories = [...new Set(activities?.map(a => a.main_category) ?? [])]
+  // ── Derived values (non-hook) ──────────────────────────────────────────────
 
-  // ── Vista de categoría seleccionada ──────────────────────────────────────────
-  if (selectedCategory) {
-    const catActivities = activities?.filter(a => a.main_category === selectedCategory) ?? []
-    const allEmissions = catActivities.flatMap(a => a.emissions)
-    const totalCat = allEmissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
-
-    const byFactor = allEmissions.reduce<Record<string, number>>((acc, e) => {
-      acc[e.factor.display_name] = (acc[e.factor.display_name] ?? 0) + e.amount_kg_co2e
-      return acc
-    }, {})
-    const chartData = Object.entries(byFactor).map(([name, kg]) => ({
-      name,
-      value: parseFloat(kg.toFixed(3)),
-    }))
-
-    return (
-      <div className="summary-panel">
-        <button className="tab-btn" onClick={() => setSelectedCategory(null)}>
-          ← Volver al resumen
-        </button>
-
-        <div className="stat-grid">
-          <StatCard label="Total CO₂e" value={totalCat.toFixed(2)} unit="kg" />
-          <StatCard label="Actividades" value={catActivities.length} />
-        </div>
-
-        {chartData.length > 0 && (
-          <div className="chart-wrap">
-            <p className="chart-title">Desglose — {selectedCategory}</p>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%" cy="50%"
-                  labelLine={true}
-                  label={({ name, value }) => `${name}: ${(value as number).toFixed(3)} kg`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: number) => `${value.toFixed(3)} kg CO₂e`}
-                  contentStyle={tooltipStyle}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-
-            <div className="emissions-detail">
-              {Object.entries(byFactor).map(([name, kg]) => (
-                <div key={name} className="emission-row">
-                  <span>{name}</span>
-                  <span className={`emission-row__value ${co2ColorClass(kg)}`}>
-                    {kg.toFixed(3)} kg
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // ── Vista de resumen general ──────────────────────────────────────────────────
-  const perActivity = summary.total_activities > 0
+  const pieTotal    = pieData.reduce((s, d) => s + d.value, 0)
+  const catActs     = selectedCategory ? allActivities.filter(a => a.main_category === selectedCategory) : []
+  const totalCatKg  = catActs.flatMap(a => a.emissions).reduce((s, e) => s + e.amount_kg_co2e, 0)
+  const pctBudget   = Math.min((summary.total_kg_co2e / summary.budget_kg_co2e) * 100, 999).toFixed(1)
+  const avgAll      = summary.total_activities > 0
     ? (summary.total_kg_co2e / summary.total_activities).toFixed(2)
     : '0'
-
-  const chartData = summary.top_categories.map((c) => ({
-    name: c.category,
-    kg: parseFloat(c.total_kg_co2e.toFixed(3)),
-  }))
+  const avgCat      = catActs.length > 0 ? (totalCatKg / catActs.length).toFixed(2) : '0'
+  const pctOfTotal  = summary.total_kg_co2e > 0
+    ? ((totalCatKg / summary.total_kg_co2e) * 100).toFixed(1)
+    : '0'
+  const barColor    = selectedCategory ? catColor(selectedCategory, 0) : 'var(--accent)'
 
   return (
     <div className="summary-panel">
+
+      {/* ── Date filter ────────────────────────────────────────────────────── */}
       <div className="date-range-filter">
         <label className="date-range-filter__label">Desde</label>
         <input
@@ -191,25 +204,24 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
           onChange={e => setDateTo(e.target.value)}
         />
         {(dateFrom || dateTo) && (
-          <button
-            className="btn-light"
-            onClick={() => { setDateFrom(''); setDateTo('') }}
-          >
+          <button className="btn-light" onClick={() => { setDateFrom(''); setDateTo('') }}>
             Limpiar
           </button>
         )}
+      </div>
+
+      {/* ── Category tabs ──────────────────────────────────────────────────── */}
+      <div className="activities-tabs">
         <button
+          className={`btn-square${selectedCategory === null ? ' tab-btn--active' : ''}`}
           onClick={() => setSelectedCategory(null)}
         >
           Resumen general
         </button>
-      </div>
-
-      <div className="activities-tabs">
         {uniqueCategories.map(cat => (
           <button
             key={cat}
-            className={`tab-btn${selectedCategory === cat ? ' tab-btn--active' : ''}`}
+            className={`btn-square${selectedCategory === cat ? ' tab-btn--active' : ''}`}
             onClick={() => setSelectedCategory(cat)}
           >
             {cat}
@@ -217,33 +229,155 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
         ))}
       </div>
 
-      <div className="stat-grid">
-        <BudgetCard total={summary.total_kg_co2e} budget={summary.budget_kg_co2e} periodDays={summary.period_days} dateFrom={activeFrom} dateTo={activeTo} />
-        <StatCard label="Actividades" value={summary.total_activities} />
-        <StatCard label="Media/actividad" value={perActivity} unit="kg" />
+      {/* ── KPI cards ──────────────────────────────────────────────────────── */}
+      <div className="summary-card kpi-grid">
+        {selectedCategory ? (
+          <>
+            <KpiCard label={`CO₂e — ${selectedCategory}`} value={totalCatKg.toFixed(2)} unit="kg" />
+            <KpiCard label="Actividades en categoría"      value={catActs.length} />
+            <KpiCard label="% del total"                   value={pctOfTotal} unit="%" />
+            <KpiCard label="Media por actividad"           value={avgCat} unit="kg" />
+          </>
+        ) : (
+          <>
+            <KpiCard label="Total CO₂e"          value={summary.total_kg_co2e.toFixed(2)} unit="kg" />
+            <KpiCard label="Total actividades"   value={summary.total_activities} />
+            <KpiCard label="Media por actividad" value={avgAll} unit="kg" />
+            <KpiCard
+              label="Presupuesto mensual"
+              value={pctBudget}
+              unit="%"
+              sub={`${summary.total_kg_co2e.toFixed(0)} / ${summary.budget_kg_co2e.toFixed(0)} kg`}
+            />
+          </>
+        )}
       </div>
 
-      {chartData.length > 0 && (
+      {/* ── Charts row: bar + donut ─────────────────────────────────────────── */}
+      <div className="summary-card summary-charts-row">
+
+        {/* Bar chart */}
         <div className="chart-wrap">
-          <p className="chart-title">Top categorías</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 40 }}>
+          <h4>
+            {selectedCategory ? `CO₂e mensual — ${selectedCategory}` : 'CO₂e por mes'}
+          </h4>
+          {barData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={barData} margin={{ top: 4, right: 8, left: -16, bottom: 36 }}>
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+                  angle={-35}
+                  textAnchor="end"
+                  interval={0}
+                />
+                <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v: number) => [`${v} kg CO₂e`, '']}
+                />
+                <Bar dataKey="kg" radius={[4, 4, 0, 0]}>
+                  {barData.map((_, i) => (
+                    <Cell key={i} fill={barColor} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="chart-empty">Sin datos para el período seleccionado.</p>
+          )}
+        </div>
+
+        {/* Donut + legend */}
+        <div className="chart-wrap">
+          <h4>
+            {selectedCategory ? `Desglose — ${selectedCategory}` : 'Distribución por categoría'}
+          </h4>
+          {pieData.length > 0 ? (
+            <div className="donut-layout">
+              <div className="donut-legend">
+                <p>Media actividades</p>
+                <p>{avgAll} kg</p>
+                {pieData.map((d, i) => (
+                  <div key={d.name}>
+                    <span style={{ background: catColor(d.name, i) }} />
+                    <span title={d.name}>{d.name.length > 35 ? d.name.slice(0, 35) + '…' : d.name}</span>
+                    <span>{d.value.toFixed(2)} kg</span>
+                    <span>{pieTotal > 0 ? ((d.value / pieTotal) * 100).toFixed(1) : '0'}%</span>
+                  </div>
+                ))}
+                <p>Los valores están expresados en kilogramos (kg).</p>
+              </div>
+              <div style={{ flexShrink: 0 }}>
+                <ResponsiveContainer width={180} height={180}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%" cy="50%"
+                      innerRadius={52}
+                      outerRadius={80}
+                      dataKey="value"
+                      strokeWidth={1}
+                    >
+                      <Label
+                        content={<DonutCenterLabel total={pieTotal} />}
+                        position="center"
+                      />
+                      {pieData.map((d, i) => (
+                        <Cell key={d.name} fill={catColor(d.name, i)} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      formatter={(v: number) => [`${v.toFixed(3)} kg CO₂e`, '']}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <p className="chart-empty">Sin datos para el período seleccionado.</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Stacked bar chart ───────────────────────────────────────────────── */}
+      {stackedData.length > 0 && (
+        <div className="summary-card chart-wrap">
+          <h4>CO₂e por categoría y mes</h4>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={stackedData} margin={{ top: 4, right: 8, left: -16, bottom: 36 }}>
               <XAxis
-                dataKey="name"
-                tick={{ fontSize: 11, fill: 'var(--text-muted)', fontFamily: 'DM Mono' }}
+                dataKey="month"
+                tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                 angle={-35}
                 textAnchor="end"
                 interval={0}
               />
-              <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)', fontFamily: 'DM Mono' }} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${v} kg CO₂e`, '']} />
-              <Bar dataKey="kg" radius={[4, 4, 0, 0]}>
-                {chartData.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Bar>
+              <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(v: number, name: string) => [`${v.toFixed(2)} kg`, name]}
+              />
+              {uniqueCategories.map((cat, i) => (
+                <Bar
+                  key={cat}
+                  dataKey={cat}
+                  stackId="a"
+                  fill={catColor(cat, i)}
+                  radius={i === uniqueCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                />
+              ))}
             </BarChart>
           </ResponsiveContainer>
+          <div className="stacked-legend">
+            {uniqueCategories.map((cat, i) => (
+              <span key={cat}>
+                <span style={{ background: catColor(cat, i) }} />
+                {cat}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>

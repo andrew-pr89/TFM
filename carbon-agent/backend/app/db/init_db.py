@@ -13,7 +13,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.db.database import Base, SessionLocal, engine
-from app.db.seed_data import EMISSION_FACTORS
+from app.db.seed_data import EMISSION_FACTORS, DEFAULT_QUANTITIES
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -54,20 +54,25 @@ def seed_emission_factors(db: Session) -> None:
     from app.models.models import EmissionFactor
 
     existing_map = {f.category: f for f in db.query(EmissionFactor).all()}
-    seed_categories = {f["category"] for f in EMISSION_FACTORS}
 
     inserted = 0
     updated = 0
     for data in EMISSION_FACTORS:
         cat = data["category"]
+        dq = DEFAULT_QUANTITIES.get(cat)
         if cat not in existing_map:
-            db.add(EmissionFactor(**data))
+            db.add(EmissionFactor(**data, default_quantity=dq))
             inserted += 1
         else:
-            # Update display_name and main_category from seed (keeps admin-created factors untouched)
             factor = existing_map[cat]
+            changed = False
             if factor.display_name != data["display_name"]:
                 factor.display_name = data["display_name"]
+                changed = True
+            if dq is not None and factor.default_quantity != dq:
+                factor.default_quantity = dq
+                changed = True
+            if changed:
                 updated += 1
 
     db.commit()
