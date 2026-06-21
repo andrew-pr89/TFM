@@ -50,7 +50,9 @@ export interface ImprovementSuggestion {
   pct_of_total: number
   action: string
   tip: string
+  first_step: string
   potential_saving_pct: number
+  saving_kg: number
 }
 
 export interface ImprovementsOut {
@@ -68,10 +70,21 @@ export interface UserProfile {
 
 export interface PortionEntry {
   category: string
+  main_category: string
   display_name: string
   unit: string
   default_quantity: number
   user_quantity: number | null
+}
+
+export interface RecurringActivity {
+  category: string
+  display_name: string
+  unit: string
+  quantity: number
+  enabled: boolean
+  hint?: string | null
+  factor_kg_co2e?: number
 }
 
 export interface UnknownItemOut {

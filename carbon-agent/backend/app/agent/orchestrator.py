@@ -133,6 +133,7 @@ class CarbonAgent:
         new_home_city: str | None = None
         new_pending_activity: dict | None = None
         pending_question: str | None = None
+        force_clear_pending: bool = False
         # activity_date_str already set by regex above; LLM marker is a fallback
 
         unknown_names: list[str] = []
@@ -149,9 +150,18 @@ class CarbonAgent:
                 pending_question = item["clarifying_question"]
             elif isinstance(item, dict) and "unknown_items" in item:
                 unknown_names = item["unknown_items"]
+            elif isinstance(item, dict) and item.get("clear_pending"):
+                force_clear_pending = True
             else:
                 filtered.append(item)
         extracted = filtered
+
+        # Si el LLM detectó una nueva actividad y señaló limpiar el pendiente anterior
+        if force_clear_pending and existing_pending_activity:
+            self.memory.clear_pending_activity(user_id=user_id, db=db)
+            db.commit()
+            existing_pending_activity = None
+            log.info("Actividad pendiente limpiada por clear_pending del LLM")
 
         # Guardar home_city si el LLM la detectó
         if new_home_city:
@@ -282,8 +292,11 @@ class CarbonAgent:
             log.error("Error generando recomendación: %s", exc)
             recommendation = f"Has generado {total:.3f} kg CO₂e. ¡Intenta reducir tu huella mañana!"
 
-        # Si sigue habiendo un transporte pendiente en memoria (no resuelto este turno), recordarlo
-        still_pending = None if pending_resolved else self.memory.get_pending_activity(user_id=user_id, db=db)
+        # Si sigue habiendo un transporte pendiente en memoria (no resuelto este turno), recordarlo.
+        # Solo si el usuario NO envió una actividad nueva en este turno (no queremos interrumpir
+        # con una pregunta pendiente cuando el usuario está registrando otra cosa).
+        user_sent_new_activity = bool(extracted)
+        still_pending = None if (pending_resolved or user_sent_new_activity) else self.memory.get_pending_activity(user_id=user_id, db=db)
         if still_pending and not pending_question:
             pending_question = (
                 f"Todavía me falta saber los lugares para "

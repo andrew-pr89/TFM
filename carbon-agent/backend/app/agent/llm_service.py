@@ -61,6 +61,8 @@ class LLMService:
         factors_info: list[dict],
         pending_activity: dict | None = None,
         today: str | None = None,
+        home_city: str | None = None,
+        work_place: str | None = None,
     ) -> list[dict]:
         """
         Convierte texto libre en una lista de actividades estructuradas.
@@ -77,13 +79,24 @@ class LLMService:
         )
 
         today_str = today or "desconocida"
+
+        known_locations = ""
+        if home_city or work_place:
+            lines = ["UBICACIONES CONOCIDAS DEL USUARIO (úsalas directamente como origen/destino):"]
+            if home_city:
+                lines.append(f'  - "mi casa", "casa", "mi domicilio", "de casa" → {home_city}')
+            if work_place:
+                lines.append(f'  - "el trabajo", "mi trabajo", "la oficina", "al trabajo" → {work_place}')
+            lines.append("Cuando el usuario mencione estas palabras como origen o destino, sustituye directamente por la ubicación conocida.")
+            known_locations = "\n".join(lines) + "\n\n"
+
         system = f"""Eres un extractor de actividades con huella de carbono.
 Tu tarea es analizar el texto del usuario e identificar TODAS las actividades
 que tengan impacto en CO₂. Puede haber una o varias en el mismo mensaje.
 
 La fecha de hoy es: {today_str}
 
-FECHA DE LA ACTIVIDAD (OBLIGATORIO COMPROBAR):
+{known_locations}FECHA DE LA ACTIVIDAD (OBLIGATORIO COMPROBAR):
 Si el usuario menciona que la actividad ocurrió en un momento distinto a hoy
 (palabras como "ayer", "anteayer", "el lunes", "el martes pasado", "el 4 de abril", etc.)
 debes incluir "activity_date" en el JSON raíz con la fecha ISO calculada.
@@ -156,19 +169,41 @@ REGLA DE ORO: siempre es mejor usar la categoría más cercana que devolver "unk
 - Solo usa category="unknown" si NINGUNA categoría de la lista se parece remotamente al término del usuario.
 - Si no tiene huella de carbono en absoluto → omítela (no la incluyas)
 
-REGLA — BEBIDAS E INGREDIENTES COMPUESTOS:
+REGLA — BEBIDAS, PLATOS E INGREDIENTES COMPUESTOS:
 IMPORTANTE — PRIORIDAD ABSOLUTA: Si el ítem del usuario coincide con un factor ESPECÍFICO de la lista
 (por display_name o category), usa ESE factor directamente. NO lo descompongas en ingredientes.
 Ejemplos de factor específico que NO debe descomponerse:
   · "yogur de soja" → existe factor "yogur_de_soja" → usa esa categoría directamente ✓
   · "leche de avena" → existe factor "leche_avena" → usa esa categoría directamente ✓
   · "leche de soja"  → existe factor "leche_soja" → usa esa categoría directamente ✓
-Solo descompone en ingredientes cuando NO exista un factor específico para el ítem completo.
-Ejemplo donde SÍ aplica descomposición: "café con leche" → no hay factor "cafe_con_leche" → dos items: category="cafe" + category="lacteos_leche".
-Ejemplo: "tostadas con mermelada" → category="cereales" quantity=null + category="unknown" (mermelada, sin categoría).
-Si hay un multiplicador explícito (número > 1), aplícalo a TODOS los ingredientes como quantity=N, unit="unidades":
-Ejemplo: "dos cafés con leche" → category="cafe" quantity=2 unit="unidades" + category="lacteos_leche" quantity=2 unit="unidades".
-Ejemplo: "tres tostadas con mermelada" → category="cereales" quantity=3 unit="unidades" + category="unknown".
+
+EXCEPCIÓN — CONTENEDORES DE COMIDA (siempre descomponer aunque el relleno sea un factor conocido):
+Los siguientes formatos SIEMPRE implican varios ingredientes aunque el relleno exista en la lista:
+  · "bocadillo de X" → category="cereales" description="pan" quantity=null + <factor del relleno X> description="X" quantity=null
+    Ejemplos: "bocadillo de fuet" → cereales(pan) + carne_procesada(fuet)
+              "bocadillo de jamón" → cereales(pan) + carne_procesada(jamón)
+              "bocadillo de queso" → cereales(pan) + queso(queso)
+  · "sandwich de X" → igual que bocadillo
+  · "wrap de X" → igual que bocadillo
+  · "pizza de X" → category="cereales" description="masa" quantity=null + <factor del relleno>
+  · "taco de X" → category="cereales" description="tortilla" quantity=null + <factor del relleno>
+
+Si el ítem NO está en la lista Y no es un contenedor, descompónlo en sus INGREDIENTES PRINCIPALES:
+  · "tortilla de patatas" → category="huevos" description="huevos" quantity=null + category="patata" description="patatas" quantity=null
+  · "café con leche" → category="cafe" description="café" quantity=null + category="lacteos_leche" description="leche" quantity=null
+  · "tostadas con mermelada" → category="cereales" description="pan/tostada" quantity=null + category="unknown" description="mermelada"
+  · "paella de marisco" → category="arroz" description="arroz" quantity=null + category="marisco" description="marisco" quantity=null
+  · "pasta boloñesa" → category="cereales" description="pasta" quantity=null + category="carne_vacuno" description="carne picada" quantity=null
+
+REGLAS para la descomposición:
+- La "description" de cada item debe ser el INGREDIENTE, nunca el plato completo.
+- La "quantity" de cada ingrediente debe ser SIEMPRE null salvo que el usuario especifique gramos/unidades explícitamente.
+  NUNCA pongas quantity=2 unit="unidades" para ingredientes — deja quantity=null y el sistema usará la porción estándar.
+- Incluye solo los 2-3 ingredientes con mayor impacto de CO₂ del plato.
+
+Si hay un multiplicador explícito para el plato (ej: "dos tortillas de patatas"):
+aplica quantity=<N> unit="unidades" a TODOS los ingredientes:
+  · "dos tortillas de patatas" → category="huevos" description="huevos" quantity=2 unit="unidades" + category="patata" description="patatas" quantity=2 unit="unidades"
 
 REGLA CRÍTICA — MENSAJES MIXTOS:
 Si el mensaje contiene actividades identificables Y actividades desconocidas,
@@ -290,11 +325,16 @@ CASO Sin CO₂ y sin ciudad:
                 f"\n\nCONTEXTO — ACTIVIDAD PENDIENTE DE INFORMACIÓN:\n"
                 f"En el turno anterior el usuario mencionó \"{description}\" (categoría: {category})"
                 f" pero faltaba información. Se le hizo esta pregunta: \"{question}\"{destination_hint}\n"
-                f"IMPORTANTE: El mensaje actual ES UNA RESPUESTA a esa pregunta pendiente.\n"
+                f"\nDECIDE PRIMERO si el mensaje actual es una respuesta a la pregunta pendiente o una NUEVA actividad:\n"
+                f"- Si el mensaje es solo una cantidad/número/lugar directamente relacionado con la pregunta → aplica el contexto pendiente.\n"
+                f"- Si el mensaje describe claramente una ACTIVIDAD NUEVA diferente (p.ej. comida, otro viaje, energía) → ignora el contexto pendiente y procesa la nueva actividad normalmente. En ese caso incluye 'clear_pending: true' en el JSON raíz.\n"
+                f"Ejemplos de RESPUESTA PENDIENTE: '15', '200 gramos', 'desde Atocha', '5 km', 'unos 10 km'\n"
+                f"Ejemplos de NUEVA ACTIVIDAD: 'me comí una tortilla', 'fui al gym', 'encendí la calefacción'\n"
+                f"\nSi ES respuesta pendiente:\n"
                 f"- {implied_unit_hint}\n"
                 f"- Si el usuario especifica la unidad explícitamente (ej: '200 gramos', '0.5 kg', '5 km') → úsala tal cual.\n"
                 f"- Si el usuario repite el nombre sin cantidad → devuelve quantity=null y la clarifying_question original.\n"
-                f"- NUNCA devuelvas type='none' cuando hay un contexto pendiente activo. Siempre devuelve una actividad de categoría \"{category}\"."
+                f"- Devuelve una actividad de categoría \"{category}\"."
                 f"{destination_instruction}"
             )
 
@@ -330,6 +370,11 @@ CASO Sin CO₂ y sin ciudad:
                     activities = list(activities) + [{"set_activity_date": result["activity_date"]}]
                 else:
                     log.info("activity_date NO detectada (campo ausente o null en respuesta LLM)")
+
+                # Si el LLM indica que la actividad pendiente debe limpiarse (nueva actividad distinta)
+                if result.get("clear_pending"):
+                    log.info("LLM señaló clear_pending=true: limpiando actividad pendiente")
+                    activities = list(activities) + [{"clear_pending": True}]
 
                 return activities
 
@@ -391,39 +436,51 @@ Si no hay ningún término relevante, devuelve: []"""
         Genera sugerencias de mejora estructuradas basadas en el consumo real del usuario.
 
         Devuelve lista de dicts:
-          [{category, action, tip, potential_saving_pct}]
+          [{category, action, tip, first_step, potential_saving_pct, saving_kg}]
         """
         cats_text = "\n".join(
             f"  - {c['category']}: {c['kg']:.3f} kg CO₂e ({c['pct']:.1f}% del total)"
             for c in by_category
         )
+        def fmt_qty(f: dict) -> str:
+            qty = f.get("qty", 0)
+            unit = f.get("unit", "")
+            if unit == "kg" and qty < 1:
+                return f"{round(qty * 1000)} g"
+            if unit == "litro" and qty < 1:
+                return f"{round(qty * 1000)} ml"
+            return f"{qty:.0f} {unit}"
+
         factors_text = "\n".join(
-            f"  - {f['name']}: {f['kg']:.3f} kg CO₂e"
+            f"  - {f['name']}: {fmt_qty(f)} consumidos → {f['kg']:.3f} kg CO₂e"
             for f in by_factor
         )
 
-        system = """Eres un experto en sostenibilidad ambiental.
-Analiza el consumo de CO₂ del usuario y genera sugerencias de mejora concretas y accionables.
+        system = """Eres un experto en sostenibilidad ambiental. Analiza el consumo REAL del usuario y genera sugerencias MUY ESPECÍFICAS con pasos concretos.
 
-REGLA CRÍTICA: Solo puedes sugerir reducir o sustituir productos/actividades que el usuario
-haya consumido realmente (los que aparecen en "Detalle de consumo"). No inventes consumos.
+REGLA CRÍTICA: Solo puedes mencionar productos que aparezcan en "Detalle de consumo". No inventes consumos.
+
+Cada sugerencia DEBE cumplir TODOS estos requisitos:
+1. "action": menciona el PRODUCTO EXACTO y la cantidad que ha consumido el usuario, luego propone un objetivo CONCRETO con cifra (ej: "Has consumido 800 g de ternera → reduce a 400 g")
+2. "tip": un dato de contexto útil y específico al producto (ej: "La ternera genera 27 kg CO₂/kg, 5× más que el pollo")
+3. "first_step": UN solo paso pequeño y realizable esta semana (ej: "Esta semana, sustituye una de tus raciones de ternera por pollo o legumbres")
+4. "potential_saving_pct": % de reducción REALISTA para esa categoría (5-60)
+5. "saving_kg": kg CO₂e que se ahorrarían aplicando la reducción propuesta (número decimal)
 
 RESPONDE ÚNICAMENTE con un array JSON válido. Sin texto adicional. Sin bloques markdown.
 
-Formato exacto:
 [
   {
-    "category": "<nombre de la categoría amplia>",
-    "action": "<acción concreta en 1 frase referida a lo que el usuario realmente consumió>",
-    "tip": "<consejo práctico adicional en 1-2 frases>",
-    "potential_saving_pct": <número entero 5-60>
+    "category": "<categoría>",
+    "action": "<producto exacto + cantidad actual + objetivo concreto con cifra>",
+    "tip": "<dato específico del impacto del producto, no consejo genérico>",
+    "first_step": "<una sola acción pequeña y concreta para esta semana>",
+    "potential_saving_pct": <5-60>,
+    "saving_kg": <número decimal>
   }
 ]
 
-Reglas:
-- Genera entre 2 y 4 sugerencias, priorizando los factores con mayor impacto.
-- Las acciones deben ser específicas: menciona el producto/actividad real consumido.
-- potential_saving_pct es el % de reducción realista para esa categoría.
+- Genera entre 2 y 4 sugerencias, priorizando los factores con MAYOR impacto absoluto en kg CO₂e.
 - Responde siempre en español."""
 
         user = f"""El usuario ha emitido {total_kg:.2f} kg CO₂e en los últimos {period_days} días.
@@ -433,10 +490,10 @@ Presupuesto sostenible para ese período: {budget_kg:.0f} kg.
 Resumen por categoría (de mayor a menor impacto):
 {cats_text}
 
-Detalle de consumo (productos y actividades reales del usuario):
+Detalle de consumo con cantidades reales del usuario:
 {factors_text}
 
-Genera sugerencias basadas ÚNICAMENTE en lo que el usuario realmente ha consumido."""
+Genera sugerencias basadas ÚNICAMENTE en los productos y cantidades listados arriba."""
 
         raw = self._chat(system, user, temperature=0.4)
         raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()

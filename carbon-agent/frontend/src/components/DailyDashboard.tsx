@@ -160,14 +160,14 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
   if (isError)   return <div className="panel-state panel-state--error">Error al cargar datos.</div>
 
   return (
-    <div className="dashboard">
+    <div className="dashboard" >
 
       {/* ── Fixed: rings section ────────────────────────────────────────── */}
-      <div className="dashboard__fixed">
+      <div className="dashboard__fixed" >
         <div className="dashboard__topbar">
-          <div className="dashboard__nav-group">
-            <button className="dashboard__nav-btn" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
-            <button className="dashboard__nav-btn" disabled={isFuture}
+          <div className="dashboard__nav-group" >
+            <button className="btn-square" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
+            <button className="btn-square" disabled={isFuture}
               onClick={() => setAnchor(d => stepDate(mode, d, 1))}>›</button>
           </div>
 
@@ -179,7 +179,7 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
             {(['day', 'week', 'month'] as ViewMode[]).map(m => (
               <button
                 key={m}
-                className={`dashboard__mode-btn${mode === m ? ' dashboard__mode-btn--active' : ''}`}
+                className={`btn-square${mode === m ? ' btn-square--active' : ''}`}
                 onClick={() => { setMode(m); setAnchor(new Date()) }}
               >
                 {VIEW_LABELS[m]}
@@ -188,7 +188,7 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
           </div>
         </div>
 
-        <div className="dashboard__rings-row">
+        <div className="dashboard__rings-row" >
           <div className="dashboard__ring-wrapper">
             <Ring value={total} max={budget} size={220} stroke={28} color="var(--accent)">
               <div className={`ring-center__value${total > budget ? ' ring-center__value--over' : ''}`}>

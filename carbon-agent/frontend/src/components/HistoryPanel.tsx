@@ -9,8 +9,8 @@ function formatQty(qty: number, unit: string): string {
   return `${qty} ${unit}`
 }
 import { format } from 'date-fns'
-import { Trash2, Pencil, ChevronUp, ChevronDown } from 'lucide-react'
-import { useHistory, useDeleteHistory, useDeleteActivity, useEditActivity } from '../hooks/useCarbon'
+import { Trash2, Pencil, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { useHistory, useDeleteActivity, useEditActivity } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
 import type { CSSProperties } from 'react'
 
@@ -41,19 +41,17 @@ function SortArrows({ col, active, dir }: { col: SortCol; active: SortCol; dir: 
   const isActive = col === active
   return (
     <span className="sort-arrows">
-      <ChevronUp   size={10} className={isActive && dir === 'asc'  ? 'sort-arrows--on' : undefined} />
-      <ChevronDown size={10} className={isActive && dir === 'desc' ? 'sort-arrows--on' : undefined} />
+      <ChevronUp   size={10} className={`icon${isActive && dir === 'asc'  ? ' sort-arrows--on' : ''}`} />
+      <ChevronDown size={10} className={`icon${isActive && dir === 'desc' ? ' sort-arrows--on' : ''}`} />
     </span>
   )
 }
 
 export function HistoryPanel() {
   const { data: activities, isLoading, isError } = useHistory()
-  const deleteHistory  = useDeleteHistory()
   const deleteActivity = useDeleteActivity()
   const editActivity   = useEditActivity()
 
-  const [confirmClear,      setConfirmClear]      = useState(false)
   const [editingId,         setEditingId]         = useState<number | null>(null)
   const [editingEmissionId, setEditingEmissionId] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
@@ -85,11 +83,7 @@ export function HistoryPanel() {
     else { setSortCol(col); setSortDir('asc') }
   }
 
-  const handleClearAll = () => {
-    if (!confirmClear) { setConfirmClear(true); return }
-    deleteHistory.mutate()
-    setConfirmClear(false)
-  }
+
 
   const rows = useMemo<FlatRow[]>(() => {
     if (!activities) return []
@@ -200,20 +194,11 @@ export function HistoryPanel() {
           </select>
           {(filterText || filterDate || filterCategory) && (
             <button onClick={() => { setFilterText(''); setFilterDate(''); setFilterCategory('') }}>
-              Limpiar
+              <X size={15} className="icon" /><span className="btn-label">Limpiar</span>
             </button>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span className="history-header__count">{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</span>
-          <button
-                        onClick={handleClearAll}
-            onBlur={() => setConfirmClear(false)}
-            disabled={deleteHistory.isPending}
-          >
-            {deleteHistory.isPending ? 'Borrando…' : confirmClear ? '¿Seguro? Pulsa de nuevo' : 'Borrar todo'}
-          </button>
-        </div>
+        <span className="history-header__count">{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
       <div className="admin-table-wrap" ref={tableWrapRef}>
@@ -270,8 +255,8 @@ export function HistoryPanel() {
                       </td>
                       <td>
                         <div className="history-item__right">
-                          <button onClick={() => startEdit(row.activity, row.emissionId ?? undefined)} title="Editar"><Pencil size={17} /></button>
-                          <button onClick={() => deleteActivity.mutate(row.activityId)} disabled={deleteActivity.isPending} title="Eliminar"><Trash2 size={17} /></button>
+                          <button onClick={() => startEdit(row.activity, row.emissionId ?? undefined)} title="Editar"><Pencil size={16} className="icon" /></button>
+                          <button onClick={() => deleteActivity.mutate(row.activityId)} disabled={deleteActivity.isPending} title="Eliminar"><Trash2 size={16} className="icon" /></button>
                         </div>
                       </td>
                     </>

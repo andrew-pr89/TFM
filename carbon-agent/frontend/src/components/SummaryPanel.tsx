@@ -254,7 +254,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
       </div>
 
       {/* ── Charts row: bar + donut ─────────────────────────────────────────── */}
-      <div className="summary-card summary-charts-row">
+      <div className="summary-charts-row">
 
         {/* Bar chart */}
         <div className="chart-wrap">
@@ -343,7 +343,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
 
       {/* ── Stacked bar chart ───────────────────────────────────────────────── */}
       {stackedData.length > 0 && (
-        <div className="summary-card chart-wrap">
+        <div className="chart-wrap">
           <h4>CO₂e por categoría y mes</h4>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={stackedData} margin={{ top: 4, right: 8, left: -16, bottom: 36 }}>

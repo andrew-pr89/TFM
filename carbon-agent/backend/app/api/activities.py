@@ -22,7 +22,7 @@ from app.core.auth import get_admin_user, get_current_user
 from app.db.database import get_db
 from app.db.seed_data import EMISSION_FACTORS
 from app.models.models import Activity, EmissionFactor
-from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, EmissionFactorCreate, EmissionFactorOut, EmissionFactorPatch, ImprovementSuggestion, ImprovementsOut, PortionEntry, SummaryOut, UnknownItemOut, UserProfile
+from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, EmissionFactorCreate, EmissionFactorOut, EmissionFactorPatch, ImprovementSuggestion, ImprovementsOut, PortionEntry, RecurringActivity, RecurringApplyResult, SummaryOut, UnknownItemOut, UserProfile
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["activities"])
@@ -281,6 +281,7 @@ def get_portions(user_id: str = Depends(get_current_user), db: Session = Depends
             continue
         entries.append(PortionEntry(
             category=category,
+            main_category=factor.get("main_category", "Alimentación"),
             display_name=factor["display_name"],
             unit=factor["unit"],
             default_quantity=default_qty,
@@ -296,6 +297,85 @@ def update_portions(payload: dict[str, float], user_id: str = Depends(get_curren
     memory.set_portions(user_id=user_id, portions=payload, db=db)
     db.commit()
     return get_portions(user_id=user_id, db=db)
+
+
+RECURRING_CATALOG = [
+    {"category": "electricidad_es", "label": "Electricidad hogar", "hint": "Media española: ~8 kWh/día por hogar (~3 kWh/persona)"},
+    {"category": "gas_natural",     "label": "Gas natural",        "hint": "Media española: ~5 kWh/día per cápita (varía mucho en invierno)"},
+    {"category": "television",      "label": "Televisión",         "hint": "Media española: ~4 h/día por persona"},
+    {"category": "movil",           "label": "Móvil",              "hint": "Media global: ~4 h/día de uso de pantalla"},
+]
+
+@router.get("/recurring", response_model=list[RecurringActivity])
+def get_recurring(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    memory = MemoryService()
+    factor_map = {f["category"]: f for f in EMISSION_FACTORS}
+    saved = memory.get_recurring(user_id=user_id, db=db)
+    result = []
+    for item in RECURRING_CATALOG:
+        cat = item["category"]
+        factor = factor_map.get(cat)
+        if not factor:
+            continue
+        cfg = saved.get(cat, {})
+        result.append(RecurringActivity(
+            category=cat,
+            display_name=factor["display_name"],
+            unit=factor["unit"],
+            quantity=cfg.get("quantity", factor.get("default_quantity") or 1.0),
+            enabled=cfg.get("enabled", True),
+            hint=item.get("hint"),
+            factor_kg_co2e=factor.get("factor_kg_co2e", 0.0),
+        ))
+    return result
+
+
+@router.patch("/recurring", response_model=list[RecurringActivity])
+def update_recurring(payload: list[RecurringActivity], user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    memory = MemoryService()
+    updates = {r.category: {"quantity": r.quantity, "enabled": r.enabled} for r in payload}
+    memory.set_recurring(user_id=user_id, updates=updates, db=db)
+    db.commit()
+    return get_recurring(user_id=user_id, db=db)
+
+
+@router.post("/recurring/apply", response_model=RecurringApplyResult)
+def apply_recurring(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.models.models import Emission
+    memory = MemoryService()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    last = memory.get_recurring_last_applied(user_id=user_id, db=db)
+    if last == today:
+        return RecurringApplyResult(applied=0)
+    items = get_recurring(user_id=user_id, db=db)
+    enabled = [i for i in items if i.enabled]
+    if not enabled:
+        memory.set_recurring_last_applied(user_id=user_id, date_str=today, db=db)
+        db.commit()
+        return RecurringApplyResult(applied=0)
+    count = 0
+    for item in enabled:
+        factor_obj = db.query(EmissionFactor).filter_by(category=item.category).first()
+        if not factor_obj:
+            continue
+        amount = round(item.quantity * factor_obj.factor_kg_co2e, 6)
+        activity = Activity(
+            user_id=user_id,
+            raw_text=f"{item.display_name} (rutina diaria)",
+        )
+        db.add(activity)
+        db.flush()
+        emission = Emission(
+            activity_id=activity.id,
+            factor_id=factor_obj.id,
+            quantity=item.quantity,
+            amount_kg_co2e=amount,
+        )
+        db.add(emission)
+        count += 1
+    memory.set_recurring_last_applied(user_id=user_id, date_str=today, db=db)
+    db.commit()
+    return RecurringApplyResult(applied=count)
 
 
 @router.get("/improvements", response_model=ImprovementsOut)
@@ -318,11 +398,14 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
     budget_kg = round(period_days * (annual_goal_kg / 365), 2)
 
     by_category: dict[str, float] = defaultdict(float)
-    by_factor: dict[str, float] = defaultdict(float)
+    by_factor: dict[str, dict] = defaultdict(lambda: {"kg": 0.0, "qty": 0.0, "unit": ""})
     for activity in activities:
         for emission in activity.emissions:
             by_category[emission.factor.main_category] += emission.amount_kg_co2e
-            by_factor[emission.factor.display_name] += emission.amount_kg_co2e
+            name = emission.factor.display_name
+            by_factor[name]["kg"]  += emission.amount_kg_co2e
+            by_factor[name]["qty"] += emission.quantity
+            by_factor[name]["unit"] = emission.factor.unit
 
     sorted_cats = sorted(by_category.items(), key=lambda x: x[1], reverse=True)
     cats_payload = [
@@ -330,10 +413,15 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
         for cat, kg in sorted_cats
     ]
 
-    sorted_factors = sorted(by_factor.items(), key=lambda x: x[1], reverse=True)
+    sorted_factors = sorted(by_factor.items(), key=lambda x: x[1]["kg"], reverse=True)
     factors_payload = [
-        {"name": name, "kg": round(kg, 3)}
-        for name, kg in sorted_factors
+        {
+            "name": name,
+            "kg": round(data["kg"], 3),
+            "qty": round(data["qty"], 2),
+            "unit": data["unit"],
+        }
+        for name, data in sorted_factors
     ]
 
     llm = LLMService()
@@ -349,13 +437,18 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
     for s in raw_suggestions:
         cat_name = s.get("category", "")
         cat_kg = by_category.get(cat_name, 0.0)
+        pct = round(cat_kg / total_kg * 100, 1) if total_kg > 0 else 0.0
+        saving_pct = int(s.get("potential_saving_pct", 10))
+        saving_kg = round(s.get("saving_kg") or cat_kg * saving_pct / 100, 3)
         suggestions.append(ImprovementSuggestion(
             category=cat_name,
             current_kg=round(cat_kg, 3),
-            pct_of_total=round(cat_kg / total_kg * 100, 1) if total_kg > 0 else 0.0,
+            pct_of_total=pct,
             action=s.get("action", ""),
             tip=s.get("tip", ""),
-            potential_saving_pct=int(s.get("potential_saving_pct", 10)),
+            first_step=s.get("first_step", ""),
+            potential_saving_pct=saving_pct,
+            saving_kg=saving_kg,
         ))
 
     return ImprovementsOut(

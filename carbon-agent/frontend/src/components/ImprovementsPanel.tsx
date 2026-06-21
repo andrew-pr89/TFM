@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { RefreshCw, Utensils, Car, Zap, Recycle, ShoppingBag, Music, Leaf, type LucideIcon } from 'lucide-react'
+import { RefreshCw, Utensils, Car, Zap, Recycle, ShoppingBag, Music, Leaf, ArrowRight, type LucideIcon } from 'lucide-react'
 import { useImprovements } from '../hooks/useCarbon'
 import type { ImprovementSuggestion } from '../types'
 
@@ -27,7 +27,7 @@ function CategoryIconBadge({ category }: { category: string }) {
       className="cat-icon-badge"
       style={{ '--cat-icon-color': color } as CSSProperties}
     >
-      <Icon size={15} strokeWidth={1.5} />
+      <Icon className="icon" />
     </span>
   )
 }
@@ -35,41 +35,43 @@ function CategoryIconBadge({ category }: { category: string }) {
 const IMPACT_COLOR = (pct: number) =>
   pct >= 40 ? 'var(--c-high)' : pct >= 20 ? 'var(--c-mid)' : 'var(--c-neutral)'
 
-function CategoryGroup({ suggestions }: { suggestions: ImprovementSuggestion[] }) {
-  const first = suggestions[0]
-  const color = IMPACT_COLOR(first.pct_of_total)
+function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
+  const color = IMPACT_COLOR(s.pct_of_total)
 
   return (
     <div className="suggestion-card" style={{ '--impact-color': color } as CSSProperties}>
       <div className="suggestion-card__header">
         <div>
-          <CategoryIconBadge category={first.category} />
+          <CategoryIconBadge category={s.category} />
           <div>
-            <span>{first.category}</span>
-            <span>{first.current_kg.toFixed(2)} kg · {first.pct_of_total.toFixed(0)}% del total</span>
+            <span>{s.category}</span>
+            <span>{s.current_kg.toFixed(2)} kg · {s.pct_of_total.toFixed(0)}% del total</span>
           </div>
+        </div>
+        <div className="suggestion-card__saving">
+          <span className="suggestion-card__saving-val">−{s.saving_kg.toFixed(1)} kg</span>
+          <span className="suggestion-card__saving-label">potencial</span>
         </div>
       </div>
 
       <div className="suggestion-card__bar">
         <div
           className="suggestion-card__bar-fill"
-          style={{ width: `${Math.min(first.pct_of_total, 100)}%` }}
+          style={{ width: `${Math.min(s.pct_of_total, 100)}%` }}
         />
       </div>
 
-      {suggestions.map((s, i) => {
-        const saving = Math.round(s.current_kg * s.potential_saving_pct / 100)
-        return (
-          <div key={i} className="suggestion-card__item">
-            <div>
-              <p>{s.action}</p>
-              <span className="suggestion-card__badge">−{s.potential_saving_pct}% · ahorra ~{saving} kg</span>
-            </div>
-            <p>{s.tip}</p>
-          </div>
-        )
-      })}
+      <div className="suggestion-card__item">
+        <p className="suggestion-card__action">{s.action}</p>
+        <p className="suggestion-card__tip">{s.tip}</p>
+      </div>
+
+      {s.first_step && (
+        <div className="suggestion-card__first-step">
+          <ArrowRight size={13} className="icon" />
+          <span><strong></strong> {s.first_step}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -98,12 +100,6 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
   const overBudget = data.total_kg > data.budget_kg
   const gap = Math.abs(data.total_kg - data.budget_kg).toFixed(1)
 
-  const grouped = data.suggestions.reduce((map, s) => {
-    if (!map.has(s.category)) map.set(s.category, [])
-    map.get(s.category)!.push(s)
-    return map
-  }, new Map<string, ImprovementSuggestion[]>())
-
   return (
     <div className="summary-panel">
       <div className={`suggestions-context ${overBudget ? 'suggestions-context--over' : 'suggestions-context--ok'}`}>
@@ -113,13 +109,13 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
         }
       </div>
 
-      {Array.from(grouped.entries()).map(([category, suggestions]) => (
-        <CategoryGroup key={category} suggestions={suggestions} />
+      {data.suggestions.map((s, i) => (
+        <SuggestionCard key={i} s={s} />
       ))}
 
       <button onClick={() => refetch()}>
-        <RefreshCw size={15} strokeWidth={1.5} />
-        Regenerar sugerencias
+        <RefreshCw className="icon" />
+        <label className="ml-2">Regenerar sugerencias</label>
       </button>
     </div>
   )

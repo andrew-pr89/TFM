@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile, PortionEntry, UnknownItemOut, EmissionFactorOut, EmissionFactorCreate, EmissionFactorPatch } from '../types'
+import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile, PortionEntry, RecurringActivity, UnknownItemOut, EmissionFactorOut, EmissionFactorCreate, EmissionFactorPatch } from '../types'
 
 const rawApiUrl = import.meta.env.VITE_API_URL
 const normalizedApiUrl = rawApiUrl
@@ -89,6 +89,21 @@ export const carbonApi = {
 
   updatePortions: async (portions: Record<string, number>): Promise<PortionEntry[]> => {
     const { data } = await api.patch<PortionEntry[]>('/portions', portions)
+    return data
+  },
+
+  getRecurring: async (): Promise<RecurringActivity[]> => {
+    const { data } = await api.get<RecurringActivity[]>('/recurring')
+    return data
+  },
+
+  updateRecurring: async (items: RecurringActivity[]): Promise<RecurringActivity[]> => {
+    const { data } = await api.patch<RecurringActivity[]>('/recurring', items)
+    return data
+  },
+
+  applyRecurring: async (): Promise<{ applied: number }> => {
+    const { data } = await api.post<{ applied: number }>('/recurring/apply')
     return data
   },
 

@@ -31,14 +31,14 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="error-boundary">
-          <span>⚠️</span>
+          
           <h2>Algo ha ido mal</h2>
           <p>
             La aplicación ha encontrado un error inesperado.
             Recarga la página para intentarlo de nuevo.
           </p>
           <pre className="error-boundary__message">{this.state.message}</pre>
-          <button className="error-boundary__btn" onClick={() => window.location.reload()}>
+          <button className="btn-light" onClick={() => window.location.reload()}>
             Recargar
           </button>
         </div>

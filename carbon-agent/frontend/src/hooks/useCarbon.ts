@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
 import { carbonApi } from '../services/api'
-import type { UserProfile, ActivityOut } from '../types'
+import type { UserProfile, ActivityOut, RecurringActivity } from '../types'
 
 export const QUERY_KEYS = {
   history:      (userId: string) => ['history', userId],
@@ -9,6 +9,7 @@ export const QUERY_KEYS = {
   improvements: (userId: string) => ['improvements', userId],
   profile:      (userId: string) => ['profile', userId],
   portions:     (userId: string) => ['portions', userId],
+  recurring:    (userId: string) => ['recurring', userId],
 }
 
 function useUserId() {
@@ -137,6 +138,41 @@ export function useUpdatePortions() {
     mutationFn: (portions: Record<string, number>) => carbonApi.updatePortions(portions),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.portions(userId) })
+    },
+  })
+}
+
+export function useRecurring() {
+  const userId = useUserId()
+  return useQuery({
+    queryKey: QUERY_KEYS.recurring(userId),
+    queryFn: () => carbonApi.getRecurring(),
+    staleTime: 60_000,
+    enabled: userId !== 'unknown',
+  })
+}
+
+export function useUpdateRecurring() {
+  const userId = useUserId()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (items: RecurringActivity[]) => carbonApi.updateRecurring(items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recurring(userId) })
+    },
+  })
+}
+
+export function useApplyRecurring() {
+  const userId = useUserId()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => carbonApi.applyRecurring(),
+    onSuccess: (data) => {
+      if (data.applied > 0) {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.history(userId) })
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.summary(userId) })
+      }
     },
   })
 }

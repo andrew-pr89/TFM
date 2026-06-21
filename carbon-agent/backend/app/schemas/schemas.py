@@ -101,7 +101,9 @@ class ImprovementSuggestion(BaseModel):
     pct_of_total: float
     action: str
     tip: str
+    first_step: str
     potential_saving_pct: int
+    saving_kg: float
 
 
 class ImprovementsOut(BaseModel):
@@ -129,10 +131,26 @@ class UnknownItemOut(BaseModel):
 
 class PortionEntry(BaseModel):
     category: str
+    main_category: str
     display_name: str
     unit: str
-    default_quantity: float        # system default
-    user_quantity: float | None    # user override (None = using system default)
+    default_quantity: float
+    user_quantity: float | None
+
+
+# ── Recurring daily activities ────────────────────────────────────────────────
+
+class RecurringActivity(BaseModel):
+    category: str
+    display_name: str
+    unit: str
+    quantity: float
+    enabled: bool
+    hint: str | None = None
+    factor_kg_co2e: float = 0.0
+
+class RecurringApplyResult(BaseModel):
+    applied: int  # number of activities logged today
 
 
 # ── EmissionFactor create / patch ────────────────────────────────────────────

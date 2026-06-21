@@ -75,6 +75,7 @@ DEFAULT_PORTIONS: dict[str, float] = {
     "gas_natural":     5.0,    # 5 kWh
     "aire_acondicionado": 2.0, # 2 horas
     "television":      2.0,    # 2 horas
+    "movil":           3.0,    # 3 horas — uso medio diario de smartphone
 }
 
 
@@ -106,7 +107,13 @@ class Extractor:
             return None
         candidates = [
             f for f in factors_by_category.values()
-            if norm_term in _norm(f.display_name) or _norm(f.display_name) in norm_term
+            if norm_term in _norm(f.display_name)
+            or (
+                _norm(f.display_name) in norm_term
+                # Factor display_name must cover ≥60% of the term length to avoid
+                # "patatas" (7) matching "tortilla de patatas" (19)
+                and len(_norm(f.display_name)) >= len(norm_term) * 0.6
+            )
         ]
         if len(candidates) == 1:
             return candidates[0]
@@ -192,6 +199,8 @@ class Extractor:
             factors_info=factors_info,
             pending_activity=pending_activity,
             today=today,
+            home_city=home_city,
+            work_place=work_place,
         )
 
         log.info("LLM devolvió %d actividades para: '%s'", len(raw_activities), raw_text[:60])
@@ -201,8 +210,16 @@ class Extractor:
                 for a in raw_activities if isinstance(a, dict)
             ])
 
-        if not raw_activities:
+        # Actividades reales = items con campo "category" (descartamos marcadores puros)
+        real_raw_activities = [
+            a for a in raw_activities
+            if isinstance(a, dict) and a.get("category")
+        ]
+
+        if not real_raw_activities:
             log.info("El LLM no identificó actividades con impacto CO₂ en: '%s'", raw_text[:80])
+            # Pass through any special markers (clear_pending, etc.) that came back
+            marker_items = [a for a in raw_activities if isinstance(a, dict) and not a.get("category")]
             # Fallback: check if message contains unknown food/activity terms worth flagging
             unknown_candidates = self.llm.identify_unknown_items(raw_text)
             if unknown_candidates:
@@ -241,7 +258,7 @@ class Extractor:
                     first = fuzzy_pending[0]
                     pending_data = first["set_pending_activity"]
                     pending_data["question"] = first["clarifying_question"]
-                    result_list: list = [{"set_pending_activity": pending_data}, {"clarifying_question": first["clarifying_question"]}]
+                    result_list: list = marker_items + [{"set_pending_activity": pending_data}, {"clarifying_question": first["clarifying_question"]}]
                     if unknown_names:
                         result_list.append({"unknown_items": unknown_names})
                     return result_list  # type: ignore[return-value]
@@ -249,8 +266,8 @@ class Extractor:
                 items_as_unknown = truly_unknown
                 names = self._save_unknown_items(items_as_unknown, raw_text, user_id, db)
                 if names:
-                    return [{"unknown_items": names}]  # type: ignore[list-item]
-            return []
+                    return marker_items + [{"unknown_items": names}]  # type: ignore[list-item]
+            return marker_items  # type: ignore[return-value]
 
         # 3 & 4. Validación y resolución — procesar TODAS las actividades
         result: list[ExtractedActivity] = []
@@ -290,7 +307,7 @@ class Extractor:
 
         for item in raw_activities:
             # Pasar marcadores especiales sin procesarlos como actividades
-            if "set_home_city" in item or "set_activity_date" in item or ("clarifying_question" in item and not item.get("category")):
+            if "set_home_city" in item or "set_activity_date" in item or "clear_pending" in item or ("clarifying_question" in item and not item.get("category")):
                 result.append(item)  # type: ignore[arg-type]
                 continue
 
@@ -556,11 +573,15 @@ class Extractor:
             if unknown_names:
                 result.append({"unknown_items": unknown_names})  # type: ignore[arg-type]
 
-        # Construir resultado final: actividades reales + home markers + primer pending activity + pregunta
+        # Construir resultado final: actividades reales + home markers + clear_pending + primer pending activity + pregunta
+        clear_pending_markers = [r for r in result if isinstance(r, dict) and r.get("clear_pending")]
         final: list = list(real_activities)
 
         if set_home_markers:
             final.extend(set_home_markers)
+
+        if clear_pending_markers:
+            final.extend(clear_pending_markers)
 
         # Solo el primer pending_activity (el resto se preguntan en turnos sucesivos)
         if pending_activity_markers:
