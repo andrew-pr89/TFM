@@ -105,6 +105,7 @@ button {
   white-space: nowrap;
   box-sizing: border-box;
   margin-right: 8px;
+  margin-bottom: 8px;
 }
 
 
@@ -160,6 +161,7 @@ button {
 }
 
 /* ── Headers and texts ────────────────────────────────────────────────────── */
+
 
 h3{
 font-weight: 500;
@@ -458,7 +460,8 @@ input[type="checkbox"] {
 .admin-search:focus { outline: none; border-color: var(--accent); }
 
 .admin-content { display: flex; gap: 16px; flex: 1; overflow: hidden; min-height: 0; }
-.admin-table-wrap { flex: 1; overflow: auto; max-height: 500px; }
+.admin-table-wrap { flex: 1; overflow: auto; }
+.admin-panel .admin-table-wrap { max-height: 500px; }
 .admin-table-wrap--narrow { flex: 0 0 55%; }
 
 .admin-table { width: 100%; border-collapse: collapse; }
@@ -617,6 +620,7 @@ input[type="checkbox"] {
   flex-shrink: 0;
   padding: 50px 5% 0;
 }
+
 .topbar__title {
   font-size: 2.4em;
   font-weight: 800;
@@ -975,6 +979,8 @@ input[type="checkbox"] {
     white-space: normal;
     transition: color 0.15s;
   }
+  .bottom-nav__item span:last-child { display: none; }
+  .bottom-nav__item .icon-nav { width: 24px; height: 24px; }
   .bottom-nav__item--active { color: var(--accent); }
 
   /* ── More overlay + sheet ── */
@@ -1017,12 +1023,37 @@ input[type="checkbox"] {
 
   .app { padding-bottom: var(--bottomnav-h); }
 
-  .topbar { padding: 100px 5% 0; }
+  .topbar { padding: 16px 5% 0; }
   .theme-toggle-fixed { top: 12px; right: 16px; }
   .contrast-toggle__label { display: none; }
   .example-chips { display: none; }
+  .chat-examples { display: none; }
+  .btn-label { display: none; }
+  button:has(.btn-label) { padding: 0 14px; min-width: 40px; }
+  .history-panel { height: auto; padding-right: 0; }
+  .history-header { flex-direction: column; align-items: stretch; }
+  .history-filters { flex-wrap: wrap; }
+  .dashboard__topbar { flex-direction: column-reverse; align-items: center; gap: 4px; margin-bottom: 12px; }
+  .dashboard__mode-group { display: flex; justify-content: center; }
+  .dashboard__nav-group { justify-content: center; }
+  .dashboard__period-label { text-align: center; }
+  .topbar__title { text-align: center; }
+  .main { overflow-y: auto; }
+  .main[data-tab="chat"] { overflow: hidden; }
+  .main[data-tab="chat"] .content { flex: 1; overflow: hidden; height: 100%; }
+  .content { overflow: visible; flex: none; height: auto; }
+  .dashboard-layout { flex: none; height: auto; padding: 16px 5% 80px; }
+  .dashboard { flex: none; display: block; height: auto; }
+  .dashboard__fixed { text-align: center; }
+  .dashboard__scroll { overflow: visible; flex: none; }
+  .dashboard__rings-row { flex-direction: column; width: 100%; gap: 16px; align-items: center; }
+  .dashboard__categories { grid-template-columns: repeat(3, 96px); justify-content: center; width: 100%; gap: 16px 12px; margin: 0 auto; }
   .theme-toggle-fixed { display: none; }
+  .input-row button { width: 44px; height: 44px; min-width: 44px; padding: 0; flex-shrink: 0; }
+  .chat-textarea { flex: 1; min-width: 0; font-size: 1rem; }
   .settings__theme-row { display: flex; }
+  .settings__tab { padding: 8px; gap: 0; justify-content: center; }
+  .settings__tab span { display: none; }
   .chat-messages { padding: 16px; }
   .chat-input-area { padding: 12px 16px 16px; }
   .panel-layout { padding: 16px 5%; }
@@ -1062,6 +1093,13 @@ input[type="checkbox"] {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 14px;
+  position: sticky;
+  top: -50px;
+  z-index: 10;
+  background: var(--bg);
+  margin-top: -50px;
+  padding-top: 58px;
+  padding-bottom: 12px;
 }
 .history-filters {
   display: flex;
@@ -1133,10 +1171,8 @@ input[type="checkbox"] {
   align-items: center;
   justify-content: center;
   transition: background 0.15s, color 0.15s;
-  opacity: 0;
 }
 .admin-table__row:hover .history-item__right button { opacity: 1; }
-.history-item__right button:disabled { opacity: 0.3; cursor: default; }
 .history-item__right button:first-child:hover { background: color-mix(in srgb, var(--cat-transporte) 15%, transparent); color: var(--cat-transporte); }
 .history-item__right button:last-child:hover  { background: color-mix(in srgb, var(--c-danger-text) 15%, transparent); color: var(--c-danger-text); }
 
@@ -1638,6 +1674,35 @@ label.settings__field > span:last-child  { color: var(--text-dim); }
 .settings__field-input:focus { border-color: var(--c-low); }
 .settings__profile-actions { display: flex; align-items: center; gap: 12px; }
 .settings__save-ok { color: var(--c-low); margin-right: 6px; }
+/* ── Settings inline tab bar ──────────────────────────────────────────────── */
+.settings__tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.settings__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.settings__tab:hover { color: var(--text); background: var(--bg); }
+.settings__tab--active { background: var(--bg); color: var(--accent); box-shadow: 0 1px 3px var(--shadow); }
 .settings__theme-row {
   display: none; /* shown only on mobile via media query */
   align-items: center;

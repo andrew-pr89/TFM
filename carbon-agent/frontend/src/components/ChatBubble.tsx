@@ -45,7 +45,7 @@ export function ChatBubble({ message }: Props) {
   if (role === 'error') {
     return (
       <div className="bubble bubble--error">
-        <span className="bubble__icon">⚠</span>
+        <AlertCircle size={16} className="icon" />
         <p>{text}</p>
       </div>
     )

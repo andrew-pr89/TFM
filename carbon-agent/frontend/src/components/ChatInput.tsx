@@ -45,7 +45,7 @@ const handleSubmit = () => {
 
   return (
     <div className="chat-input-wrapper">
-      <div>
+      <div className="chat-examples">
         {examples.map((ex) => (
           <button
             key={ex}

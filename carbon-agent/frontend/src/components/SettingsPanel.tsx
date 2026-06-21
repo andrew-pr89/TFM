@@ -1,7 +1,7 @@
 import { useState, useEffect, type CSSProperties, type ReactNode } from 'react'
 import { Target, User, UtensilsCrossed, Thermometer, Sun, Moon } from 'lucide-react'
 import { useSettings } from '../hooks/useSettings'
-import { useProfile, useUpdateProfile, usePortions, useUpdatePortions, useRecurring, useUpdateRecurring } from '../hooks/useCarbon'
+import { useProfile, useUpdateProfile, usePortions, useUpdatePortions, useRecurring, useUpdateRecurring, useDeleteHistory } from '../hooks/useCarbon'
 import type { RecurringActivity } from '../types'
 
 // ── Sub-panel: Objetivo CO₂ ───────────────────────────────────────────────────
@@ -486,6 +486,37 @@ function RecurringPanel() {
   )
 }
 
+// ── Sub-panel: Historial ─────────────────────────────────────────────────────
+
+function HistorySection() {
+  const { mutate: deleteAll, isPending } = useDeleteHistory()
+  const [confirm, setConfirm] = useState(false)
+
+  const handleDelete = () => {
+    if (!confirm) { setConfirm(true); return }
+    deleteAll(undefined, { onSuccess: () => setConfirm(false) })
+  }
+
+  return (
+    <div className="settings__profile">
+      <div className="card mt-3">
+        <h2>Historial de actividades</h2>
+        <p>Elimina permanentemente todas las actividades y emisiones registradas. Esta acción no se puede deshacer.</p>
+      </div>
+      <div className="text-end">
+        <button
+          onClick={handleDelete}
+          onBlur={() => setConfirm(false)}
+          disabled={isPending}
+          style={{ background: confirm ? 'var(--c-danger)' : undefined, color: confirm ? '#fff' : undefined }}
+        >
+          {isPending ? 'Borrando…' : confirm ? '¿Seguro? Pulsa de nuevo' : 'Borrar historial'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Panel principal ───────────────────────────────────────────────────────────
 
 export type SettingsSubTab = 'goal' | 'profile' | 'portions'
@@ -512,6 +543,7 @@ export function SettingsPanel({ tab, lightTheme, onToggleTheme }: SettingsPanelP
         <>
           <ProfilePanel />
           <RecurringPanel />
+          <HistorySection />
           <div className="settings__theme-row">
             <span>Tema</span>
             <button className="contrast-toggle" onClick={onToggleTheme}>

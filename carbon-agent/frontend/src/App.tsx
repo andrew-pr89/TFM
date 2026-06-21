@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import {
-  MessageCircle, ClipboardList, Target, BarChart2,
+  MessageCircle, ClipboardList, CalendarDays, BarChart2,
   Leaf, SlidersHorizontal, ShieldCheck, Sun, Moon, MoreHorizontal,
 } from 'lucide-react'
 import { ChatBubble } from './components/ChatBubble'
@@ -26,7 +26,7 @@ const NAV_ICON_PROPS = { size: 18, className: 'icon icon-nav' }
 const BASE_NAV: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: 'chat',         label: 'Chat',         icon: <MessageCircle  {...NAV_ICON_PROPS} /> },
   { id: 'history',      label: 'Historial',    icon: <ClipboardList  {...NAV_ICON_PROPS} /> },
-  { id: 'dashboard',    label: 'Hoy',          icon: <Target         {...NAV_ICON_PROPS} /> },
+  { id: 'dashboard',    label: 'Hoy',          icon: <CalendarDays   {...NAV_ICON_PROPS} /> },
   { id: 'summary',      label: 'Estadísticas', icon: <BarChart2      {...NAV_ICON_PROPS} /> },
   { id: 'improvements', label: 'Mejoras',      icon: <Leaf           {...NAV_ICON_PROPS} /> },
   { id: 'settings',     label: 'Ajustes',      icon: <SlidersHorizontal {...NAV_ICON_PROPS} /> },
@@ -206,8 +206,22 @@ export default function App() {
       </div>
 
       {/* ── Main content ── */}
-      <main className="main">
+      <main className="main" data-tab={tab}>
         <header className="topbar">
+          {tab === 'settings' && (
+            <div className="settings__tabs">
+              {SETTINGS_SUBTABS.map(s => (
+                <button
+                  key={s.id}
+                  className={`settings__tab ${settingsTab === s.id ? 'settings__tab--active' : ''}`}
+                  onClick={() => setSettingsTab(s.id)}
+                >
+                  {s.icon}
+                  <span>{s.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <h1 className="topbar__title">
             {tab === 'settings'
               ? SETTINGS_SUBTABS.find(s => s.id === settingsTab)?.label
