@@ -166,8 +166,8 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
       <div className="dashboard__fixed">
         <div className="dashboard__topbar">
           <div className="dashboard__nav-group">
-            <button className="dashboard__nav-btn" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
-            <button className="dashboard__nav-btn" disabled={isFuture}
+            <button className="btn-square" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
+            <button className="btn-square" disabled={isFuture}
               onClick={() => setAnchor(d => stepDate(mode, d, 1))}>›</button>
           </div>
 
@@ -179,7 +179,7 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
             {(['day', 'week', 'month'] as ViewMode[]).map(m => (
               <button
                 key={m}
-                className={`dashboard__mode-btn${mode === m ? ' dashboard__mode-btn--active' : ''}`}
+                className={`btn-square${mode === m ? ' btn-square--active' : ''}`}
                 onClick={() => { setMode(m); setAnchor(new Date()) }}
               >
                 {VIEW_LABELS[m]}

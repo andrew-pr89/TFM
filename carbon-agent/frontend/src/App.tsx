@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import {
   MessageCircle, ClipboardList, Target, BarChart2,
-  Leaf, SlidersHorizontal, ShieldCheck, Sun, Moon,
+  Leaf, SlidersHorizontal, ShieldCheck, Sun, Moon, MoreHorizontal,
 } from 'lucide-react'
 import { ChatBubble } from './components/ChatBubble'
 import { ChatInput } from './components/ChatInput'
@@ -14,14 +14,14 @@ import { SettingsPanel, SETTINGS_SUBTABS, type SettingsSubTab } from './componen
 import { LoginPage } from './components/LoginPage'
 import { AdminPanel } from './components/AdminPanel'
 import { useSettings } from './hooks/useSettings'
-import { usePostActivity } from './hooks/useCarbon'
+import { usePostActivity, useApplyRecurring } from './hooks/useCarbon'
 import { useIsAdmin } from './hooks/useIsAdmin'
 import { setupAuthInterceptor } from './services/api'
 import type { ChatMessage } from './types'
 
 type Tab = 'chat' | 'history' | 'dashboard' | 'summary' | 'improvements' | 'settings' | 'admin'
 
-const NAV_ICON_PROPS = { size: 18, strokeWidth: 1.5 }
+const NAV_ICON_PROPS = { size: 18, className: 'icon icon-nav' }
 
 const BASE_NAV: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: 'chat',         label: 'Chat',         icon: <MessageCircle  {...NAV_ICON_PROPS} /> },
@@ -31,6 +31,11 @@ const BASE_NAV: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: 'improvements', label: 'Mejoras',      icon: <Leaf           {...NAV_ICON_PROPS} /> },
   { id: 'settings',     label: 'Ajustes',      icon: <SlidersHorizontal {...NAV_ICON_PROPS} /> },
 ]
+
+// Items shown in the mobile bottom nav (primary)
+const PRIMARY_NAV_IDS: Tab[] = ['chat', 'history', 'dashboard', 'summary', 'improvements']
+// Items hidden behind the "more" button on mobile
+const MORE_NAV_IDS: Tab[] = ['settings', 'admin']
 
 const ADMIN_NAV = { id: 'admin' as Tab, label: 'Admin', icon: <ShieldCheck {...NAV_ICON_PROPS} /> as ReactNode }
 
@@ -44,6 +49,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('chat')
   const [settingsTab, setSettingsTab] = useState<SettingsSubTab>('goal')
   const [lightTheme, setLightTheme] = useState(true)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', lightTheme ? 'light' : 'dark')
@@ -60,6 +66,12 @@ export default function App() {
   const [pendingContext, setPendingContext] = useState<{ originalText: string; question: string } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const mutation = usePostActivity()
+  const applyRecurring = useApplyRecurring()
+
+  useEffect(() => {
+    if (isAuthenticated) applyRecurring.mutate()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated])
 
   // Configura el interceptor de axios con el token de Auth0
   useEffect(() => {
@@ -165,7 +177,7 @@ export default function App() {
             {user?.picture && (
               <img className="user-info__avatar" src={user.picture} alt={user.name} />
             )}
-            <div className="user-info__text">
+            <div className="user-info__text fs-sm">
               <span className="user-info__name">{user?.name ?? user?.email}</span>
               {user?.name && user?.email && (
                 <span className="user-info__email">{user.email}</span>
@@ -188,8 +200,8 @@ export default function App() {
           onClick={() => setLightTheme(v => !v)}
           title={lightTheme ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
         >
-          {lightTheme ? <Moon size={15} strokeWidth={1.5} /> : <Sun size={15} strokeWidth={1.5} />}
-          {lightTheme ? 'Oscuro' : 'Claro'}
+          {lightTheme ? <Moon size={15} className="icon" /> : <Sun size={15} className="icon" />}
+          <span className="contrast-toggle__label">{lightTheme ? 'Oscuro' : 'Claro'}</span>
         </button>
       </div>
 
@@ -250,7 +262,7 @@ export default function App() {
 
           {tab === 'settings' && (
             <div className="panel-layout">
-              <SettingsPanel tab={settingsTab} />
+              <SettingsPanel tab={settingsTab} lightTheme={lightTheme} onToggleTheme={() => setLightTheme(v => !v)} />
             </div>
           )}
 
@@ -263,8 +275,24 @@ export default function App() {
       </main>
 
       {/* ── Bottom nav (mobile only) ── */}
+      {moreOpen && (
+        <div className="more-overlay" onClick={() => setMoreOpen(false)}>
+          <div className="more-sheet" onClick={e => e.stopPropagation()}>
+            {NAV_ITEMS.filter(i => MORE_NAV_IDS.includes(i.id)).map(item => (
+              <button
+                key={item.id}
+                className={`more-sheet__item ${tab === item.id ? 'more-sheet__item--active' : ''}`}
+                onClick={() => { setTab(item.id); setMoreOpen(false) }}
+              >
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <nav className="bottom-nav">
-        {NAV_ITEMS.map((item) => (
+        {NAV_ITEMS.filter(i => PRIMARY_NAV_IDS.includes(i.id)).map((item) => (
           <button
             key={item.id}
             className={`bottom-nav__item ${tab === item.id ? 'bottom-nav__item--active' : ''}`}
@@ -274,6 +302,13 @@ export default function App() {
             <span>{item.label}</span>
           </button>
         ))}
+        <button
+          className={`bottom-nav__item ${MORE_NAV_IDS.includes(tab) ? 'bottom-nav__item--active' : ''}`}
+          onClick={() => setMoreOpen(v => !v)}
+        >
+          <span><MoreHorizontal {...NAV_ICON_PROPS} /></span>
+          <span>Más</span>
+        </button>
       </nav>
     </div>
   )

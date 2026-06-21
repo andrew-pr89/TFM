@@ -260,6 +260,18 @@ EMISSION_FACTORS = [{'category': 'coche_gasolina',
   'source_detail': 'dishwasher cycle, 2 kWh',
   'source_url': None,
   'notes': 'Factor orientativo para MVP; revisar/actualizar antes de uso productivo.'},
+ {'category': 'movil',
+  'main_category': 'Energía',
+  'display_name': 'Móvil (uso)',
+  'unit': 'hora',
+  'factor_kg_co2e': 0.004,
+  'default_quantity': 3.0,
+  'source_name': 'GSMA / Carbon Trust',
+  'source_year': 2022,
+  'source_type': 'scientific_literature',
+  'source_detail': 'Estimación: 0.023 kWh/h uso activo × 0.18 kg CO2/kWh (mix europeo)',
+  'source_url': None,
+  'notes': 'Factor orientativo. Incluye uso de red (4G/5G) y consumo del dispositivo.'},
  {'category': 'television',
   'main_category': 'Energía',
   'display_name': 'Televisión',
@@ -1448,6 +1460,7 @@ DEFAULT_QUANTITIES: dict[str, float] = {
     'secadora':              1.0,
     'lavavajillas':          1.0,
     'television':            2.0,   # horas
+    'movil':                 3.0,   # horas
     'tender_ropa':           1.0,
     # ── Carnes ──────────────────────────────────────────────────────────────
     'carne_vacuno':          0.2,   # kg — ración de 200 g

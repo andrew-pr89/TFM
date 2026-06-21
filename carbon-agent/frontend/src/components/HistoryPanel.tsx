@@ -41,8 +41,8 @@ function SortArrows({ col, active, dir }: { col: SortCol; active: SortCol; dir: 
   const isActive = col === active
   return (
     <span className="sort-arrows">
-      <ChevronUp   size={10} className={isActive && dir === 'asc'  ? 'sort-arrows--on' : undefined} />
-      <ChevronDown size={10} className={isActive && dir === 'desc' ? 'sort-arrows--on' : undefined} />
+      <ChevronUp   size={10} className={`icon${isActive && dir === 'asc'  ? ' sort-arrows--on' : ''}`} />
+      <ChevronDown size={10} className={`icon${isActive && dir === 'desc' ? ' sort-arrows--on' : ''}`} />
     </span>
   )
 }
@@ -270,8 +270,8 @@ export function HistoryPanel() {
                       </td>
                       <td>
                         <div className="history-item__right">
-                          <button onClick={() => startEdit(row.activity, row.emissionId ?? undefined)} title="Editar"><Pencil size={17} /></button>
-                          <button onClick={() => deleteActivity.mutate(row.activityId)} disabled={deleteActivity.isPending} title="Eliminar"><Trash2 size={17} /></button>
+                          <button onClick={() => startEdit(row.activity, row.emissionId ?? undefined)} title="Editar"><Pencil size={16} className="icon" /></button>
+                          <button onClick={() => deleteActivity.mutate(row.activityId)} disabled={deleteActivity.isPending} title="Eliminar"><Trash2 size={16} className="icon" /></button>
                         </div>
                       </td>
                     </>

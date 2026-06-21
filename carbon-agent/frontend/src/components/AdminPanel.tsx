@@ -77,41 +77,41 @@ function FactorForm({ initial, onSave, onCancel, isSaving, showCategory = true }
   }
 
   return (
-    <div className="admin-form">
-      <div className="admin-form__grid">
-        <label className="admin-form__field">
+    <form onSubmit={e => { e.preventDefault(); onSave(form) }}>
+      <div className="form__grid">
+        <label className="form__field">
           <span>Nombre visible *</span>
           <input value={form.display_name} onChange={e => handleDisplayName(e.target.value)} placeholder="ej: Pechuga de pollo" />
         </label>
 
         {showCategory && (
-          <label className="admin-form__field">
+          <label className="form__field">
             <span>Categoría interna (slug) *</span>
             <input value={form.category} onChange={e => set('category', e.target.value)} placeholder="ej: pollo_pechuga" />
           </label>
         )}
 
-        <label className="admin-form__field">
+        <label className="form__field">
           <span>Categoría principal *</span>
           <select value={form.main_category} onChange={e => set('main_category', e.target.value)}>
             {MAIN_CATEGORIES.map(c => <option key={c}>{c}</option>)}
           </select>
         </label>
 
-        <label className="admin-form__field">
+        <label className="form__field">
           <span>Unidad *</span>
           <select value={form.unit} onChange={e => set('unit', e.target.value)}>
             {UNITS.map(u => <option key={u}>{u}</option>)}
           </select>
         </label>
 
-        <label className="admin-form__field">
+        <label className="form__field">
           <span>Factor kg CO₂e / unidad *</span>
           <input type="number" step="0.0001" min="0" value={form.factor_kg_co2e}
             onChange={e => set('factor_kg_co2e', parseFloat(e.target.value) || 0)} />
         </label>
 
-        <label className="admin-form__field">
+        <label className="form__field">
           <span>Ración estándar ({form.unit || 'unidad'})</span>
           <input
             type="number" step="0.001" min="0"
@@ -121,7 +121,7 @@ function FactorForm({ initial, onSave, onCancel, isSaving, showCategory = true }
           />
         </label>
 
-        <label className="admin-form__field">
+        <label className="form__field">
           <span>Tipo de fuente</span>
           <select value={form.source_type ?? ''} onChange={e => set('source_type', e.target.value || null)}>
             <option value="">—</option>
@@ -129,53 +129,58 @@ function FactorForm({ initial, onSave, onCancel, isSaving, showCategory = true }
           </select>
         </label>
 
-        <label className="admin-form__field">
+        <label className="form__field">
           <span>Fuente</span>
           <input value={form.source_name ?? ''} onChange={e => set('source_name', e.target.value || null)} placeholder="IPCC, MITECO…" />
         </label>
 
-        <label className="admin-form__field">
+        <label className="form__field">
           <span>Año</span>
           <input type="number" value={form.source_year ?? ''} onChange={e => set('source_year', e.target.value ? parseInt(e.target.value) : null)} placeholder="2023" />
         </label>
 
-        <label className="admin-form__field admin-form__field--full">
+        <label className="form__field">
           <span>Detalle de fuente</span>
           <input value={form.source_detail ?? ''} onChange={e => set('source_detail', e.target.value || null)} placeholder="Tabla 3.2, Annex II…" />
         </label>
 
-        <label className="admin-form__field admin-form__field--full">
+        <label className="form__field form__field--full">
           <span>URL fuente</span>
           <input value={form.source_url ?? ''} onChange={e => set('source_url', e.target.value || null)} placeholder="https://…" />
         </label>
 
-        <label className="admin-form__field admin-form__field--full">
+        <label className="form__field form__field--full">
           <span>Notas</span>
           <textarea rows={2} value={form.notes ?? ''} onChange={e => set('notes', e.target.value || null)} />
         </label>
       </div>
 
-      <div className="admin-form__actions">
-        <button className="btn-light" onClick={onCancel}>Cancelar</button>
+      <div className="text-end">
+        <button type="button" className="btn-light" onClick={onCancel}>Cancelar</button>
         <button
+          type="submit"
           disabled={isSaving || !form.display_name || form.factor_kg_co2e <= 0 || (showCategory && !form.category)}
-          onClick={() => onSave(form)}
         >
           {isSaving ? 'Guardando…' : 'Guardar'}
         </button>
       </div>
-    </div>
+    </form>
   )
 }
 
 // ── Factors CRUD panel ────────────────────────────────────────────────────────
 
-function FactorsPanel() {
+function FactorsPanel({ onFormOpen, onFormClose }: { onFormOpen: () => void; onFormClose: () => void }) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [editFactor, setEditFactor] = useState<EmissionFactorOut | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+
+  const openCreate = () => { setShowCreate(true); onFormOpen() }
+  const closeCreate = () => { setShowCreate(false); onFormClose() }
+  const openEdit = (f: EmissionFactorOut) => { setEditFactor(f); onFormOpen() }
+  const closeEdit = () => { setEditFactor(null); onFormClose() }
 
   const { data: factors = [], isLoading } = useQuery({
     queryKey: ['admin-factors', search],
@@ -187,7 +192,7 @@ function FactorsPanel() {
     mutationFn: (payload: EmissionFactorCreate) => carbonApi.createFactor(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-factors'] })
-      setShowCreate(false)
+      closeCreate()
     },
   })
 
@@ -196,7 +201,7 @@ function FactorsPanel() {
       carbonApi.updateFactor(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-factors'] })
-      setEditFactor(null)
+      closeEdit()
     },
   })
 
@@ -204,7 +209,7 @@ function FactorsPanel() {
     mutationFn: (id: number) => carbonApi.deleteFactor(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-factors'] })
-      setEditFactor(null)
+      closeEdit()
     },
   })
 
@@ -242,7 +247,7 @@ function FactorsPanel() {
         <FactorForm
           initial={EMPTY_FACTOR}
           onSave={f => createMutation.mutate(f)}
-          onCancel={() => setShowCreate(false)}
+          onCancel={closeCreate}
           isSaving={createMutation.isPending}
           showCategory
         />
@@ -259,7 +264,7 @@ function FactorsPanel() {
         <FactorForm
           initial={toEditForm(editFactor)}
           onSave={f => updateMutation.mutate({ id: editFactor.id, payload: f })}
-          onCancel={() => setEditFactor(null)}
+          onCancel={closeEdit}
           isSaving={updateMutation.isPending}
           showCategory={false}
         />
@@ -289,8 +294,8 @@ function FactorsPanel() {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <button onClick={() => setShowCreate(true)}>
-          + Nuevo factor
+        <button onClick={openCreate}>
+          Nuevo factor
         </button>
       </div>
 
@@ -328,7 +333,7 @@ function FactorsPanel() {
           </thead>
           <tbody>
             {filtered.map(f => (
-              <tr key={f.id} className="admin-table__row" onClick={() => setEditFactor(f)}>
+              <tr key={f.id} className="admin-table__row" onClick={() => openEdit(f)}>
                 <td className="admin-table__term">{f.display_name}</td>
                 <td><code className="admin-table__slug">{f.category}</code></td>
                 <td className="admin-table__cat">{f.main_category}</td>
@@ -455,7 +460,7 @@ function UnknownItemsPanel() {
         {STATUS_TABS.map(tab => (
           <button
             key={tab}
-            className={`tab-btn ${statusTab === tab ? 'tab-btn--active' : ''}`}
+            className={`btn-square ${statusTab === tab ? 'btn-square--active' : ''}`}
             onClick={() => { setStatusTab(tab); setSelected(new Set()) }}
           >
             {STATUS_LABEL[tab]}
@@ -486,7 +491,6 @@ function UnknownItemsPanel() {
             <div className="panel-state">Cargando…</div>
           ) : filtered.length === 0 ? (
             <div className="panel-state">
-              <span className="panel-state__icon">✅</span>
               <p>No hay items {statusTab !== 'all' ? STATUS_LABEL[statusTab].toLowerCase() + 's' : ''}.</p>
             </div>
           ) : (
@@ -567,19 +571,24 @@ function UnknownItemsPanel() {
                     onClick={() => { statusMutation.mutate({ id: activeItem.id, status: 'rejected' }); setActiveItem(null) }}
                   >
                     Rechazar
-                  </button>
-                  <button onClick={() => setShowForm(true)}>
-                    Crear factor de emisión
-                  </button>
+                  </button>                  
                 </>
               )}
-              <button
-                className="admin-delete-btn"
+              <button    
+                className="btn-light"            
                 onClick={() => deleteMutation.mutate(activeItem.id)}
                 disabled={deleteMutation.isPending}
               >
                 Eliminar
               </button>
+
+              {activeItem.status === 'pending' && (
+                <>                  
+                  <button onClick={() => setShowForm(true)}>
+                    Añadir
+                  </button>
+                </>
+              )}
             </div>
 
             {showForm && (
@@ -602,28 +611,33 @@ function UnknownItemsPanel() {
 
 export function AdminPanel() {
   const [section, setSection] = useState<AdminSection>('unknown')
+  const [formOpen, setFormOpen] = useState(false)
 
   return (
     <div className="admin-panel">
-      <div className="admin-panel__header">
-        <h2>Panel de administración</h2>
-        <div className="admin-section-tabs">
-          <button
-            className={`tab-btn ${section === 'unknown' ? 'tab-btn--active' : ''}`}
-            onClick={() => setSection('unknown')}
-          >
-            Items desconocidos
-          </button>
-          <button
-            className={`tab-btn ${section === 'factors' ? 'tab-btn--active' : ''}`}
-            onClick={() => setSection('factors')}
-          >
-            Factores de emisión
-          </button>
+      {!formOpen && (
+        <div className="admin-panel__header">
+          <div>
+            <button
+              className={`btn-square ${section === 'unknown' ? 'btn-square--active' : ''}`}
+              onClick={() => setSection('unknown')}
+            >
+              Items desconocidos
+            </button>
+            <button
+              className={`btn-square ${section === 'factors' ? 'btn-square--active' : ''}`}
+              onClick={() => setSection('factors')}
+            >
+              Factores de emisión
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {section === 'unknown' ? <UnknownItemsPanel /> : <FactorsPanel />}
+      {section === 'unknown'
+        ? <UnknownItemsPanel />
+        : <FactorsPanel onFormOpen={() => setFormOpen(true)} onFormClose={() => setFormOpen(false)} />
+      }
     </div>
   )
 }

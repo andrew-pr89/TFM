@@ -61,7 +61,10 @@ def seed_emission_factors(db: Session) -> None:
         cat = data["category"]
         dq = DEFAULT_QUANTITIES.get(cat)
         if cat not in existing_map:
-            db.add(EmissionFactor(**data, default_quantity=dq))
+            row = {**data}
+            if dq is not None:
+                row['default_quantity'] = dq
+            db.add(EmissionFactor(**row))
             inserted += 1
         else:
             factor = existing_map[cat]

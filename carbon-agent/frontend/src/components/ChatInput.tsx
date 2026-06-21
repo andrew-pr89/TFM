@@ -45,11 +45,11 @@ const handleSubmit = () => {
 
   return (
     <div className="chat-input-wrapper">
-      <div className="example-chips">
+      <div>
         {examples.map((ex) => (
           <button
             key={ex}
-            className="chip"
+            className="btn-light"
             onClick={() => setText(ex)}
             disabled={isLoading}
           >
@@ -69,7 +69,6 @@ const handleSubmit = () => {
           disabled={isLoading}
         />
         <button
-          className="send-btn"
           onClick={handleSubmit}
           disabled={!text.trim() || isLoading}
           aria-label="Enviar"

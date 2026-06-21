@@ -1,3 +1,4 @@
+import { AlertCircle } from 'lucide-react'
 import type { ChatMessage } from '../types'
 
 interface Props {
@@ -55,7 +56,7 @@ export function ChatBubble({ message }: Props) {
     const isQ = isQuestion(text)
     return (
       <div className={`bubble bubble--assistant ${isQ ? 'bubble--question' : ''}`}>
-        <p>{isQ && <span className="bubble__question-icon">💬 </span>}{text}</p>
+        <p>{isQ && <AlertCircle size={15} className="icon bubble__question-icon" />}{text}</p>
         {isQ && <p className="bubble__question-hint">Responde con la cantidad para calcular la huella</p>}
       </div>
     )

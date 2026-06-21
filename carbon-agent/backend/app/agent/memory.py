@@ -127,6 +127,42 @@ class MemoryService:
         updates = {f"portion_{cat}": str(qty) for cat, qty in portions.items()}
         self.update_memory(user_id=user_id, updates=updates, db=db)
 
+    def get_recurring(self, user_id: str, db: Session) -> dict[str, dict]:
+        """Returns recurring activity config as {category: {quantity, enabled}}."""
+        import json
+        records = (
+            db.query(UserMemory)
+            .filter(UserMemory.user_id == user_id, UserMemory.key.like("recurring_%"))
+            .all()
+        )
+        result: dict[str, dict] = {}
+        for r in records:
+            if r.key == "recurring_last_applied":
+                continue
+            cat = r.key[len("recurring_"):]
+            try:
+                result[cat] = json.loads(r.value)
+            except Exception:
+                pass
+        return result
+
+    def set_recurring(self, user_id: str, updates: dict[str, dict], db: Session) -> None:
+        import json
+        self.update_memory(
+            user_id=user_id,
+            updates={f"recurring_{cat}": json.dumps(cfg) for cat, cfg in updates.items()},
+            db=db,
+        )
+
+    def get_recurring_last_applied(self, user_id: str, db: Session) -> str | None:
+        record = db.query(UserMemory).filter(
+            UserMemory.user_id == user_id, UserMemory.key == "recurring_last_applied"
+        ).first()
+        return record.value if record else None
+
+    def set_recurring_last_applied(self, user_id: str, date_str: str, db: Session) -> None:
+        self.update_memory(user_id=user_id, updates={"recurring_last_applied": date_str}, db=db)
+
     def infer_habits(self, user_id: str, category: str, db: Session) -> None:
         """
         Infiere y guarda hábitos a partir de las actividades registradas.
