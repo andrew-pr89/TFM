@@ -21,8 +21,8 @@ from app.agent.orchestrator import carbon_agent
 from app.core.auth import get_admin_user, get_current_user
 from app.db.database import get_db
 from app.db.seed_data import EMISSION_FACTORS
-from app.models.models import Activity, EmissionFactor
-from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, EmissionFactorCreate, EmissionFactorOut, EmissionFactorPatch, ImprovementSuggestion, ImprovementsOut, PortionEntry, RecurringActivity, RecurringApplyResult, SummaryOut, UnknownItemOut, UserProfile
+from app.models.models import Activity, Emission, EmissionFactor
+from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, EmissionFactorCreate, EmissionFactorOut, EmissionFactorPatch, EmissionOut, EmissionQuantityPatch, ImprovementSuggestion, ImprovementsOut, PortionEntry, RecurringActivity, RecurringApplyResult, SummaryOut, UnknownItemOut, UserProfile
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["activities"])
@@ -93,6 +93,23 @@ def patch_activity(activity_id: int, payload: ActivityPatch, user_id: str = Depe
         raise HTTPException(status_code=404, detail="Actividad no encontrada")
     log.info("Actividad %d actualizada para user=%s", activity_id, user_id)
     return result
+
+
+@router.patch("/emissions/{emission_id}", response_model=EmissionOut)
+def patch_emission_quantity(emission_id: int, payload: EmissionQuantityPatch, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Edita la cantidad de una emisión concreta y recalcula su CO₂."""
+    emission = db.query(Emission).join(Activity).filter(
+        Emission.id == emission_id,
+        Activity.user_id == user_id,
+    ).first()
+    if emission is None:
+        raise HTTPException(status_code=404, detail="Emisión no encontrada")
+    emission.quantity = payload.quantity
+    emission.amount_kg_co2e = round(payload.quantity * emission.factor.factor_kg_co2e, 6)
+    db.commit()
+    db.refresh(emission)
+    log.info("Emisión %d actualizada: qty=%.4f CO₂=%.4f", emission_id, payload.quantity, emission.amount_kg_co2e)
+    return emission
 
 
 @router.get("/summary", response_model=SummaryOut)

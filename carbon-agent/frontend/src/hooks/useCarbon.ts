@@ -100,6 +100,19 @@ export function useEditActivity() {
   })
 }
 
+export function useEditEmissionQuantity() {
+  const userId = useUserId()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ emissionId, quantity }: { emissionId: number; quantity: number }) =>
+      carbonApi.patchEmissionQuantity(emissionId, quantity),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.history(userId) })
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.summary(userId) })
+    },
+  })
+}
+
 export function useProfile() {
   const userId = useUserId()
   return useQuery({

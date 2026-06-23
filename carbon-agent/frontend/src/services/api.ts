@@ -65,6 +65,11 @@ export const carbonApi = {
     return data
   },
 
+  patchEmissionQuantity: async (emissionId: number, quantity: number): Promise<EmissionOut> => {
+    const { data } = await api.patch<EmissionOut>(`/emissions/${emissionId}`, { quantity })
+    return data
+  },
+
   getImprovements: async (periodDays = 30, annualGoalKg = 6000): Promise<ImprovementsOut> => {
     const { data } = await api.get<ImprovementsOut>('/improvements', {
       params: { period_days: periodDays, annual_goal_kg: annualGoalKg },

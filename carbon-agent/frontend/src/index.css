@@ -1215,6 +1215,13 @@ input[type="checkbox"] {
   color: var(--text); border-radius: 6px; padding: 8px;
   resize: vertical; font-family: var(--font-sans);
 }
+.history-edit__qty-row { display: flex; align-items: center; gap: 6px; }
+.history-edit__qty {
+  width: 90px; background: var(--surface-2); border: 1px solid var(--border-2);
+  color: var(--text); border-radius: 6px; padding: 4px 8px;
+  font-family: var(--font-mono);
+}
+.history-edit__unit { font-size: 0.8rem; color: var(--text-muted); }
 .history-edit__actions { display: flex; gap: 8px; }
 
 /* ── Summary panel ───────────────────────────────────────────────────────── */
