@@ -1703,7 +1703,9 @@ label.settings__field > span:last-child  { color: var(--text-dim); }
 .settings__profile-actions { display: flex; align-items: center; gap: 12px; }
 .settings__save-ok { color: var(--c-low); margin-right: 6px; }
 /* ── Settings inline tab bar ──────────────────────────────────────────────── */
-.topbar .settings__tabs { display: none; }
+@media (min-width: 769px) {
+  .topbar .settings__tabs { display: none; }
+}
 .settings__tabs {
   display: flex;
   gap: 4px;
