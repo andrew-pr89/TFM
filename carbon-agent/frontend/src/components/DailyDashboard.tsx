@@ -43,7 +43,7 @@ interface RingProps {
   children?: React.ReactNode
 }
 
-function Ring({ value, max, size, stroke, color, trackColor = 'var(--surface)', keepColor = false, children }: RingProps) {
+function Ring({ value, max, size, stroke, color, trackColor = 'var(--ring-track)', keepColor = false, children }: RingProps) {
   const r = (size - stroke) / 2
   const circ = 2 * Math.PI * r
   const pct = max > 0 ? Math.min(value / max, 1) : 0
@@ -166,20 +166,24 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
       <div className="dashboard__fixed" >
         <div className="dashboard__topbar">
           <div className="dashboard__nav-group" >
-            <button className="btn-square" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
-            <button className="btn-square" disabled={isFuture}
+            <button className="btn-square grey fs-lg" onClick={() => setAnchor(d => stepDate(mode, d, -1))}>‹</button>
+
+          <h3 className="dashboard__period-label fs-lg">
+            {isToday ? 'Hoy' : formatPeriod(mode, start, end)}
+          </h3>
+
+
+            <button className="btn-square grey fs-lg" disabled={isFuture}
               onClick={() => setAnchor(d => stepDate(mode, d, 1))}>›</button>
           </div>
 
-          <span className="dashboard__period-label">
-            {isToday ? 'Hoy' : formatPeriod(mode, start, end)}
-          </span>
+          
 
           <div className="dashboard__mode-group">
             {(['day', 'week', 'month'] as ViewMode[]).map(m => (
               <button
                 key={m}
-                className={`btn-square${mode === m ? ' btn-square--active' : ''}`}
+                className={`btn-square grey${mode === m ? ' btn-square--active' : ''}`}
                 onClick={() => { setMode(m); setAnchor(new Date()) }}
               >
                 {VIEW_LABELS[m]}

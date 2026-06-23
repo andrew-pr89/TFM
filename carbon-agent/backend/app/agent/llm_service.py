@@ -12,9 +12,22 @@ Regla de arquitectura:
 
 import json
 import logging
+import re
 from datetime import date, timedelta
 
 from openai import OpenAI
+
+# Topings/condimentos que siempre generan una actividad separada.
+# Aplica tanto a "X con TOPPING" como "X de TOPPING".
+_TOPPINGS = [
+    'mermelada', 'mantequilla', 'nocilla', 'nutella', 'miel',
+    'nata', 'crema de cacahuete', 'tomate frito', 'aceite de oliva',
+    'leche', 'queso', 'jamón', 'jamón york', 'atún',
+]
+_TOPPING_RE = re.compile(
+    r'\b(?:con|de)\s+(' + '|'.join(re.escape(t) for t in _TOPPINGS) + r')\b',
+    re.IGNORECASE,
+)
 
 from app.core.config import settings
 
@@ -55,6 +68,42 @@ class LLMService:
 
     # ── Extracción ───────────────────────────────────────────────────────────
 
+    def _expand_compound_foods(self, text: str) -> str:
+        """
+        Pre-procesado: separa ingredientes de expresiones compuestas tipo
+        'X con Y' y 'X de Y' para que el extractor principal los vea como ítems distintos.
+        """
+        system = """Eres un analizador de texto culinario. Tu única tarea es reescribir el texto separando los componentes de bebidas y alimentos compuestos.
+
+REGLAS:
+- "X con Y" entre alimentos/bebidas → escribe "X, Y"
+- "X de Y" donde Y es un TOPPING o RELLENO comestible (mermelada, mantequilla, nocilla, miel, queso, jamón, atún, tomate, aceite) → escribe "X, Y"
+- "X de Y" donde Y es SABOR o TIPO (naranja, limón, fresa, chocolate, vaca, soja, avena) → NO separar, dejar igual
+- NO cambies nada más: cantidades, verbos, transportes, contexto.
+- Si no hay compuestos alimentarios, devuelve el texto EXACTAMENTE igual.
+
+EJEMPLOS:
+"café con leche" → "café, leche"
+"tostadas de mermelada" → "tostadas, mermelada"  ← mermelada es topping
+"tostadas con mantequilla" → "tostadas, mantequilla"
+"zumo de naranja" → "zumo de naranja"  ← naranja es sabor, NO separar
+"leche de vaca" → "leche de vaca"  ← vaca es tipo, NO separar
+"cola cao con leche" → "cola cao, leche"
+"pan con mantequilla y mermelada" → "pan, mantequilla, mermelada"
+"he desayunado café con leche y tostadas de mermelada" → "he desayunado café, leche y tostadas, mermelada"
+"dos tostadas con mermelada" → "dos tostadas, mermelada"
+"fui en coche con mi amigo" → "fui en coche con mi amigo"
+"agua con gas" → "agua con gas"
+
+Devuelve SOLO el texto reescrito, sin explicaciones ni comillas."""
+
+        result = self._chat(system, text, temperature=0.0)
+        expanded = result.strip()
+        if expanded:
+            log.debug("Expanded compound foods: %r → %r", text, expanded)
+            return expanded
+        return text
+
     def extract_activities(
         self,
         raw_text: str,
@@ -73,6 +122,8 @@ class LLMService:
         El LLM solo identifica categoría y cantidad.
         El cálculo de emisiones se hace fuera de este servicio.
         """
+        log.info("LLM extract input: %r", raw_text)
+
         categories_str = "\n".join(
             f"  - {f['category']}  →  {f['display_name']}  [unidad: {f['unit']}]"
             for f in factors_info
@@ -93,6 +144,30 @@ class LLMService:
         system = f"""Eres un extractor de actividades con huella de carbono.
 Tu tarea es analizar el texto del usuario e identificar TODAS las actividades
 que tengan impacto en CO₂. Puede haber una o varias en el mismo mensaje.
+
+════════════════════════════════════════════════════════
+REGLA ABSOLUTA — ALIMENTOS ACOMPAÑANTES (aplica SIEMPRE, sin excepción):
+Cuando el usuario menciona un alimento junto a otro con "con" o "de",
+ambos son actividades INDEPENDIENTES aunque formen una expresión habitual en español.
+NUNCA fusiones dos alimentos en una sola actividad.
+
+CASOS CON "con" — SIEMPRE dos actividades:
+  · "café con leche"         → [cafe] + [lacteos_leche]
+  · "pan con mantequilla"    → [cereales] + [unknown:mantequilla]
+  · "cola cao con leche"     → [cacao_o_unknown] + [lacteos_leche]
+  · "yogur con miel"         → [lacteos_yogur] + [unknown:miel]
+  · "tostada con mermelada"  → [cereales] + [mermelada]
+
+CASOS CON "de" — depende:
+  · Si Y es un ACOMPAÑAMIENTO/UNTABLE (mermelada, mantequilla, nocilla, miel, queso, jamón, atún, tomate) → DOS actividades:
+      "tostada de mermelada"   → [cereales] + [mermelada]  ← OBLIGATORIO
+      "pan de mantequilla"     → [cereales] + [unknown:mantequilla]
+  · Si Y es un SABOR o TIPO (naranja, limón, fresa, vaca, avena, soja) → UNA actividad:
+      "zumo de naranja"        → [zumo_naranja]  (no separar)
+      "leche de avena"         → [leche_avena]   (no separar)
+
+Si el segundo alimento no está en la lista de categorías, usa category="unknown".
+════════════════════════════════════════════════════════
 
 La fecha de hoy es: {today_str}
 
@@ -169,41 +244,53 @@ REGLA DE ORO: siempre es mejor usar la categoría más cercana que devolver "unk
 - Solo usa category="unknown" si NINGUNA categoría de la lista se parece remotamente al término del usuario.
 - Si no tiene huella de carbono en absoluto → omítela (no la incluyas)
 
-REGLA — BEBIDAS, PLATOS E INGREDIENTES COMPUESTOS:
-IMPORTANTE — PRIORIDAD ABSOLUTA: Si el ítem del usuario coincide con un factor ESPECÍFICO de la lista
-(por display_name o category), usa ESE factor directamente. NO lo descompongas en ingredientes.
-Ejemplos de factor específico que NO debe descomponerse:
+PRE-PROCESADO OBLIGATORIO — DESCOMPOSICIÓN DE INGREDIENTES:
+ANTES de mapear categorías, identifica TODOS los componentes del mensaje siguiendo estas reglas:
+
+REGLA 1 — "X con Y" y "X de Y" (entre alimentos) SIEMPRE son actividades separadas:
+Las partículas "con" y "de" entre alimentos/bebidas indican ingredientes distintos que deben registrarse por separado.
+NUNCA colapses "X con Y" ni "X de Y" en un único ítem. Aplica esto aunque haya multiplicadores.
+
+CASOS OBLIGATORIOS (memoriza estos exactos):
+  · "café con leche"         → cafe(café) quantity=null  +  lacteos_leche(leche) quantity=null   ← AMBOS, nunca solo café
+  · "cola cao con leche"     → cacao(cola cao) quantity=null  +  lacteos_leche(leche) quantity=null
+  · "tostadas con mermelada" → cereales(tostadas) quantity=null  +  unknown(mermelada) quantity=null
+  · "tostadas de mermelada"  → cereales(tostadas) quantity=null  +  unknown(mermelada) quantity=null
+  · "pan con mantequilla"    → cereales(pan) quantity=null  +  unknown(mantequilla) quantity=null
+  · "zumo con hielo"         → solo zumo (el hielo no tiene huella de carbono)
+  · "dos tostadas con mermelada" → cereales quantity=2 unit="unidades"  +  unknown(mermelada) quantity=2 unit="unidades"
+  · "tres cafés con leche"       → cafe quantity=3 unit="unidades"  +  lacteos_leche quantity=3 unit="unidades"
+
+REGLA 2 — PRIORIDAD ABSOLUTA para factores específicos:
+Si el ítem coincide con un factor EXACTO de la lista (por display_name o category), usa ESE factor directamente. NO lo descompongas.
+Ejemplos:
   · "yogur de soja" → existe factor "yogur_de_soja" → usa esa categoría directamente ✓
   · "leche de avena" → existe factor "leche_avena" → usa esa categoría directamente ✓
   · "leche de soja"  → existe factor "leche_soja" → usa esa categoría directamente ✓
 
-EXCEPCIÓN — CONTENEDORES DE COMIDA (siempre descomponer aunque el relleno sea un factor conocido):
-Los siguientes formatos SIEMPRE implican varios ingredientes aunque el relleno exista en la lista:
-  · "bocadillo de X" → category="cereales" description="pan" quantity=null + <factor del relleno X> description="X" quantity=null
-    Ejemplos: "bocadillo de fuet" → cereales(pan) + carne_procesada(fuet)
-              "bocadillo de jamón" → cereales(pan) + carne_procesada(jamón)
-              "bocadillo de queso" → cereales(pan) + queso(queso)
+REGLA 3 — CONTENEDORES DE COMIDA (siempre descomponer):
+  · "bocadillo de X" → cereales(pan) quantity=null + <factor del relleno X> quantity=null
   · "sandwich de X" → igual que bocadillo
   · "wrap de X" → igual que bocadillo
-  · "pizza de X" → category="cereales" description="masa" quantity=null + <factor del relleno>
-  · "taco de X" → category="cereales" description="tortilla" quantity=null + <factor del relleno>
+  · "pizza de X" → cereales(masa) quantity=null + <factor del relleno>
+  · "taco de X" → cereales(tortilla) quantity=null + <factor del relleno>
 
-Si el ítem NO está en la lista Y no es un contenedor, descompónlo en sus INGREDIENTES PRINCIPALES:
-  · "tortilla de patatas" → category="huevos" description="huevos" quantity=null + category="patata" description="patatas" quantity=null
-  · "café con leche" → category="cafe" description="café" quantity=null + category="lacteos_leche" description="leche" quantity=null
-  · "tostadas con mermelada" → category="cereales" description="pan/tostada" quantity=null + category="unknown" description="mermelada"
-  · "paella de marisco" → category="arroz" description="arroz" quantity=null + category="marisco" description="marisco" quantity=null
-  · "pasta boloñesa" → category="cereales" description="pasta" quantity=null + category="carne_vacuno" description="carne picada" quantity=null
+REGLA 4 — PLATOS COMPUESTOS sin factor exacto:
+Descompón en los 2-3 ingredientes con mayor impacto de CO₂:
+  · "tortilla de patatas" → huevos(quantity=null) + patata(quantity=null)
+  · "paella de marisco" → arroz(quantity=null) + marisco(quantity=null)
+  · "pasta boloñesa" → cereales/pasta(quantity=null) + carne_vacuno(quantity=null)
 
-REGLAS para la descomposición:
-- La "description" de cada item debe ser el INGREDIENTE, nunca el plato completo.
-- La "quantity" de cada ingrediente debe ser SIEMPRE null salvo que el usuario especifique gramos/unidades explícitamente.
-  NUNCA pongas quantity=2 unit="unidades" para ingredientes — deja quantity=null y el sistema usará la porción estándar.
-- Incluye solo los 2-3 ingredientes con mayor impacto de CO₂ del plato.
+REGLA 5 — MULTIPLICADORES con descomposición:
+Si hay un número explícito delante de un plato/ítem compuesto, aplica ese quantity a TODOS sus ingredientes:
+  · "dos tortillas de patatas" → huevos quantity=2 unit="unidades" + patata quantity=2 unit="unidades"
+  · "dos tostadas con mermelada" → cereales quantity=2 unit="unidades" + mermelada quantity=2 unit="unidades"
+  · "tres cafés con leche" → cafe quantity=3 unit="unidades" + lacteos_leche quantity=3 unit="unidades"
 
-Si hay un multiplicador explícito para el plato (ej: "dos tortillas de patatas"):
-aplica quantity=<N> unit="unidades" a TODOS los ingredientes:
-  · "dos tortillas de patatas" → category="huevos" description="huevos" quantity=2 unit="unidades" + category="patata" description="patatas" quantity=2 unit="unidades"
+REGLA GENERAL de quantity en ingredientes descompuestos:
+- Si NO hay cantidad explícita → quantity=null (el sistema aplica la porción estándar)
+- Si hay número de piezas → quantity=N unit="unidades" en CADA ingrediente
+- NUNCA estimes pesos en kg para ingredientes sin cantidad declarada
 
 REGLA CRÍTICA — MENSAJES MIXTOS:
 Si el mensaje contiene actividades identificables Y actividades desconocidas,
@@ -257,6 +344,14 @@ DISTINCIÓN CLAVE — POI con nombre propio vs. lugar genérico:
 DETECCIÓN DE CIUDAD DE ORIGEN: Si el usuario declara su ciudad de origen habitual
 (ej: "vivo en Madrid", "mi ciudad es Sevilla", "salgo siempre desde Valencia", "soy de Bilbao"),
 incluye el campo "home_city" en el objeto raíz de la respuesta.
+
+VERIFICACIÓN FINAL OBLIGATORIA — antes de escribir el JSON, comprueba:
+1. ¿El mensaje contiene "con" o "de" entre alimentos? → cada componente debe ser una actividad separada.
+2. ¿Has incluido TODOS los ingredientes de cada expresión compuesta?
+   - "café con leche" → ¿está café Y leche en activities?
+   - "tostadas de/con mermelada" → ¿están tostadas Y mermelada en activities?
+   - "cola cao con leche" → ¿están cola cao Y leche?
+3. Si falta algún componente, añádelo antes de responder.
 
 RESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO:
 

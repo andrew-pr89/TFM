@@ -327,7 +327,7 @@ function PortionsPanel() {
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Alimento</th>
+              <th>{activeCategory === 'all' ? 'Todas las categorías' : activeCategory}</th>
               <th>Porción por defecto</th>
               <th>Tu porción</th>
               <th></th>
