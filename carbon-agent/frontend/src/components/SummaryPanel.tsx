@@ -160,7 +160,6 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
   if (summaryError) return <div className="panel-state panel-state--error">Error al cargar datos.</div>
   if (!summary || summary.total_activities === 0) return (
     <div className="panel-state">
-      <span className="panel-state__icon">📊</span>
       <p>Sin datos aún.</p>
       <p className="panel-state__hint">Registra actividades para ver tu resumen.</p>
     </div>

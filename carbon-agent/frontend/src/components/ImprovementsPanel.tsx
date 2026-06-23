@@ -113,7 +113,7 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
         <SuggestionCard key={i} s={s} />
       ))}
 
-      <button onClick={() => refetch()}>
+      <button onClick={() => refetch()} className="mx-auto">
         <RefreshCw className="icon" />
         <label className="ml-2">Regenerar sugerencias</label>
       </button>

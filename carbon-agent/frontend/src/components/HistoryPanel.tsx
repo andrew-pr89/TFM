@@ -159,7 +159,6 @@ export function HistoryPanel() {
   if (isError)   return <div className="panel-state panel-state--error">Error al cargar el historial.</div>
   if (!activities?.length) return (
     <div className="panel-state">
-      <span className="panel-state__icon">📋</span>
       <p>Aún no hay actividades registradas.</p>
       <p className="panel-state__hint">Escribe tu primera actividad en el chat.</p>
     </div>
