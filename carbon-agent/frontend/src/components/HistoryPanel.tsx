@@ -8,9 +8,21 @@ function formatQty(qty: number, unit: string): string {
   if (unit === 'km')    return `${qty} km`
   return `${qty} ${unit}`
 }
+
+function toDisplayUnit(qty: number, unit: string): { value: number; displayUnit: string } {
+  if (unit === 'kg'    && qty < 1) return { value: Math.round(qty * 1000), displayUnit: 'g' }
+  if (unit === 'litro' && qty < 1) return { value: Math.round(qty * 1000), displayUnit: 'ml' }
+  return { value: qty, displayUnit: unit }
+}
+
+function toBaseUnit(value: number, displayUnit: string): number {
+  if (displayUnit === 'g')  return value / 1000
+  if (displayUnit === 'ml') return value / 1000
+  return value
+}
 import { format } from 'date-fns'
 import { Trash2, Pencil, ChevronUp, ChevronDown, X } from 'lucide-react'
-import { useHistory, useDeleteActivity, useEditActivity } from '../hooks/useCarbon'
+import { useHistory, useDeleteActivity, useEditActivity, useEditEmissionQuantity } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
 import type { CSSProperties } from 'react'
 
@@ -49,13 +61,16 @@ function SortArrows({ col, active, dir }: { col: SortCol; active: SortCol; dir: 
 
 export function HistoryPanel() {
   const { data: activities, isLoading, isError } = useHistory()
-  const deleteActivity = useDeleteActivity()
-  const editActivity   = useEditActivity()
+  const deleteActivity      = useDeleteActivity()
+  const editActivity        = useEditActivity()
+  const editEmissionQty     = useEditEmissionQuantity()
 
   const [editingId,         setEditingId]         = useState<number | null>(null)
   const [editingEmissionId, setEditingEmissionId] = useState<number | null>(null)
-  const [editText, setEditText] = useState('')
-  const [editDate, setEditDate] = useState('')
+  const [editText,          setEditText]          = useState('')
+  const [editDate,          setEditDate]          = useState('')
+  const [editQuantity,      setEditQuantity]      = useState<string>('')
+  const [editUnit,          setEditUnit]          = useState<string>('')
 
   const [filterText,     setFilterText]     = useState('')
   const [filterDate,     setFilterDate]     = useState('')
@@ -64,18 +79,35 @@ export function HistoryPanel() {
   const [sortDir,        setSortDir]        = useState<SortDir>('desc')
   const tableWrapRef = useRef<HTMLDivElement>(null)
 
-  const startEdit = (activity: ActivityOut, emissionId?: number) => {
+  const startEdit = (activity: ActivityOut, emissionId?: number, description?: string) => {
     setEditingId(activity.id)
-    setEditingEmissionId(emissionId ?? activity.emissions[0]?.id ?? null)
-    setEditText(activity.raw_text)
-    setEditDate(new Date(activity.created_at).toISOString().slice(0, 16))
+    const emission = emissionId ? activity.emissions.find(e => e.id === emissionId) : activity.emissions[0]
+    setEditingEmissionId(emissionId ?? emission?.id ?? null)
+    setEditText(description ?? activity.raw_text)
+    setEditDate(new Date(activity.created_at).toISOString().slice(0, 10))
+    if (emission) {
+      const { value, displayUnit } = toDisplayUnit(emission.quantity, emission.factor.unit)
+      setEditQuantity(String(value))
+      setEditUnit(displayUnit)
+    } else {
+      setEditQuantity('')
+      setEditUnit('')
+    }
   }
   const cancelEdit = () => { setEditingId(null); setEditingEmissionId(null) }
   const saveEdit = (id: number) => {
-    editActivity.mutate(
-      { id, rawText: editText, createdAt: editDate ? new Date(editDate).toISOString() : null },
-      { onSuccess: () => { setEditingId(null); setEditingEmissionId(null) } },
-    )
+    const qty = parseFloat(editQuantity)
+    if (editingEmissionId && !isNaN(qty) && qty > 0) {
+      editEmissionQty.mutate(
+        { emissionId: editingEmissionId, quantity: toBaseUnit(qty, editUnit) },
+        { onSuccess: () => { setEditingId(null); setEditingEmissionId(null) } },
+      )
+    } else {
+      editActivity.mutate(
+        { id, rawText: editText, createdAt: editDate ? new Date(editDate).toISOString() : null },
+        { onSuccess: () => { setEditingId(null); setEditingEmissionId(null) } },
+      )
+    }
   }
 
   const handleSort = (col: SortCol) => {
@@ -230,8 +262,21 @@ export function HistoryPanel() {
                   {isEditing ? (
                     <td colSpan={6}>
                       <div className="history-item__edit-form">
-                        <input type="datetime-local" className="history-edit__date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+                        <input type="date" className="history-edit__date" value={editDate} onChange={e => setEditDate(e.target.value)} />
                         <textarea className="history-edit__text" value={editText} rows={2} onChange={e => setEditText(e.target.value)} />
+                        {editUnit && (
+                          <div className="history-edit__qty-row">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              className="history-edit__qty"
+                              value={editQuantity}
+                              onChange={e => setEditQuantity(e.target.value)}
+                            />
+                            <span className="history-edit__unit">{editUnit}</span>
+                          </div>
+                        )}
                         <div className="history-edit__actions">
                           <button disabled={editActivity.isPending} onClick={() => saveEdit(row.activityId)}>
                             {editActivity.isPending ? 'Guardando…' : 'Guardar'}
@@ -254,7 +299,7 @@ export function HistoryPanel() {
                       </td>
                       <td>
                         <div className="history-item__right">
-                          <button onClick={() => startEdit(row.activity, row.emissionId ?? undefined)} title="Editar"><Pencil size={16} className="icon" /></button>
+                          <button onClick={() => startEdit(row.activity, row.emissionId ?? undefined, row.description)} title="Editar"><Pencil size={16} className="icon" /></button>
                           <button onClick={() => deleteActivity.mutate(row.activityId)} disabled={deleteActivity.isPending} title="Eliminar"><Trash2 size={16} className="icon" /></button>
                         </div>
                       </td>

@@ -276,16 +276,19 @@ REGLA 3 — CONTENEDORES DE COMIDA (siempre descomponer):
   · "taco de X" → cereales(tortilla) quantity=null + <factor del relleno>
 
 REGLA 4 — PLATOS COMPUESTOS sin factor exacto:
-Descompón en los 2-3 ingredientes con mayor impacto de CO₂:
-  · "tortilla de patatas" → huevos(quantity=null) + patata(quantity=null)
-  · "paella de marisco" → arroz(quantity=null) + marisco(quantity=null)
-  · "pasta boloñesa" → cereales/pasta(quantity=null) + carne_vacuno(quantity=null)
+Descompón en los 2-3 ingredientes con mayor impacto de CO₂.
+USA el nombre del INGREDIENTE como description (NO el nombre del plato completo):
+  · "tortilla de patatas" → {{category:huevos, description:"huevos", quantity:null}} + {{category:patata, description:"patata", quantity:null}}
+  · "tortilla de calabacín" → {{category:huevos, description:"huevos", quantity:null}} + {{category:verduras, description:"calabacín", quantity:null}}
+  · "paella de marisco" → {{category:arroz, description:"arroz", quantity:null}} + {{category:marisco, description:"marisco", quantity:null}}
+  · "pasta boloñesa" → {{category:cereales, description:"pasta", quantity:null}} + {{category:carne_vacuno, description:"carne vacuno", quantity:null}}
 
 REGLA 5 — MULTIPLICADORES con descomposición:
-Si hay un número explícito delante de un plato/ítem compuesto, aplica ese quantity a TODOS sus ingredientes:
-  · "dos tortillas de patatas" → huevos quantity=2 unit="unidades" + patata quantity=2 unit="unidades"
-  · "dos tostadas con mermelada" → cereales quantity=2 unit="unidades" + mermelada quantity=2 unit="unidades"
-  · "tres cafés con leche" → cafe quantity=3 unit="unidades" + lacteos_leche quantity=3 unit="unidades"
+Si hay un número explícito delante de un plato/ítem compuesto, aplica ese quantity a TODOS sus ingredientes.
+USA el nombre del INGREDIENTE como description (NO el nombre del plato completo):
+  · "dos tortillas de patatas" → {{category:huevos, description:"huevos", quantity:2, unit:"unidades"}} + {{category:patata, description:"patata", quantity:2, unit:"unidades"}}
+  · "dos tostadas con mermelada" → {{category:cereales, description:"tostadas", quantity:2, unit:"unidades"}} + {{category:mermelada, description:"mermelada", quantity:2, unit:"unidades"}}
+  · "tres cafés con leche" → {{category:cafe, description:"café", quantity:3, unit:"unidades"}} + {{category:lacteos_leche, description:"leche", quantity:3, unit:"unidades"}}
 
 REGLA GENERAL de quantity en ingredientes descompuestos:
 - Si NO hay cantidad explícita → quantity=null (el sistema aplica la porción estándar)
@@ -436,7 +439,7 @@ CASO Sin CO₂ y sin ciudad:
         user = f"Texto del usuario: {raw_text}\n{pending_section}" if pending_section else f"Texto del usuario: {raw_text}"
 
         raw = self._chat(system, user, temperature=0.1)
-        log.info("LLM extract raw: %s", raw[:400])
+        log.info("LLM extract raw FULL: %s", raw)
 
         # Limpiar posibles bloques markdown si el modelo los añade
         raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()

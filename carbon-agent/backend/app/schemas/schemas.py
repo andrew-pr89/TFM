@@ -93,6 +93,10 @@ class ActivityPatch(BaseModel):
     created_at: datetime | None = None
 
 
+class EmissionQuantityPatch(BaseModel):
+    quantity: float = Field(..., gt=0)
+
+
 # ── Improvements ─────────────────────────────────────────────────────────────
 
 class ImprovementSuggestion(BaseModel):
