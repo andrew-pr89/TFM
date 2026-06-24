@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ActivityResponse, ActivityOut, SummaryOut, ImprovementsOut, UserProfile, PortionEntry, RecurringActivity, UnknownItemOut, EmissionFactorOut, EmissionFactorCreate, EmissionFactorPatch } from '../types'
+import type { ActivityResponse, ActivityOut, EmissionOut, SummaryOut, ImprovementsOut, UserProfile, PortionEntry, RecurringActivity, UnknownItemOut, EmissionFactorOut, EmissionFactorCreate, EmissionFactorPatch } from '../types'
 
 const rawApiUrl = import.meta.env.VITE_API_URL
 const normalizedApiUrl = rawApiUrl
