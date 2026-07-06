@@ -11,6 +11,7 @@ Nunca toca factores de emisión ni hace aritmética.
 """
 
 import logging
+import re
 import unicodedata
 from dataclasses import dataclass
 
@@ -28,57 +29,6 @@ def _norm(s: str) -> str:
 log = logging.getLogger(__name__)
 
 # Default portion sizes for non-transport categories (in the factor's native unit).
-# Used when the user mentions an item without specifying a quantity.
-DEFAULT_PORTIONS: dict[str, float] = {
-    # Carnes (kg)
-    "carne_vacuno":    0.30,   # 300g — filete/chuletón estándar
-    "carne_cerdo":     0.20,   # 200g — chuleta de cerdo
-    "carne_pollo":     0.15,   # 150g — pechuga de pollo
-    "carne_procesada": 0.05,   # 50g  — ración de embutido
-    "pescado":         0.15,   # 150g — filete de pescado
-    "marisco":         0.15,   # 150g
-    "queso":           0.05,   # 50g  — ración de queso
-    "tofu_soja":       0.15,   # 150g
-    # Cereales, legumbres, vegetales (kg)
-    "cereales":        0.10,   # 100g — ración pasta/pan (peso seco)
-    "arroz":           0.10,   # 100g — ración arroz (peso seco)
-    "legumbres":       0.08,   # 80g  — ración legumbres (peso seco)
-    "patata":          0.20,   # 200g
-    "fruta":           0.15,   # 150g — 1 pieza mediana
-    "verduras":        0.15,   # 150g
-    # Lácteos y bebidas (litro)
-    "lacteos_leche":   0.20,   # 200ml — 1 vaso
-    "alcohol_cerveza": 0.33,   # 330ml — 1 botella/lata
-    "alcohol_vino":    0.15,   # 150ml — 1 copa
-    "agua_embotellada":0.50,   # 500ml — 1 botella
-    "zumo":            0.20,   # 200ml — 1 vaso
-    "aceite_oliva":    0.02,   # 20ml  — 1 cucharada
-    # Café (kg — grano molido por taza)
-    "cafe":            0.012,  # ~12g por taza
-    "chocolate":       0.05,   # 50g — 1 onza/tableta pequeña
-    # Unidades
-    "huevos":          2.0,    # 2 huevos
-    "comida_rapida":   1.0,    # 1 unidad (hamburguesa/pizza)
-    "refresco_lata":   1.0,    # 1 lata
-    "ropa_nueva":      1.0,
-    "zapatillas":      1.0,
-    "libro_nuevo":     1.0,
-    "streaming":       1.0,
-    "gimnasio":        1.0,
-    "hotel":           1.0,
-    "crucero":         1.0,
-    "lavadora":        1.0,
-    "secadora":        1.0,
-    "lavavajillas":    1.0,
-    # Energía (kWh o hora)
-    "electricidad_es": 10.0,   # 10 kWh — consumo diario medio hogar
-    "gas_natural":     5.0,    # 5 kWh
-    "aire_acondicionado": 2.0, # 2 horas
-    "television":      2.0,    # 2 horas
-    "movil":           3.0,    # 3 horas — uso medio diario de smartphone
-}
-
-
 @dataclass
 class ExtractedActivity:
     """Actividad identificada por el LLM, lista para pasar a la Calculadora."""
@@ -161,6 +111,7 @@ class Extractor:
         db: Session,
         home_city: str | None = None,
         work_place: str | None = None,
+        commute_km: float | None = None,
         pending_activity: dict | None = None,
         user_portions: dict[str, float] | None = None,
         user_id: str = "default",
@@ -249,6 +200,9 @@ class Extractor:
                             },
                             "clarifying_question": question,
                         })
+                    elif c.get("guessed_type") == "transporte":
+                        # Transport always has emission factors — only km/route is missing, not a catalog gap
+                        log.info("Fallback: ignorando transporte desconocido '%s' (no es ítem de catálogo)", term)
                     else:
                         truly_unknown.append({"category": "unknown", "description": term, "guessed_type": c.get("guessed_type")})
 
@@ -313,9 +267,34 @@ class Extractor:
 
             category = item.get("category", "").strip()
 
+            # El LLM detectó un desplazamiento (origen/destino) pero el usuario no dijo
+            # el medio de transporte — preguntar en vez de asumir uno (p.ej. "metro" por defecto).
+            if category == "transporte_pendiente":
+                origin = (item.get("origin") or "").strip()
+                destination = (item.get("destination") or "").strip()
+                question = item.get("clarifying_question") or (
+                    "¿En qué medio de transporte hiciste ese trayecto? "
+                    "(coche, moto, autobús, metro, tren, a pie, bici...)"
+                )
+                pending_data: dict = {
+                    "category": "transporte_pendiente",
+                    "description": item.get("description") or "trayecto",
+                    "question": question,
+                }
+                if origin:
+                    pending_data["origin"] = origin
+                if destination:
+                    pending_data["destination"] = destination
+                result.append({"set_pending_activity": pending_data, "clarifying_question": question})  # type: ignore[arg-type]
+                continue
+
             # Item marcado como desconocido por el LLM → registrar para revisión
             if category == "unknown":
-                unknown_items.append(item)
+                # Transport is never a catalog gap — skip silently
+                if item.get("guessed_type") == "transporte":
+                    log.info("Ignorando transporte con category=unknown (no es ítem de catálogo): %s", item.get("description", ""))
+                else:
+                    unknown_items.append(item)
                 continue
             quantity_raw = item.get("quantity")
             description = item.get("description", category)
@@ -343,12 +322,10 @@ class Extractor:
                 _origin_hint = (item.get("origin") or "").strip()
                 _dest_hint = (item.get("destination") or "").strip()
                 if not _is_transport and not _origin_hint and not _dest_hint:
-                    # Priority: user override > factor.default_quantity (admin) > DEFAULT_PORTIONS (hardcoded) > 1 for unidad
+                    # Priority: user override > factor.default_quantity (DB) > 1 for unidad
                     _default_q = (user_portions or {}).get(category)
                     if _default_q is None and _factor_unit and _factor_unit.default_quantity is not None:
                         _default_q = _factor_unit.default_quantity
-                    if _default_q is None:
-                        _default_q = DEFAULT_PORTIONS.get(category)
                     if _default_q is None and _factor_unit and _factor_unit.unit == "unidad":
                         _default_q = 1.0
                     if _default_q is not None:
@@ -360,19 +337,61 @@ class Extractor:
                 origin = (item.get("origin") or "").strip()
                 destination = (item.get("destination") or "").strip()
 
+                def _is_generic(place: str) -> bool:
+                    p = place.lower().strip()
+                    if "," in p:  # ya tiene ciudad → no genérico
+                        return False
+                    return p in _GENERIC_PLACES or bool(set(p.split()) & _GENERIC_PLACES)
+
                 # Si hay origen y destino explícitos (dos lugares)
                 if origin and destination:
-                    if origin.lower() in _GENERIC_PLACES or destination.lower() in _GENERIC_PLACES:
+                    origin_generic = _is_generic(origin)
+                    dest_generic   = _is_generic(destination)
+                    if origin_generic or dest_generic:
                         log.info("Origen/destino genérico ('%s'/'%s') — actividad pendiente", origin, destination)
-                        question = item.get("clarifying_question") or (
-                            f"¿Desde qué lugar exacto y hasta dónde en {description}? "
-                            "(p.ej: 'desde el aeropuerto de Madrid hasta el hotel Meliá Castilla')"
-                        )
-                        result.append({  # type: ignore[arg-type]
-                            "set_pending_activity": {"category": category, "description": description},
-                            "clarifying_question": question,
-                        })
-                        continue
+                        if not origin_generic and dest_generic:
+                            # 1. Usar commute_km guardado si existe
+                            if commute_km and commute_km > 0:
+                                log.info("Usando commute_km guardado: %.1f km", commute_km)
+                                quantity_raw = commute_km
+                                item["description"] = description + f" ({origin} → {destination}, {commute_km:.1f} km)"
+                                description = item["description"]
+                                # quantity_raw ya tiene valor → cae al bloque de guardado normal
+                            else:
+                                # 2. Intentar extraer ciudad del origen y geocodificar
+                                city_match = re.search(r'\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})\s*$', origin)
+                                auto_probed = False
+                                if city_match:
+                                    city_guess = city_match.group(1)
+                                    auto_dest = f"{destination}, {city_guess}"
+                                    probe = get_distance_km(origin, auto_dest)
+                                    if probe is not None and probe <= _max_km(category):
+                                        log.info("Auto-ciudad '%s' → %s → %s: %.0f km", city_guess, origin, auto_dest, probe)
+                                        quantity_raw = probe
+                                        item["description"] = description + f" ({origin} → {auto_dest}, {probe:.1f} km)"
+                                        description = item["description"]
+                                        auto_probed = True
+                                if not auto_probed:
+                                    # 3. Geocoding falló → pedir km, marcar como commute para recordarlo
+                                    question = (
+                                        f"No pude calcular la distancia a '{destination}' automáticamente. "
+                                        f"¿Cuántos km son aproximadamente? Los guardaré para no volver a preguntarte."
+                                    )
+                                    result.append({  # type: ignore[arg-type]
+                                        "set_pending_activity": {"category": category, "description": description, "is_commute": True},
+                                        "clarifying_question": question,
+                                    })
+                                    continue
+                        else:
+                            question = (
+                                f"¿Desde qué lugar exacto y hasta dónde en {description}? "
+                                "(p.ej: 'desde la Puerta del Sol, Madrid hasta el estadio Santiago Bernabéu, Madrid')"
+                            )
+                            result.append({  # type: ignore[arg-type]
+                                "set_pending_activity": {"category": category, "description": description},
+                                "clarifying_question": question,
+                            })
+                            continue
                     # POI con nombre propio: intentar geocodificar directamente antes de preguntar ciudad.
                     # Algunos POIs incluyen la ciudad en su nombre (ej: "Hotel Hesperia Madrid") y geocodifican bien.
                     destination_has_city = "," in destination
@@ -391,34 +410,42 @@ class Extractor:
                             continue
                         # Geocodificó correctamente — saltar el cálculo normal de abajo
                         quantity_raw = probe
-                        item["description"] = description + f" ({origin} → {destination}, {probe:.0f} km)"
+                        item["description"] = description + f" ({origin} → {destination}, {probe:.1f} km)"
                         description = item["description"]
                     else:
-                        log.info("Calculando distancia %s → %s", origin, destination)
+                        log.info("[DIST] Calculando distancia %s → %s (commute_km=%s)", origin, destination, commute_km)
                         quantity_raw = get_distance_km(origin, destination)
+                        log.info("[DIST] Resultado geocoding: %s km", quantity_raw)
                         if quantity_raw is None or (
                             category in _URBAN_TRANSPORT and quantity_raw > _max_km(category)
                         ):
-                            if quantity_raw and quantity_raw > _max_km(category):
-                                log.warning("Distancia %s → %s = %.0f km parece incorrecta para %s", origin, destination, quantity_raw, category)
-                                question = f"No pude calcular bien la distancia para {description}. ¿Cuántos km son aproximadamente?"
+                            log.info("[DIST] Geocoding falló o fuera de rango — commute_km disponible: %s", commute_km)
+                            if commute_km and commute_km > 0:
+                                log.info("Geocoding falló, usando commute_km guardado: %.1f km", commute_km)
+                                quantity_raw = commute_km
+                                item["description"] = description + f" ({origin} → {destination}, {commute_km:.1f} km)"
+                                description = item["description"]
                             else:
-                                log.warning("No se pudo calcular distancia %s → %s", origin, destination)
-                                question = f"No pude calcular la distancia entre {origin} y {destination}. ¿Cuántos km son aproximadamente?"
-                            result.append({  # type: ignore[arg-type]
-                                "set_pending_activity": {"category": category, "description": description},
-                                "clarifying_question": question,
-                            })
-                            continue
-                        item["description"] = description + f" ({origin} → {destination}, {quantity_raw:.0f} km)"
+                                if quantity_raw and quantity_raw > _max_km(category):
+                                    log.warning("Distancia %s → %s = %.0f km parece incorrecta para %s", origin, destination, quantity_raw, category)
+                                    question = f"No pude calcular bien la distancia para {description}. ¿Cuántos km son aproximadamente? Los guardaré para el futuro."
+                                else:
+                                    log.warning("No se pudo calcular distancia %s → %s", origin, destination)
+                                    question = f"No pude calcular la distancia entre {origin} y {destination}. ¿Cuántos km son aproximadamente? Los guardaré para el futuro."
+                                result.append({  # type: ignore[arg-type]
+                                    "set_pending_activity": {"category": category, "description": description, "is_commute": True},
+                                    "clarifying_question": question,
+                                })
+                                continue
+                        item["description"] = description + f" ({origin} → {destination}, {quantity_raw:.1f} km)"
                         description = item["description"]
 
                 # Solo hay destino — usar home_city como origen si está disponible
                 elif destination and not origin:
                     if destination.lower() in _GENERIC_PLACES:
-                        question = item.get("clarifying_question") or (
+                        question = (
                             f"¿Desde qué lugar exacto y hasta dónde en {description}? "
-                            "(p.ej: 'desde el aeropuerto de Madrid hasta el hotel Meliá Castilla')"
+                            "(p.ej: 'desde la Puerta del Sol, Madrid hasta el estadio Santiago Bernabéu, Madrid')"
                         )
                         result.append({  # type: ignore[arg-type]
                             "set_pending_activity": {"category": category, "description": description},
@@ -453,19 +480,26 @@ class Extractor:
                         if quantity_raw is None or (
                             category in _URBAN_TRANSPORT and quantity_raw > _max_km(category)
                         ):
-                            if quantity_raw and quantity_raw > _max_km(category):
-                                log.warning("Distancia %s → %s = %.0f km parece incorrecta para %s", home_city, destination, quantity_raw, category)
-                                question = f"No pude calcular bien la distancia para {description}. ¿Cuántos km son aproximadamente?"
+                            if commute_km and commute_km > 0:
+                                log.info("Geocoding falló, usando commute_km guardado: %.1f km", commute_km)
+                                quantity_raw = commute_km
+                                item["description"] = description + f" ({home_city} → {destination}, {commute_km:.1f} km)"
+                                description = item["description"]
                             else:
-                                log.warning("No se pudo calcular distancia %s → %s", home_city, destination)
-                                question = f"No pude calcular la distancia entre {home_city} y {destination}. ¿Cuántos km son aproximadamente?"
-                            result.append({  # type: ignore[arg-type]
-                                "set_pending_activity": {"category": category, "description": description, "destination": destination},
-                                "clarifying_question": question,
-                            })
-                            continue
-                        item["description"] = description + f" ({home_city} → {destination}, {quantity_raw:.0f} km)"
-                        description = item["description"]
+                                if quantity_raw and quantity_raw > _max_km(category):
+                                    log.warning("Distancia %s → %s = %.0f km parece incorrecta para %s", home_city, destination, quantity_raw, category)
+                                    question = f"No pude calcular bien la distancia para {description}. ¿Cuántos km son aproximadamente? Los guardaré para el futuro."
+                                else:
+                                    log.warning("No se pudo calcular distancia %s → %s", home_city, destination)
+                                    question = f"No pude calcular la distancia entre {home_city} y {destination}. ¿Cuántos km son aproximadamente? Los guardaré para el futuro."
+                                result.append({  # type: ignore[arg-type]
+                                    "set_pending_activity": {"category": category, "description": description, "destination": destination, "is_commute": True},
+                                    "clarifying_question": question,
+                                })
+                                continue
+                        if quantity_raw is not None:
+                            item["description"] = description + f" ({home_city} → {destination}, {quantity_raw:.1f} km)"
+                            description = item["description"]
                     else:
                         # Sin home_city (o home_city en otra ciudad) — pedir origen local
                         if dest_city_hint and category in _URBAN_TRANSPORT:
@@ -533,7 +567,7 @@ class Extractor:
                 log.info("Conversión g→kg: %.1f g = %.4f kg para %s", quantity * 1000, quantity, category)
             elif unit_given in ("unidades", "unidad", "piezas", "pieza", "ud", "uds"):
                 # Multiplicar el número de piezas por la porción estándar
-                _default_q = (user_portions or {}).get(category) or DEFAULT_PORTIONS.get(category)
+                _default_q = (user_portions or {}).get(category) or (factor.default_quantity if factor.default_quantity is not None else None)
                 if _default_q is not None:
                     original_count = quantity
                     quantity = quantity * _default_q
@@ -568,10 +602,11 @@ class Extractor:
         )
 
         # Persist unknown items and attach marker so orchestrator can mention them
+        unknown_item_markers: list = []
         if unknown_items:
             unknown_names = self._save_unknown_items(unknown_items, raw_text, user_id, db)
             if unknown_names:
-                result.append({"unknown_items": unknown_names})  # type: ignore[arg-type]
+                unknown_item_markers = [{"unknown_items": unknown_names}]
 
         # Construir resultado final: actividades reales + home markers + clear_pending + primer pending activity + pregunta
         clear_pending_markers = [r for r in result if isinstance(r, dict) and r.get("clear_pending")]
@@ -598,5 +633,8 @@ class Extractor:
 
         if pending_questions:
             final.append({"clarifying_question": " ".join(pending_questions)})
+
+        if unknown_item_markers:
+            final.extend(unknown_item_markers)
 
         return final

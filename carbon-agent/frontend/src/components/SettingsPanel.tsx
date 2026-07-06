@@ -1,8 +1,16 @@
 import { useState, useEffect, type CSSProperties, type ReactNode } from 'react'
-import { Target, User, UtensilsCrossed, Thermometer, Sun, Moon } from 'lucide-react'
+import { useAuth0 } from '@auth0/auth0-react'
+import { Target, User, UtensilsCrossed, Thermometer, Sun, Moon, Check, X, Loader2 } from 'lucide-react'
 import { useSettings } from '../hooks/useSettings'
-import { useProfile, useUpdateProfile, usePortions, useUpdatePortions, useRecurring, useUpdateRecurring, useDeleteHistory } from '../hooks/useCarbon'
+import { useProfile, useUpdateProfile, usePortions, useUpdatePortions, useRecurring, useUpdateRecurring, useDeleteHistory, useAddressCheck, type AddressCheckStatus } from '../hooks/useCarbon'
 import type { RecurringActivity } from '../types'
+
+function AddressStatusIcon({ status }: { status: AddressCheckStatus }) {
+  if (status === 'checking') return <Loader2 size={15} className="icon address-status address-status--checking" />
+  if (status === 'ok') return <Check size={15} className="icon address-status address-status--ok" />
+  if (status === 'fail') return <X size={15} className="icon address-status address-status--fail" />
+  return null
+}
 
 // ── Sub-panel: Objetivo CO₂ ───────────────────────────────────────────────────
 
@@ -149,6 +157,9 @@ function ProfilePanel() {
   const [homeCity, setHomeCity]       = useState('')
   const [workPlace, setWorkPlace]     = useState('')
 
+  const homeCityStatus = useAddressCheck(homeCity)
+  const workPlaceStatus = useAddressCheck(workPlace)
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name ?? '')
@@ -197,23 +208,29 @@ function ProfilePanel() {
 
           <label className="form__field">
             <span>Mi dirección</span>
-            <input
-              type="text"
-              placeholder="ej: Barcelona"
-              value={homeCity}
-              onChange={e => setHomeCity(e.target.value)}
-            />
+            <div className="address-input">
+              <input
+                type="text"
+                placeholder="ej: Barcelona"
+                value={homeCity}
+                onChange={e => setHomeCity(e.target.value)}
+              />
+              <AddressStatusIcon status={homeCityStatus} />
+            </div>
             <span className='help-text'>Se usa como origen por defecto en tus viajes desde casa.</span>
           </label>
 
           <label className="form__field">
             <span>Mi trabajo / centro de estudios</span>
-            <input
-              type="text"
-              placeholder="ej: Oficina en Madrid, Universidad de Valencia"
-              value={workPlace}
-              onChange={e => setWorkPlace(e.target.value)}
-            />
+            <div className="address-input">
+              <input
+                type="text"
+                placeholder="ej: Oficina en Madrid, Universidad de Valencia"
+                value={workPlace}
+                onChange={e => setWorkPlace(e.target.value)}
+              />
+              <AddressStatusIcon status={workPlaceStatus} />
+            </div>
             <span className='help-text'>Permite calcular tu huella de trayectos al trabajo.</span>
           </label>
         </div>
@@ -517,6 +534,39 @@ function HistorySection() {
   )
 }
 
+// ── Sub-panel: Cuenta (solo visible en móvil — en escritorio ya está en la barra lateral) ──
+
+function AccountSection() {
+  const { user, logout } = useAuth0()
+
+  return (
+    <div className="settings__profile settings__account-section">
+      <div className="card mt-3">
+        <h2>Cuenta</h2>
+        <div className="user-info">
+          {user?.picture && (
+            <img className="user-info__avatar" src={user.picture} alt={user.name} />
+          )}
+          <div className="user-info__text">
+            <span className="user-info__name">{user?.name ?? user?.email}</span>
+            {user?.name && user?.email && (
+              <span className="user-info__email">{user.email}</span>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="text-end">
+        <button
+          className="btn-light"
+          onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Panel principal ───────────────────────────────────────────────────────────
 
 export type SettingsSubTab = 'goal' | 'profile' | 'portions'
@@ -544,6 +594,7 @@ export function SettingsPanel({ tab, lightTheme, onToggleTheme }: SettingsPanelP
           <ProfilePanel />
           <RecurringPanel />
           <HistorySection />
+          <AccountSection />
           <div className="settings__theme-row">
             <span>Tema</span>
             <button className="contrast-toggle" onClick={onToggleTheme}>

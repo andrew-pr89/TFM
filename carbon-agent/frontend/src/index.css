@@ -277,6 +277,29 @@ form { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
 .form__field input:focus, .form__field select:focus, .form__field textarea:focus {
   outline: none; border-color: var(--accent);
 }
+.address-input {
+  position: relative;
+  display: flex;
+}
+.address-input input {
+  padding-right: 34px;
+}
+.address-status {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.address-status--checking {
+  color: var(--text-muted);
+  animation: address-status-spin 0.8s linear infinite;
+}
+.address-status--ok { color: var(--c-success); }
+.address-status--fail { color: var(--c-danger); }
+@keyframes address-status-spin {
+  to { transform: translateY(-50%) rotate(360deg); }
+}
 option { 
   color: var(--text); 
   background: var(--bg); 
@@ -643,7 +666,18 @@ input[type="checkbox"] {
 
 .topbar {
   flex-shrink: 0;
-  padding: 50px 5% 0;
+  padding: 50px 5% 20px;
+  background: var(--bg);
+  box-shadow: 0 4px 20px -2px transparent;
+  transition: box-shadow 0.2s;
+  position: relative;
+  z-index: 2;
+}
+.topbar--scrolled {
+  box-shadow: 0 4px 16px -2px rgba(0,0,0,0.12);
+}
+[data-theme="light"] .topbar--scrolled {
+  box-shadow: 0 4px 16px -2px var(--surface-4);
 }
 
 .topbar__title {
@@ -975,9 +1009,13 @@ input[type="checkbox"] {
 .more-overlay { display: none; }
 .more-sheet  { display: none; }
 
+/* ── Cuenta en Ajustes (mobile only — en escritorio ya está en la sidebar) ── */
+.settings__account-section { display: none; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar { display: none; }
+  .settings__account-section { display: block; }
 
   .bottom-nav {
     display: flex;
@@ -1048,7 +1086,6 @@ input[type="checkbox"] {
 
   .app { padding-bottom: var(--bottomnav-h); }
 
-  .topbar { padding: 16px 5% 0; }
   .theme-toggle-fixed { top: 12px; right: 16px; }
   .contrast-toggle__label { display: none; }
   .example-chips { display: none; }
@@ -1062,6 +1099,7 @@ input[type="checkbox"] {
   .dashboard__mode-group { display: flex; justify-content: center; }
   .dashboard__nav-group { justify-content: center; }
   .dashboard__period-label { text-align: center; }
+  .topbar { position: sticky; top: 0; z-index: 10; padding: 16px 5% 12px; }
   .topbar__title { text-align: center; }
   .main { overflow-y: auto; }
   .main[data-tab="chat"] { overflow: hidden; flex: 1; min-height: 0; }
@@ -1070,7 +1108,7 @@ input[type="checkbox"] {
   .content { overflow: visible; flex: none; height: auto; }
   .dashboard-layout { flex: none; height: auto; padding: 16px 5% 80px; }
   .dashboard { flex: none; display: block; height: auto; }
-  .dashboard__fixed { text-align: center; }
+  .dashboard__fixed { text-align: center; position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 12px; }
   .dashboard__scroll { overflow: visible; flex: none; }
   .dashboard__rings-row { flex-direction: column; width: 100%; gap: 16px; align-items: center; }
   .dashboard__categories { grid-template-columns: repeat(3, 96px); justify-content: center; width: 100%; gap: 16px 12px; margin: 0 auto; }
@@ -1078,9 +1116,10 @@ input[type="checkbox"] {
   .input-row button { width: 44px; height: 44px; min-width: 44px; padding: 0; flex-shrink: 0; }
   .chat-textarea { flex: 1; min-width: 0; font-size: 1rem; }
   .settings__theme-row { display: flex; }
-  .topbar .settings__tabs { display: flex; }
-  .settings__tab { padding: 8px; gap: 0; justify-content: center; }
-  .settings__tab span { display: none; }
+  .topbar .settings__tabs { display: flex; background: transparent; border: none; padding: 0; margin-bottom: 8px; gap: 4px; justify-content: center; }
+  .topbar .settings__tab { flex: 0 0 auto; padding: 6px 10px; }
+  .topbar .settings__tab span { display: none; }
+  .topbar .settings__tab--active { background: var(--accent-dim); color: var(--accent); box-shadow: none; }
   .chat-messages { padding: 16px; }
   .chat-input-area { padding: 12px 16px 16px; }
   .panel-layout { padding: 16px 5%; }

@@ -14,6 +14,12 @@ function qtyLabel(qty: number, unit: string): string {
   return `${qty} ${unit}`
 }
 
+function qtyPrefix(unit: string): string {
+  if (unit === 'km')   return 'distancia'
+  if (unit === 'hora') return 'tiempo'
+  return 'ración'
+}
+
 function co2Color(kg: number): string {
   if (kg === 0) return 'var(--c-neutral)'
   if (kg < 1) return 'var(--c-low)'
@@ -25,10 +31,6 @@ function co2Label(kg: number): string {
   if (kg === 0) return '—'
   if (kg < 0.001) return `${(kg * 1000).toFixed(1)} g`
   return `${kg.toFixed(3)} kg`
-}
-
-function isQuestion(text: string): boolean {
-  return text.trim().endsWith('?')
 }
 
 export function ChatBubble({ message }: Props) {
@@ -53,7 +55,7 @@ export function ChatBubble({ message }: Props) {
 
   // assistant — sin datos (pregunta aclaratoria o mensaje informativo)
   if (!data || data.total_kg_co2e === 0) {
-    const isQ = isQuestion(text)
+    const isQ = Boolean(data?.is_question)
     return (
       <div className={`bubble bubble--assistant ${isQ ? 'bubble--question' : ''}`}>
         <p>{isQ && <AlertCircle size={15} className="icon bubble__question-icon" />}{text}</p>
@@ -82,7 +84,7 @@ export function ChatBubble({ message }: Props) {
             <li key={e.id} className="emission-item">
               <span>
                 {(e.description || e.factor.display_name).replace(/\s*\(ración estándar\)/i, '').trim()}
-                <small>ración {qtyLabel(e.quantity, e.factor.unit)}</small>
+                <small>{qtyPrefix(e.factor.unit)} {qtyLabel(e.quantity, e.factor.unit)}</small>
               </span>
               <span className="emission-item__bar-wrap">
                 <span

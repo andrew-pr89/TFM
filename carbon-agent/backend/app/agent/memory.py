@@ -67,6 +67,23 @@ class MemoryService:
         )
         return record.value if record else None
 
+    def get_commute_km(self, user_id: str, db: Session) -> float | None:
+        """Devuelve la distancia guardada para el trayecto habitual casa→trabajo."""
+        record = (
+            db.query(UserMemory)
+            .filter(UserMemory.user_id == user_id, UserMemory.key == "commute_km")
+            .first()
+        )
+        try:
+            return float(record.value) if record else None
+        except (ValueError, TypeError):
+            return None
+
+    def set_commute_km(self, user_id: str, km: float, db: Session) -> None:
+        """Guarda la distancia del trayecto habitual casa→trabajo."""
+        self.update_memory(user_id=user_id, updates={"commute_km": str(km)}, db=db)
+        log.info("Distancia commute guardada para user=%s: %.1f km", user_id, km)
+
     def get_pending_activity(self, user_id: str, db: Session) -> dict | None:
         """Devuelve la actividad pendiente de resolución (esperando más info), o None."""
         record = (
@@ -84,11 +101,20 @@ class MemoryService:
     def set_pending_activity(
         self, user_id: str, category: str, description: str, question: str, db: Session,
         destination: str | None = None,
+        origin: str | None = None,
+        destination_poi: str | None = None,
+        is_commute: bool = False,
     ) -> None:
         """Guarda una actividad pendiente: esperamos que el usuario aporte la información faltante."""
         data: dict = {"category": category, "description": description, "question": question}
         if destination:
             data["destination"] = destination
+        if origin:
+            data["origin"] = origin
+        if destination_poi:
+            data["destination_poi"] = destination_poi
+        if is_commute:
+            data["is_commute"] = True
         value = json.dumps(data)
         self.update_memory(user_id=user_id, updates={"pending_activity": value}, db=db)
         log.info("Actividad pendiente guardada para user=%s: %s", user_id, category)
@@ -162,6 +188,17 @@ class MemoryService:
 
     def set_recurring_last_applied(self, user_id: str, date_str: str, db: Session) -> None:
         self.update_memory(user_id=user_id, updates={"recurring_last_applied": date_str}, db=db)
+
+    def clear_keys(self, user_id: str, keys: list[str], db: Session) -> None:
+        """Deletes memory records for the given keys (used to clear optional profile fields)."""
+        if not keys:
+            return
+        db.query(UserMemory).filter(
+            UserMemory.user_id == user_id,
+            UserMemory.key.in_(keys),
+        ).delete(synchronize_session=False)
+        db.flush()
+        log.info("Claves eliminadas de memoria para user=%s: %s", user_id, keys)
 
     def infer_habits(self, user_id: str, category: str, db: Session) -> None:
         """

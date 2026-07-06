@@ -635,6 +635,17 @@ EMISSION_FACTORS = [{'category': 'coche_gasolina',
   'source_detail': 'Emisiones directas consideradas cero para el desplazamiento',
   'source_url': None,
   'notes': 'No incluye ciclo de vida de la bicicleta.'},
+ {'category': 'bicicleta_electrica',
+  'main_category': 'Transporte',
+  'display_name': 'Bicicleta eléctrica',
+  'unit': 'km',
+  'factor_kg_co2e': 0.004,
+  'source_name': 'Estimación propia',
+  'source_year': 2026,
+  'source_type': 'estimated',
+  'source_detail': 'Consumo eléctrico de la batería, mix eléctrico europeo (~12 Wh/km)',
+  'source_url': None,
+  'notes': 'Factor orientativo para MVP; no incluye ciclo de vida de la batería/bicicleta.'},
  {'category': 'tren_alta_velocidad',
   'main_category': 'Transporte',
   'display_name': 'Tren de alta velocidad',
@@ -1450,6 +1461,7 @@ DEFAULT_QUANTITIES: dict[str, float] = {
     'autobus_interurbano': 100.0,
     'caminar':               2.0,
     'bicicleta':             5.0,
+    'bicicleta_electrica':   8.0,
     'tren_alta_velocidad': 400.0,   # km — Madrid-Barcelona AVE
     # ── Energía ─────────────────────────────────────────────────────────────
     'electricidad_es':       5.0,   # kWh — consumo medio diario hogar
@@ -1568,6 +1580,13 @@ DEFAULT_QUANTITIES: dict[str, float] = {
     'gimnasio':              1.0,   # sesión
     'hotel':                 1.0,   # noche
 }
+
+
+# Populate default_quantity on each factor from DEFAULT_QUANTITIES
+# (factors that already have default_quantity set explicitly are not overwritten)
+for _f in EMISSION_FACTORS:
+    if 'default_quantity' not in _f and _f['category'] in DEFAULT_QUANTITIES:
+        _f['default_quantity'] = DEFAULT_QUANTITIES[_f['category']]
 
 
 def get_factor_by_category(category: str):

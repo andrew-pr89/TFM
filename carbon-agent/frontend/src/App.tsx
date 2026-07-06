@@ -50,6 +50,17 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsSubTab>('goal')
   const [lightTheme, setLightTheme] = useState(true)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const onScroll = (e: Event) => {
+      const el = e.target as HTMLElement
+      setScrolled(el.scrollTop > 10)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true })
+    return () => window.removeEventListener('scroll', onScroll, { capture: true })
+  }, [])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', lightTheme ? 'light' : 'dark')
@@ -206,8 +217,8 @@ export default function App() {
       </div>
 
       {/* ── Main content ── */}
-      <main className="main" data-tab={tab}>
-        <header className="topbar">
+      <main className="main" data-tab={tab} ref={mainRef}>
+        <header className={`topbar${scrolled ? ' topbar--scrolled' : ''}`}>
           {tab === 'settings' && (
             <div className="settings__tabs">
               {SETTINGS_SUBTABS.map(s => (
