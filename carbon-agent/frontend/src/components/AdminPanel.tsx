@@ -1,9 +1,17 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { carbonApi } from '../services/api'
 import type { UnknownItemOut, EmissionFactorCreate, EmissionFactorOut, EmissionFactorPatch } from '../types'
+
+function errorMessage(err: unknown): string {
+  if (isAxiosError(err)) {
+    return err.response?.data?.detail ?? err.message
+  }
+  return err instanceof Error ? err.message : 'Error desconocido'
+}
 
 const MAIN_CATEGORIES = ['Alimentación', 'Transporte', 'Energía', 'Residuos', 'Compras', 'Ocio']
 const UNITS = ['kg', 'km', 'kWh', 'litro', 'hora', 'unidad']
@@ -194,6 +202,7 @@ function FactorsPanel({ onFormOpen, onFormClose }: { onFormOpen: () => void; onF
       queryClient.invalidateQueries({ queryKey: ['admin-factors'] })
       closeCreate()
     },
+    onError: (err) => alert(`No se pudo crear el factor: ${errorMessage(err)}`),
   })
 
   const updateMutation = useMutation({
@@ -203,6 +212,7 @@ function FactorsPanel({ onFormOpen, onFormClose }: { onFormOpen: () => void; onF
       queryClient.invalidateQueries({ queryKey: ['admin-factors'] })
       closeEdit()
     },
+    onError: (err) => alert(`No se pudo guardar el factor: ${errorMessage(err)}`),
   })
 
   const deleteMutation = useMutation({
@@ -211,6 +221,7 @@ function FactorsPanel({ onFormOpen, onFormClose }: { onFormOpen: () => void; onF
       queryClient.invalidateQueries({ queryKey: ['admin-factors'] })
       closeEdit()
     },
+    onError: (err) => alert(`No se pudo eliminar el factor: ${errorMessage(err)}`),
   })
 
   const allCategories = useMemo(() => {
@@ -315,7 +326,6 @@ function FactorsPanel({ onFormOpen, onFormClose }: { onFormOpen: () => void; onF
         <div className="panel-state">Cargando…</div>
       ) : filtered.length === 0 ? (
         <div className="panel-state">
-          <span className="panel-state__icon">📭</span>
           <p>No hay factores{search ? ' que coincidan con la búsqueda' : ''}.</p>
         </div>
       ) : (
@@ -395,6 +405,7 @@ function UnknownItemsPanel() {
       setActiveItem(null)
       setSelected(new Set())
     },
+    onError: (err) => alert(`No se pudo eliminar el item: ${errorMessage(err)}`),
   })
 
   const batchDeleteMutation = useMutation({
@@ -403,12 +414,14 @@ function UnknownItemsPanel() {
       queryClient.invalidateQueries({ queryKey: ['admin-unknown'] })
       setSelected(new Set())
     },
+    onError: (err) => alert(`No se pudieron eliminar los items: ${errorMessage(err)}`),
   })
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       carbonApi.updateUnknownItemStatus(id, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-unknown'] }),
+    onError: (err) => alert(`No se pudo actualizar el estado: ${errorMessage(err)}`),
   })
 
   const createFactorMutation = useMutation({
@@ -422,6 +435,7 @@ function UnknownItemsPanel() {
       setShowForm(false)
       setActiveItem(null)
     },
+    onError: (err) => alert(`No se pudo crear el factor: ${errorMessage(err)}`),
   })
 
   const filtered = useMemo(() =>

@@ -87,6 +87,11 @@ export const carbonApi = {
     return data
   },
 
+  checkAddress: async (address: string): Promise<boolean> => {
+    const { data } = await api.get<{ found: boolean }>('/geocode/check', { params: { address } })
+    return data.found
+  },
+
   getPortions: async (): Promise<PortionEntry[]> => {
     const { data } = await api.get<PortionEntry[]>('/portions')
     return data

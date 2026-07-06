@@ -78,6 +78,13 @@ class ActivityResponse(BaseModel):
     clarifying_question: str | None = None  # pregunta pendiente cuando hay emisiones Y actividad incompleta
 
 
+# ── Geocode check ────────────────────────────────────────────────────────────
+
+class GeocodeCheckOut(BaseModel):
+    """Resultado de comprobar si una dirección es geocodificable (Nominatim la encuentra)."""
+    found: bool
+
+
 # ── User profile ─────────────────────────────────────────────────────────────
 
 class UserProfile(BaseModel):

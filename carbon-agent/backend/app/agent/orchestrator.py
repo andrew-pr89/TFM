@@ -10,10 +10,10 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.agent.calculator import CO2Calculator
-from app.agent.extractor import DEFAULT_PORTIONS, Extractor, ExtractedActivity
+from app.agent.extractor import Extractor, ExtractedActivity
 from app.agent.llm_service import LLMService
 from app.agent.memory import MemoryService
-from app.models.models import Activity
+from app.models.models import Activity, EmissionFactor
 from app.schemas.schemas import ActivityOut, ActivityResponse
 
 log = logging.getLogger(__name__)
@@ -104,13 +104,18 @@ class CarbonAgent:
         # ── 1. Cargar contexto de memoria antes de extraer ───────────────────
         home_city = self.memory.get_home_city(user_id=user_id, db=db)
         work_place = self.memory.get_work_place(user_id=user_id, db=db)
+        commute_km = self.memory.get_commute_km(user_id=user_id, db=db)
         existing_pending_activity = self.memory.get_pending_activity(user_id=user_id, db=db)
 
-        # If the pending activity is a food/energy category that now has a default portion,
+        # If the pending activity is a food/energy category that has a default quantity in the DB,
         # auto-clear it so the extractor processes all items in the message normally.
+        # Transport (unit="km") factors also carry a default_quantity (an average reference
+        # distance, not a usable portion) so they must be excluded here — otherwise a pending
+        # "how many km?" question gets wiped before the user's answer is ever processed.
         if existing_pending_activity:
             pending_cat = existing_pending_activity.get("category", "")
-            if pending_cat in DEFAULT_PORTIONS:
+            _pending_factor = db.query(EmissionFactor).filter_by(category=pending_cat).first()
+            if _pending_factor and _pending_factor.unit != "km" and _pending_factor.default_quantity is not None:
                 self.memory.clear_pending_activity(user_id=user_id, db=db)
                 db.commit()
                 existing_pending_activity = None
@@ -123,6 +128,7 @@ class CarbonAgent:
             db=db,
             home_city=home_city,
             work_place=work_place,
+            commute_km=commute_km,
             pending_activity=existing_pending_activity,
             user_portions=user_portions or None,
             user_id=user_id,
@@ -170,18 +176,32 @@ class CarbonAgent:
             log.info("home_city guardada para user=%s: %s", user_id, new_home_city)
 
         # Si el turno actual RESOLVIÓ el pending_activity anterior → limpiarlo.
-        # Solo se considera resuelto si hay actividades de la misma categoría calculadas.
+        # Normalmente se considera resuelto si hay una actividad de la misma categoría.
+        # Excepción: "transporte_pendiente" (solo faltaba el medio de transporte) se resuelve
+        # con CUALQUIER actividad de transporte (unit="km"), ya que su categoría real
+        # (metro, coche_gasolina...) nunca coincide con el placeholder.
+        _pending_cat = existing_pending_activity.get("category") if existing_pending_activity else None
+
+        def _resolves_pending(e) -> bool:
+            if not isinstance(e, ExtractedActivity):
+                return False
+            if _pending_cat == "transporte_pendiente":
+                return e.factor.unit == "km"
+            return e.category == _pending_cat
+
         pending_resolved = (
             existing_pending_activity
             and not new_pending_activity
-            and any(
-                isinstance(e, ExtractedActivity)
-                and e.category == existing_pending_activity.get("category")
-                for e in extracted
-            )
+            and any(_resolves_pending(e) for e in extracted)
         )
         if pending_resolved:
             self.memory.clear_pending_activity(user_id=user_id, db=db)
+            # Si era un commute pendiente, guardar los km para uso futuro
+            if existing_pending_activity.get("is_commute"):
+                resolved_act = next((e for e in extracted if _resolves_pending(e)), None)
+                if resolved_act and resolved_act.quantity:
+                    self.memory.set_commute_km(user_id=user_id, km=resolved_act.quantity, db=db)
+                    log.info("Commute km guardado: %.1f", resolved_act.quantity)
             db.commit()
 
         # Si hay nuevo transporte pendiente de ubicación → guardarlo
@@ -192,6 +212,9 @@ class CarbonAgent:
                 description=new_pending_activity["description"],
                 question=new_pending_activity.get("question", ""),
                 destination=new_pending_activity.get("destination"),
+                origin=new_pending_activity.get("origin"),
+                destination_poi=new_pending_activity.get("destination_poi"),
+                is_commute=bool(new_pending_activity.get("is_commute")),
                 db=db,
             )
             db.commit()

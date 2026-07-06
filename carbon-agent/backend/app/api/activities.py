@@ -15,14 +15,14 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.agent.extractor import DEFAULT_PORTIONS
+from app.agent.distance_service import is_geocodable
 from app.agent.memory import MemoryService
 from app.agent.orchestrator import carbon_agent
 from app.core.auth import get_admin_user, get_current_user
 from app.db.database import get_db
 from app.db.seed_data import EMISSION_FACTORS
 from app.models.models import Activity, Emission, EmissionFactor
-from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, EmissionFactorCreate, EmissionFactorOut, EmissionFactorPatch, EmissionOut, EmissionQuantityPatch, ImprovementSuggestion, ImprovementsOut, PortionEntry, RecurringActivity, RecurringApplyResult, SummaryOut, UnknownItemOut, UserProfile
+from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, ActivityResponse, EmissionFactorCreate, EmissionFactorOut, EmissionFactorPatch, EmissionOut, EmissionQuantityPatch, GeocodeCheckOut, ImprovementSuggestion, ImprovementsOut, PortionEntry, RecurringActivity, RecurringApplyResult, SummaryOut, UnknownItemOut, UserProfile
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["activities"])
@@ -54,14 +54,24 @@ def get_history(limit: int = 200, date_from: Optional[str] = None, date_to: Opti
 
 @router.delete("/history", status_code=204)
 def delete_history(user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Borra todo el historial del usuario (cascade elimina las emisiones asociadas)."""
+    """Borra todo el historial del usuario y sus emisiones."""
+    # Query.delete() es un DELETE masivo en SQL y NO dispara el cascade del ORM
+    # (cascade="all, delete-orphan" solo se aplica a session.delete() por objeto).
+    # Hay que borrar las emisiones explícitamente antes, o quedan huérfanas con un
+    # activity_id que SQLite puede reasignar a una actividad nueva más adelante.
+    activity_ids = [
+        row[0] for row in
+        db.query(Activity.id).filter(Activity.user_id == user_id).all()
+    ]
+    if activity_ids:
+        db.query(Emission).filter(Emission.activity_id.in_(activity_ids)).delete(synchronize_session=False)
     deleted = (
         db.query(Activity)
         .filter(Activity.user_id == user_id)
         .delete(synchronize_session=False)
     )
     db.commit()
-    log.info("Historial borrado: user=%s, %d actividades eliminadas", user_id, deleted)
+    log.info("Historial borrado: user=%s, %d actividades y sus emisiones eliminadas", user_id, deleted)
 
 
 @router.delete("/history/{activity_id}", status_code=204)
@@ -169,19 +179,30 @@ def get_profile(user_id: str = Depends(get_current_user), db: Session = Depends(
 
 @router.patch("/profile", response_model=UserProfile)
 def update_profile(payload: UserProfile, user_id: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Guarda o actualiza el perfil del usuario."""
+    """Guarda o actualiza el perfil del usuario. Enviar null en un campo lo borra."""
     memory = MemoryService()
     updates: dict[str, str] = {}
-    if payload.home_city is not None:
-        updates["home_city"] = payload.home_city
-    if payload.work_place is not None:
-        updates["work_place"] = payload.work_place
-    if payload.display_name is not None:
-        updates["display_name"] = payload.display_name
+    to_clear: list[str] = []
+    for field in ("home_city", "work_place", "display_name"):
+        value = getattr(payload, field)
+        if value is not None:
+            updates[field] = value
+        else:
+            to_clear.append(field)
     if updates:
         memory.update_memory(user_id=user_id, updates=updates, db=db)
-        db.commit()
+    if to_clear:
+        memory.clear_keys(user_id=user_id, keys=to_clear, db=db)
+    db.commit()
     return get_profile(user_id=user_id, db=db)
+
+
+@router.get("/geocode/check", response_model=GeocodeCheckOut)
+def check_geocode(address: str, _: str = Depends(get_current_user)):
+    """Comprueba si una dirección es geocodificable, para validar direcciones en Ajustes."""
+    if not address.strip():
+        return GeocodeCheckOut(found=False)
+    return GeocodeCheckOut(found=is_geocodable(address))
 
 
 @router.get("/admin/unknown-items", response_model=list[UnknownItemOut])
@@ -275,13 +296,14 @@ def update_factor(factor_id: int, payload: EmissionFactorPatch, _: str = Depends
 
 @router.delete("/admin/factors/{factor_id}", status_code=204)
 def delete_factor(factor_id: int, _: str = Depends(get_admin_user), db: Session = Depends(get_db)):
-    """Delete an emission factor permanently."""
+    """Delete an emission factor permanently, along with any logged emissions that used it."""
     factor = db.query(EmissionFactor).filter(EmissionFactor.id == factor_id).first()
     if not factor:
         raise HTTPException(status_code=404, detail="Factor not found")
+    linked_emissions = db.query(Emission).filter(Emission.factor_id == factor_id).count()
     db.delete(factor)
     db.commit()
-    log.info("Factor eliminado: %s", factor.category)
+    log.info("Factor eliminado: %s (arrastró %d emisiones)", factor.category, linked_emissions)
 
 
 @router.get("/portions", response_model=list[PortionEntry])
@@ -289,22 +311,25 @@ def get_portions(user_id: str = Depends(get_current_user), db: Session = Depends
     """Returns portion defaults for all non-transport categories, with user overrides applied."""
     memory = MemoryService()
     user_portions = memory.get_portions(user_id=user_id, db=db)
-    factor_map = {f["category"]: f for f in EMISSION_FACTORS}
 
-    entries: list[PortionEntry] = []
-    for category, default_qty in DEFAULT_PORTIONS.items():
-        factor = factor_map.get(category)
-        if not factor:
-            continue
-        entries.append(PortionEntry(
-            category=category,
-            main_category=factor.get("main_category", "Alimentación"),
-            display_name=factor["display_name"],
-            unit=factor["unit"],
-            default_quantity=default_qty,
-            user_quantity=user_portions.get(category),
-        ))
-    return entries
+    factors = (
+        db.query(EmissionFactor)
+        .filter(EmissionFactor.default_quantity.isnot(None), EmissionFactor.unit != "km")
+        .order_by(EmissionFactor.main_category, EmissionFactor.display_name)
+        .all()
+    )
+
+    return [
+        PortionEntry(
+            category=f.category,
+            main_category=f.main_category,
+            display_name=f.display_name,
+            unit=f.unit,
+            default_quantity=f.default_quantity,
+            user_quantity=user_portions.get(f.category),
+        )
+        for f in factors
+    ]
 
 
 @router.patch("/portions", response_model=list[PortionEntry])
@@ -317,10 +342,10 @@ def update_portions(payload: dict[str, float], user_id: str = Depends(get_curren
 
 
 RECURRING_CATALOG = [
-    {"category": "electricidad_es", "label": "Electricidad hogar", "hint": "Media española: ~8 kWh/día por hogar (~3 kWh/persona)"},
-    {"category": "gas_natural",     "label": "Gas natural",        "hint": "Media española: ~5 kWh/día per cápita (varía mucho en invierno)"},
-    {"category": "television",      "label": "Televisión",         "hint": "Media española: ~4 h/día por persona"},
-    {"category": "movil",           "label": "Móvil",              "hint": "Media global: ~4 h/día de uso de pantalla"},
+    {"category": "electricidad_es", "label": "Electricidad hogar", "hint": " Media española: ~8 kWh/día por hogar (~3 kWh/persona)"},
+    {"category": "gas_natural",     "label": "Gas natural",        "hint": " Media española: ~5 kWh/día per cápita (varía mucho en invierno)"},
+    {"category": "television",      "label": "Televisión",         "hint": " Media española: ~4 h/día por persona"},
+    {"category": "movil",           "label": "Móvil",              "hint": " Media global: ~4 h/día de uso de pantalla"},
 ]
 
 @router.get("/recurring", response_model=list[RecurringActivity])

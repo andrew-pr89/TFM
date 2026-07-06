@@ -42,7 +42,9 @@ class EmissionFactor(Base):
     notes: Mapped[str] = mapped_column(Text, nullable=True)
     default_quantity: Mapped[float] = mapped_column(Float, nullable=True)  # ración estándar admin-configurable
 
-    emissions: Mapped[list["Emission"]] = relationship("Emission", back_populates="factor")
+    emissions: Mapped[list["Emission"]] = relationship(
+        "Emission", back_populates="factor", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<EmissionFactor {self.category} {self.factor_kg_co2e} kg/{self.unit}>"

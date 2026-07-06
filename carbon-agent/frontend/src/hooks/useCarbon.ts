@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth0 } from '@auth0/auth0-react'
 import { carbonApi } from '../services/api'
@@ -132,6 +133,32 @@ export function useUpdateProfile() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profile(userId) })
     },
   })
+}
+
+export type AddressCheckStatus = 'idle' | 'checking' | 'ok' | 'fail'
+
+/** Comprueba (con debounce) si una dirección es geocodificable, para mostrar un tick/cruz en Ajustes. */
+export function useAddressCheck(address: string): AddressCheckStatus {
+  const [debounced, setDebounced] = useState(address.trim())
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(address.trim()), 700)
+    return () => clearTimeout(t)
+  }, [address])
+
+  const enabled = debounced.length >= 4
+  const query = useQuery({
+    queryKey: ['geocode-check', debounced],
+    queryFn: () => carbonApi.checkAddress(debounced),
+    enabled,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+
+  if (!enabled) return 'idle'
+  if (query.isFetching) return 'checking'
+  if (query.isError) return 'idle'
+  return query.data ? 'ok' : 'fail'
 }
 
 export function usePortions() {

@@ -12,22 +12,9 @@ Regla de arquitectura:
 
 import json
 import logging
-import re
 from datetime import date, timedelta
 
 from openai import OpenAI
-
-# Topings/condimentos que siempre generan una actividad separada.
-# Aplica tanto a "X con TOPPING" como "X de TOPPING".
-_TOPPINGS = [
-    'mermelada', 'mantequilla', 'nocilla', 'nutella', 'miel',
-    'nata', 'crema de cacahuete', 'tomate frito', 'aceite de oliva',
-    'leche', 'queso', 'jamón', 'jamón york', 'atún',
-]
-_TOPPING_RE = re.compile(
-    r'\b(?:con|de)\s+(' + '|'.join(re.escape(t) for t in _TOPPINGS) + r')\b',
-    re.IGNORECASE,
-)
 
 from app.core.config import settings
 
@@ -222,6 +209,29 @@ DEBES incluirla aunque personalmente creas que su impacto es pequeño o que no e
 Ejemplos: agua embotellada, streaming, caminar — todo lo que está en la lista tiene impacto medido.
 NUNCA omitas una actividad porque creas que su CO₂ es bajo o irrelevante.
 
+REGLA — MEDIO DE TRANSPORTE NO ESPECIFICADO (comprobar ANTES de elegir categoría de transporte):
+Esta regla SOLO se activa cuando el medio de transporte NO aparece en el mensaje. Antes de aplicarla, busca
+con cuidado palabras de medio de transporte en TODO el mensaje: "en coche", "en moto", "en bici/bicicleta",
+"en autobús/bus", "en metro", "en tren", "andando/a pie", "en taxi", "volé/vuelo"... Si encuentras alguna,
+esta regla NO aplica — sigue el flujo normal (PASO 1 en adelante) con esa categoría, AUNQUE el origen o destino
+sean lugares genéricos como "casa" o "trabajo" (esos se resuelven en el PASO 3, no aquí).
+Si el usuario describe un desplazamiento con origen y/o destino (p.ej. "fui de A a B", "he ido desde A hasta B",
+"me desplacé a B") y, tras esa búsqueda, confirmas que NO menciona el medio de transporte en absoluto, NUNCA
+asumas ni adivines un medio por defecto — ni siquiera el más probable u obvio (metro, coche...). En su lugar
+devuelve la actividad así:
+  {{ "category": "transporte_pendiente", "quantity": null, "origin": "<origen tal cual lo dijo>",
+     "destination": "<destino tal cual lo dijo>",
+     "clarifying_question": "¿En qué medio de transporte hiciste ese trayecto? (coche, moto, autobús, metro, tren, a pie, bici...)" }}
+Ejemplos SIN medio (sí aplica la regla):
+  · "fui de Madrid a Barcelona" → category="transporte_pendiente", origin="Madrid", destination="Barcelona"
+  · "he ido desde el centro de Barcelona hasta el centro de Badalona" → category="transporte_pendiente",
+    origin="centro de Barcelona", destination="centro de Badalona"
+Ejemplos CON medio explícito (la regla NO aplica, sigue el flujo normal):
+  · "fui en tren de Madrid a Barcelona" (medio: "tren") → category="tren"
+  · "he ido desde casa al trabajo en coche" (medio: "coche", aunque origen/destino sean genéricos)
+    → category="coche_gasolina" (o el que corresponda), quantity=null, origin="casa", destination="trabajo"
+    (el PASO 3 se encarga de resolver "casa"/"trabajo" con home_city/work_place o preguntando la ubicación exacta)
+
 PASO 1: ¿Se puede asociar SEMÁNTICAMENTE a alguna categoría de la lista?
 Cada categoría tiene un display_name con sinónimos y términos equivalentes que te sirven de guía.
 Usa el display_name para hacer el mapeo semántico — no necesitas coincidencia literal, basta con que el término del usuario sea semánticamente equivalente.
@@ -241,8 +251,12 @@ REGLA DE ORO: siempre es mejor usar la categoría más cercana que devolver "unk
     · usuario dice "espárragos blancos" → lista tiene "Espárragos blancos en conserva" → usa esa categoría ✓
     · usuario dice "salmón" → lista tiene "Salmón (de piscifactoría)" → usa esa categoría ✓
     · usuario dice "pan integral" → lista tiene "Pan (barra, integral)" → usa esa categoría ✓
+- Si el término es un PLATO O RECETA con nombre propio (cachopo, cocido, fabada, paella, lasaña, pizza, burger…):
+  · Si conoces sus ingredientes principales, descompón en categorías existentes (como en REGLA 4 de abajo).
+  · Si NO conoces bien su composición, marca el PLATO ENTERO como category="unknown" con guessed_type="alimento".
+  · NUNCA omitas un plato porque no conozcas su categoría exacta.
 - Solo usa category="unknown" si NINGUNA categoría de la lista se parece remotamente al término del usuario.
-- Si no tiene huella de carbono en absoluto → omítela (no la incluyas)
+- Solo omite (no incluyas) si CLARAMENTE no tiene huella de carbono: agua del grifo, respirar, caminar, actividades físicas sin consumo material.
 
 PRE-PROCESADO OBLIGATORIO — DESCOMPOSICIÓN DE INGREDIENTES:
 ANTES de mapear categorías, identifica TODOS los componentes del mensaje siguiendo estas reglas:
@@ -311,6 +325,16 @@ CLASIFICACIÓN DE VUELOS (obligatorio):
 - Si origin y destination son ciudades del mismo país → siempre avion_domestico
 - Si no se sabe el destino aún → usa avion_domestico solo si el contexto indica vuelo nacional
 
+DESTINOS NO REALES (comprobar ANTES de clasificar cualquier vuelo/trayecto):
+Si el origen o destino mencionado es claramente un cuerpo celeste (la Luna, el Sol, Marte, Júpiter y demás
+planetas, "el espacio", una galaxia, una estrella) o un lugar de ficción (Narnia, Hogwarts, la Tierra Media...),
+NO lo proceses como un viaje real — aunque el nombre coincida por casualidad con un lugar real geocodificable
+(existe una localidad real llamada "La Luna" en México, y una ciudad real llamada "Jupiter" en Florida, EEUU).
+Omite la actividad por completo (no la incluyas en "activities"): no representa un desplazamiento real y no tiene
+huella de carbono que calcular.
+Esto NO aplica a nombres de ciudades reales que coincidan con nombres comunes (ej: "Mercedes", "Trinidad") — solo
+aplica a cuerpos celestes y lugares de ficción inequívocos.
+
 PASO 2: ¿Hay un NÚMERO (o "un/una") con una unidad reconocida?
 - Unidades reconocidas: números con g/kg/km/kWh/litros/ml/horas/unidades/vaso/vasos
 - Si SÍ → actividad completa con quantity y unit convertidos a la unidad del factor
@@ -318,13 +342,25 @@ PASO 2: ¿Hay un NÚMERO (o "un/una") con una unidad reconocida?
 
 PASO 3: Categoría identificada pero falta cantidad.
 
-DISTINCIÓN CLAVE — POI con nombre propio vs. lugar genérico:
+DISTINCIÓN CLAVE — tipos de referencia de lugar:
+  ✅ Dirección de calle (geocodificable): "calle Gran Vía 30, Madrid", "calle abat odo 60 Barcelona", "Avda. Diagonal 100, Barcelona"
   ✅ POI con nombre propio (geocodificable): "hotel Hesperia Madrid", "hotel Meliá Castilla", "restaurante El Bulli", "estadio Santiago Bernabéu"
-  ❌ Lugar genérico (no geocodificable): "hotel" (solo esa palabra), "trabajo", "casa", "oficina", "gym"
-  → Si el usuario dice "al hotel [nombre]" o "al restaurante [nombre]" → es un POI específico → SUBCASO A2
-  → Si el usuario dice solo "al hotel" sin nombre → es genérico → SUBCASO C
+  ✅ Ciudad o municipio: "Madrid", "Barcelona", "Sevilla"
+  ❌ Lugar genérico (NO geocodificable): "hotel" (sin nombre), "trabajo", "casa", "oficina", "gym"
+  → "calle X número ciudad" o "calle X, ciudad" → es una DIRECCIÓN DE CALLE → SUBCASO CALLE
+  → "al hotel [nombre]" o "al restaurante [nombre]" → es un POI específico → SUBCASO A2
+  → solo "al hotel" sin nombre → es genérico → SUBCASO C
 
-- SUBCASO A: Unidad "km" Y el usuario menciona DOS ciudades/municipios (ej: "Madrid", "Barcelona"):
+- SUBCASO CALLE: Unidad "km" Y el usuario menciona UNA O DOS DIRECCIONES DE CALLE (con número y/o ciudad):
+  → actividad con quantity=null, origin="<dirección completa tal como la dijo el usuario>", destination="<dirección completa>"
+  → Si solo hay una dirección de destino, origin=null
+  → Ejemplos:
+    · "en moto desde calle abat odo 60 Barcelona hasta calle concilio de trento 37 Barcelona"
+      → origin="calle abat odo 60, Barcelona", destination="calle concilio de trento 37, Barcelona"
+    · "fui a Calle Mayor 5, Madrid desde Gran Vía 20, Madrid"
+      → origin="Gran Vía 20, Madrid", destination="Calle Mayor 5, Madrid"
+  → NUNCA extraigas la ciudad sola como home_city en estos casos; la ciudad forma parte de la dirección
+- SUBCASO A: Unidad "km" Y el usuario menciona DOS ciudades/municipios sin calle (ej: "Madrid", "Barcelona"):
   → actividad con quantity=null, origin="<ciudad>", destination="<ciudad>"
 - SUBCASO A2: Unidad "km" Y hay un POI con nombre propio Y se sabe la ciudad (en el mensaje o en el nombre del POI):
   → actividad con quantity=null, origin=null, destination="<nombre POI>, <ciudad>"
@@ -332,10 +368,11 @@ DISTINCIÓN CLAVE — POI con nombre propio vs. lugar genérico:
     · "taxi al hotel Hesperia Madrid" → destination="Hotel Hesperia, Madrid"
     · "taxi al Hotel Meliá Castilla en Madrid" → destination="Hotel Meliá Castilla, Madrid"
     · "al estadio Santiago Bernabéu" (Madrid conocido del contexto) → destination="Estadio Santiago Bernabéu, Madrid"
-- SUBCASO B: Unidad "km" Y solo UNA ciudad real mencionada:
+- SUBCASO B: Unidad "km" Y solo UNA ciudad real mencionada (sin calles):
   → actividad con quantity=null, origin=null, destination="<ciudad>", clarifying_question="¿Desde qué ciudad saliste? La recordaré para la próxima vez."
 - SUBCASO C: Unidad "km" Y destino completamente genérico SIN nombre propio y SIN ciudad (ej: solo "el hotel", "el trabajo"):
-  → actividad con quantity=null, needs_locations=true, clarifying_question="¿Desde qué lugar saliste y hasta dónde en [transporte]? (p.ej: 'desde la estación de Atocha hasta el hotel Meliá Castilla, Madrid')"
+  → actividad con quantity=null, needs_locations=true, clarifying_question="¿Desde qué lugar exacto y hasta dónde en [transporte]? (p.ej: 'desde la Puerta del Sol, Madrid hasta el estadio Santiago Bernabéu, Madrid')"
+  IMPORTANTE: El ejemplo NUNCA debe incluir lugares genéricos como "mi casa", "el trabajo" o "la oficina". Usa siempre lugares reales y geocodificables con su ciudad.
 - Otros casos (kg, kWh, litro, etc.) → actividad con quantity=null y clarifying_question:
   - Unidad "kg"    → Si es alimento reconocido: "¿Cuántos gramos de [alimento] comiste? (p.ej. 200 para un filete normal)"
                    → Si es alimento DESCONOCIDO: "¿[alimento] es carne, pescado, verdura, fruta u otro? ¿Cuántos gramos más o menos?"
@@ -344,9 +381,12 @@ DISTINCIÓN CLAVE — POI con nombre propio vs. lugar genérico:
   - Unidad "hora"  → "¿Cuántas horas?"
   - Unidad "unidad"→ "¿Cuántas veces / unidades?"
 
-DETECCIÓN DE CIUDAD DE ORIGEN: Si el usuario declara su ciudad de origen habitual
-(ej: "vivo en Madrid", "mi ciudad es Sevilla", "salgo siempre desde Valencia", "soy de Bilbao"),
+DETECCIÓN DE CIUDAD DE ORIGEN: Solo si el usuario declara EXPLÍCITAMENTE su ciudad habitual de residencia
+(ej: "vivo en Madrid", "mi ciudad es Sevilla", "soy de Bilbao", "resido en Valencia"),
 incluye el campo "home_city" en el objeto raíz de la respuesta.
+NO uses home_city si la ciudad aparece solo como parte de una dirección de un trayecto (SUBCASO CALLE, A o B).
+Ejemplo incorrecto: "en moto desde calle abat odo 60 Barcelona hasta..." → NO poner home_city="Barcelona"
+Ejemplo correcto: "vivo en Barcelona" → SÍ poner home_city="Barcelona"
 
 VERIFICACIÓN FINAL OBLIGATORIA — antes de escribir el JSON, comprueba:
 1. ¿El mensaje contiene "con" o "de" entre alimentos? → cada componente debe ser una actividad separada.
@@ -369,8 +409,8 @@ CASO NORMAL - Una o más actividades identificadas:
       "quantity": <número en unidad del factor, o null si falta>,
       "unit": "<unidad del factor>",
       "description": "<descripción breve>",
-      "origin": "<ciudad origen si hay dos ciudades, null si solo hay destino, omitir si no aplica>",
-      "destination": "<ciudad destino si aplica, si no omitir>",
+      "origin": "<dirección o ciudad de origen (SUBCASO CALLE/A/A2), null si solo hay destino, omitir si no aplica>",
+      "destination": "<dirección o ciudad de destino si aplica, si no omitir>",
       "clarifying_question": "<pregunta si quantity es null y no se pueden calcular km, si no omitir>",
       "needs_locations": "<true si es SUBCASO C — transporte con destino genérico que necesita origen y destino concretos; si no, omitir>"
     }}
@@ -395,15 +435,50 @@ CASO Sin CO₂ y sin ciudad:
             description = pending_activity.get("description", "una actividad")
             question = pending_activity.get("question", "")
             known_destination = pending_activity.get("destination", "")
+            known_origin = pending_activity.get("origin", "")
+            known_destination_poi = pending_activity.get("destination_poi", "")
+
+        if pending_activity and category == "transporte_pendiente":
+            # El turno anterior detectó un trayecto pero faltaba el medio de transporte —
+            # este turno debe traer el medio, reutilizando el origen/destino ya conocidos.
+            parts = [
+                f"\n\nCONTEXTO — FALTA EL MEDIO DE TRANSPORTE:\n"
+                f"En el turno anterior el usuario describió un trayecto (\"{description}\") sin decir el medio"
+                f" de transporte. Se le preguntó: \"{question}\"\n"
+                f"DECIDE PRIMERO si este mensaje responde con el medio de transporte usado, o si describe una"
+                f" ACTIVIDAD NUEVA sin relación (otra comida, energía, u otro trayecto con su propio origen/destino).\n"
+                f"- Si responde con el medio de transporte (coche, moto, autobús, metro, tren, a pie, bici, taxi...):"
+                f" identifica la categoría de transporte correspondiente de la lista de categorías válidas."
+            ]
+            if known_origin:
+                parts.append(f" OBLIGATORIO: usa EXACTAMENTE origin=\"{known_origin}\" (no lo cambies).")
+            if known_destination:
+                parts.append(f" OBLIGATORIO: usa EXACTAMENTE destination=\"{known_destination}\" (no lo cambies).")
+            parts.append(" quantity=null (la distancia se calculará automáticamente).\n")
+            parts.append(
+                "- Si describe una actividad nueva sin relación con este trayecto → ignórala, procesa la nueva"
+                " actividad normalmente, e incluye 'clear_pending: true' en el JSON raíz."
+            )
+            pending_section = "".join(parts)
+        elif pending_activity:
             destination_hint = (
                 f" El destino ya es conocido: \"{known_destination}\"."
                 if known_destination else ""
             )
-            destination_instruction = (
-                f"\n- OBLIGATORIO: usa EXACTAMENTE \"{known_destination}\" como destination en tu respuesta JSON."
-                f" El origin será el lugar que mencione el usuario en este mensaje."
-                if known_destination else ""
-            )
+            if known_destination_poi and known_origin:
+                destination_instruction = (
+                    f"\n- El usuario está diciendo la ciudad del destino '{known_destination_poi}'."
+                    f"\n- OBLIGATORIO: usa destination=\"{known_destination_poi}, {{ciudad_que_dice_el_usuario}}\" (combina POI + ciudad)."
+                    f"\n- OBLIGATORIO: usa origin=\"{known_origin}\"."
+                    f"\n- quantity=null (se calculará la distancia automáticamente)."
+                )
+            elif known_destination:
+                destination_instruction = (
+                    f"\n- OBLIGATORIO: usa EXACTAMENTE \"{known_destination}\" como destination en tu respuesta JSON."
+                    f" El origin será el lugar que mencione el usuario en este mensaje."
+                )
+            else:
+                destination_instruction = ""
             # Determine what unit a bare number implies based on what the question asked for
             question_lower = question.lower()
             if "gramo" in question_lower:
@@ -426,14 +501,18 @@ CASO Sin CO₂ y sin ciudad:
                 f"\nDECIDE PRIMERO si el mensaje actual es una respuesta a la pregunta pendiente o una NUEVA actividad:\n"
                 f"- Si el mensaje es solo una cantidad/número/lugar directamente relacionado con la pregunta → aplica el contexto pendiente.\n"
                 f"- Si el mensaje describe claramente una ACTIVIDAD NUEVA diferente (p.ej. comida, otro viaje, energía) → ignora el contexto pendiente y procesa la nueva actividad normalmente. En ese caso incluye 'clear_pending: true' en el JSON raíz.\n"
+                f"- IMPORTANTE: si el mensaje menciona un ORIGEN Y un DESTINO explícitos y completos —aunque sea el mismo medio de transporte que la actividad pendiente ({category})— es SIEMPRE una ACTIVIDAD NUEVA, nunca una respuesta a la pregunta pendiente. Usa esos lugares tal cual los dijo el usuario, IGNORA el destino conocido de la actividad pendiente, e incluye 'clear_pending: true'.\n"
                 f"Ejemplos de RESPUESTA PENDIENTE: '15', '200 gramos', 'desde Atocha', '5 km', 'unos 10 km'\n"
-                f"Ejemplos de NUEVA ACTIVIDAD: 'me comí una tortilla', 'fui al gym', 'encendí la calefacción'\n"
-                f"\nSi ES respuesta pendiente:\n"
+                f"Ejemplos de NUEVA ACTIVIDAD: 'me comí una tortilla', 'fui al gym', 'encendí la calefacción', "
+                f"'fui en {category} desde <lugar A> hasta <lugar B>' (mismo medio de transporte pero con origen y destino propios, distintos al destino conocido)\n"
+                f"\nSi decides que ES respuesta pendiente (y solo en ese caso, aplica lo siguiente):\n"
                 f"- {implied_unit_hint}\n"
                 f"- Si el usuario especifica la unidad explícitamente (ej: '200 gramos', '0.5 kg', '5 km') → úsala tal cual.\n"
                 f"- Si el usuario repite el nombre sin cantidad → devuelve quantity=null y la clarifying_question original.\n"
                 f"- Devuelve una actividad de categoría \"{category}\"."
-                f"{destination_instruction}"
+                f"{destination_instruction}\n"
+                f"Si decidiste que es ACTIVIDAD NUEVA, IGNORA por completo las instrucciones de destino anteriores "
+                f"(no uses el destino conocido) y usa únicamente los lugares que el usuario mencionó en este mensaje."
             )
 
         user = f"Texto del usuario: {raw_text}\n{pending_section}" if pending_section else f"Texto del usuario: {raw_text}"
@@ -493,20 +572,25 @@ CASO Sin CO₂ y sin ciudad:
         energy activities — even if it has no CO₂ data for them.
         Returns list of {term, guessed_type} dicts, or [] if nothing found.
         """
-        system = """Eres un detector de términos con posible huella de carbono.
-Se te dará un texto de usuario. Tu tarea es identificar palabras o frases que suenen a:
-- alimento o bebida (plato, ingrediente, producto de supermercado, bebida embotellada…)
-- medio de transporte o desplazamiento
-- consumo de energía o electrodoméstico
-- compra de producto de consumo
+        system = """Eres un detector de términos con posible huella de carbono DESCONOCIDA.
+Se te dará un texto de usuario. Tu tarea es identificar palabras o frases cuyo factor de emisión NO existe aún en la base de datos.
 
-IMPORTANTE: Incluye cualquier término que suene a alimento, bebida, transporte o consumo,
-incluso si su impacto CO₂ parece pequeño (ej: agua embotellada, fruta, zumo, botella de agua).
-No incluyas verbos, adverbios ni palabras genéricas ("he", "comido", "y", etc.).
+INCLUYE únicamente:
+- alimentos, bebidas, platos o recetas que no sean categorías genéricas conocidas (carne, pollo, pescado, leche, cerveza…)
+  · Ejemplos correctos: cachopo, cocido, fabada, migas, puchero, marmitako, txangurro, botillo, escudella
+  · Incluye siempre platos regionales poco conocidos aunque su impacto parezca pequeño
+- productos de consumo cuya categoría no sea obvia (un gadget específico, ropa, electrodoméstico concreto…)
+
+NO INCLUYAS:
+- Actividades de transporte (coche, bus, avión, tren, moto, bici…) → ya tenemos factores de emisión para todos los medios de transporte; si falta la distancia o la ruta, eso no es un elemento desconocido del catálogo
+- Descripciones de trayectos o rutas (p.ej: "transporte desde calle X hasta calle Y", "ir al trabajo en coche") → NUNCA son ítems desconocidos
+- Consumo de energía (electricidad, gas, calefacción…) → ya tenemos factores
+- Verbos, adverbios ni palabras genéricas ("he", "comido", "ido", "y", "desde", "hasta", etc.)
+- Categorías de alimento genéricas que ya existen: carne, pollo, cerdo, ternera, pescado, marisco, leche, queso, huevo, fruta, verdura, pan, arroz, pasta, agua, cerveza, vino, café
 
 RESPONDE ÚNICAMENTE con un array JSON. Sin texto extra. Sin markdown.
 Formato:
-[{{"term": "<palabra exacta>", "guessed_type": "<alimento|transporte|energia|compra|otro>"}}]
+[{{"term": "<nombre exacto del ítem>", "guessed_type": "<alimento|compra|otro>"}}]
 
 Si no hay ningún término relevante, devuelve: []"""
 
