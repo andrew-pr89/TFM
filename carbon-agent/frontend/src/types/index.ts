@@ -53,6 +53,7 @@ export interface ImprovementSuggestion {
   first_step: string
   potential_saving_pct: number
   saving_kg: number
+  equivalence?: string | null
 }
 
 export interface ImprovementsOut {

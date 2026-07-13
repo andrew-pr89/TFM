@@ -58,8 +58,14 @@ function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
       </div>
 
       <div className="suggestion-card__item">
+        {s.equivalence && (
+          <p className="suggestion-card__equivalence">
+            <Leaf size={13} className="icon" /> {s.current_kg.toFixed(2)} kg equivale a {s.equivalence}
+          </p>
+        )}
         <p className="suggestion-card__action">{s.action}</p>
         <p className="suggestion-card__tip">{s.tip}</p>
+        
       </div>
 
       {s.first_step && (

@@ -1720,6 +1720,11 @@ input[type="checkbox"] {
 .suggestion-card__item { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
 .suggestion-card__action { font-weight: 500; margin-bottom: 6px; color: var(--text); line-height: 1.5; }
 .suggestion-card__tip { color: var(--text-muted); line-height: 1.5; margin: 0; font-size: 0.88rem; }
+.suggestion-card__equivalence {
+  display: flex; align-items: center; gap: 5px;
+  color: var(--c-low); font-size: 0.85rem; font-weight: 500;
+  margin: 8px 0 0;
+}
 
 .suggestion-card__first-step {
   display: flex;
