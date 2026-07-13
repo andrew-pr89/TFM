@@ -27,7 +27,7 @@ const BASE_NAV: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: 'chat',         label: 'Chat',         icon: <MessageCircle  {...NAV_ICON_PROPS} /> },
   { id: 'dashboard',    label: 'Hoy',          icon: <CalendarDays   {...NAV_ICON_PROPS} /> },
   { id: 'summary',      label: 'Estadísticas', icon: <BarChart2      {...NAV_ICON_PROPS} /> },
-  { id: 'improvements', label: 'Mejoras',      icon: <Leaf           {...NAV_ICON_PROPS} /> },
+  { id: 'improvements', label: 'Mejoras sugeridas',      icon: <Leaf           {...NAV_ICON_PROPS} /> },
     { id: 'history',      label: 'Historial',    icon: <ClipboardList  {...NAV_ICON_PROPS} /> },
   { id: 'settings',     label: 'Ajustes',      icon: <SlidersHorizontal {...NAV_ICON_PROPS} /> },
 ]

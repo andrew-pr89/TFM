@@ -48,10 +48,6 @@ function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
             <span>{s.current_kg.toFixed(2)} kg · {s.pct_of_total.toFixed(0)}% del total</span>
           </div>
         </div>
-        <div className="suggestion-card__saving">
-          <span className="suggestion-card__saving-val">−{s.saving_kg.toFixed(1)} kg</span>
-          <span className="suggestion-card__saving-label">potencial</span>
-        </div>
       </div>
 
       <div className="suggestion-card__bar">

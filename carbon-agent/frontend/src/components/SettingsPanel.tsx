@@ -85,7 +85,7 @@ function GoalPanel() {
         <div className="card" style={{ '--level-color': level.color } as CSSProperties}>
           <div className="settings__card-header">
             <div>
-              <h2>Meta anual</h2>
+              <h2>Configura tu meta anual</h2>
               <p className="settings__goal-value">
                 {t} t
                 <span>CO₂/año</span>
