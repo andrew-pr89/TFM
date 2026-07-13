@@ -9,6 +9,7 @@ DELETE /history/{id}    → borra una actividad concreta
 """
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -16,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.agent.distance_service import is_geocodable
+from app.agent.equivalences import compute_equivalences
 from app.agent.memory import MemoryService
 from app.agent.orchestrator import carbon_agent
 from app.core.auth import get_admin_user, get_current_user
@@ -26,6 +28,14 @@ from app.schemas.schemas import ActivityCreate, ActivityOut, ActivityPatch, Acti
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["activities"])
+
+_TIME_PREFIX_RE = re.compile(r'^\s*esta semana,?\s*', re.IGNORECASE)
+
+
+def _strip_time_prefix(text: str) -> str:
+    """Quita prefijos tipo 'Esta semana, ' que el LLM a veces añade pese a la instrucción."""
+    stripped = _TIME_PREFIX_RE.sub("", text)
+    return stripped[:1].upper() + stripped[1:] if stripped else stripped
 
 
 @router.post("/activity", response_model=ActivityResponse, status_code=201)
@@ -482,15 +492,22 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
         pct = round(cat_kg / total_kg * 100, 1) if total_kg > 0 else 0.0
         saving_pct = int(s.get("potential_saving_pct", 10))
         saving_kg = round(s.get("saving_kg") or cat_kg * saving_pct / 100, 3)
+
+        equivalence = None
+        eqs = compute_equivalences(cat_kg, db, limit=1)
+        if eqs:
+            equivalence = f"{eqs[0]['amount']} {eqs[0]['label']}"
+
         suggestions.append(ImprovementSuggestion(
             category=cat_name,
             current_kg=round(cat_kg, 3),
             pct_of_total=pct,
             action=s.get("action", ""),
             tip=s.get("tip", ""),
-            first_step=s.get("first_step", ""),
+            first_step=_strip_time_prefix(s.get("first_step", "")),
             potential_saving_pct=saving_pct,
             saving_kg=saving_kg,
+            equivalence=equivalence,
         ))
 
     return ImprovementsOut(

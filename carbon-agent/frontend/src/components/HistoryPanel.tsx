@@ -21,10 +21,45 @@ function toBaseUnit(value: number, displayUnit: string): number {
   return value
 }
 import { format } from 'date-fns'
-import { Trash2, Pencil, ChevronUp, ChevronDown, X } from 'lucide-react'
+import {
+  Trash2, Pencil, ChevronUp, ChevronDown, X, CalendarDays, MoreVertical, Search, Tag, RefreshCw,
+  Utensils, Car, Zap, Recycle, ShoppingBag, Music, Leaf, type LucideIcon,
+} from 'lucide-react'
 import { useHistory, useDeleteActivity, useEditActivity, useEditEmissionQuantity } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
 import type { CSSProperties } from 'react'
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Alimentación: 'var(--cat-alimentacion)',
+  Transporte:   'var(--cat-transporte)',
+  Energía:      'var(--cat-energia)',
+  Residuos:     'var(--cat-residuos)',
+  Compras:      'var(--cat-compras)',
+  Ocio:         'var(--cat-ocio)',
+}
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  Alimentación: Utensils,
+  Transporte:   Car,
+  Energía:      Zap,
+  Residuos:     Recycle,
+  Compras:      ShoppingBag,
+  Ocio:         Music,
+}
+
+function categoryBadgeVars(category: string): { '--badge-color': string } {
+  return { '--badge-color': CATEGORY_COLORS[category] ?? 'var(--c-neutral)' }
+}
+
+function CategoryIconBadge({ category }: { category: string }) {
+  const Icon = CATEGORY_ICONS[category] ?? Leaf
+  const color = CATEGORY_COLORS[category] ?? 'var(--c-neutral)'
+  return (
+    <span className="cat-icon-badge" style={{ '--cat-icon-color': color } as CSSProperties}>
+      <Icon className="icon" />
+    </span>
+  )
+}
 
 type SortCol = 'date' | 'description' | 'category' | 'quantity' | 'co2'
 type SortDir = 'asc' | 'desc'
@@ -72,12 +107,24 @@ export function HistoryPanel() {
   const [editQuantity,      setEditQuantity]      = useState<string>('')
   const [editUnit,          setEditUnit]          = useState<string>('')
 
+  const [openMenuKey, setOpenMenuKey] = useState<string | null>(null)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+
   const [filterText,     setFilterText]     = useState('')
   const [filterDate,     setFilterDate]     = useState('')
   const [filterCategory, setFilterCategory] = useState('')
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
   const [sortCol,        setSortCol]        = useState<SortCol>('date')
   const [sortDir,        setSortDir]        = useState<SortDir>('desc')
   const tableWrapRef = useRef<HTMLDivElement>(null)
+  const dateInputRef = useRef<HTMLInputElement & { showPicker?: () => void }>(null)
+
+  const openDatePicker = () => {
+    const el = dateInputRef.current
+    if (!el) return
+    if (el.showPicker) el.showPicker()
+    else el.click()
+  }
 
   const startEdit = (activity: ActivityOut, emissionId?: number, description?: string) => {
     setEditingId(activity.id)
@@ -196,40 +243,98 @@ export function HistoryPanel() {
     </div>
   )
 
+  const FilterCategoryIcon = filterCategory ? (CATEGORY_ICONS[filterCategory] ?? Tag) : null
+
   return (
     <div className="history-panel">
       <div className="history-header">
-        <div className="history-filters">
+        <div className="history-search">
+          <Search size={16} className="icon history-search__icon" />
           <input
-            className="date-range-filter__input"
+            className="history-search__input"
             type="search"
             placeholder="Buscar actividad…"
             value={filterText}
             onChange={e => setFilterText(e.target.value)}
           />
-          <input
-            className="date-range-filter__input"
-            type="date"
-            value={filterDate}
-            onChange={e => setFilterDate(e.target.value)}
-          />
-          <select
-            className="date-range-filter__select"
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-          >
-            <option value="">Todas las categorías</option>
-            {categories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+        </div>
+
+        <div className="history-filter-row">
+          <div className="history-filter-trigger">
+            <button className="filter-chip-btn" onClick={openDatePicker}>
+              <CalendarDays size={14} className="icon" /> Fecha <ChevronDown size={14} className="icon" />
+            </button>
+            <input
+              ref={dateInputRef}
+              type="date"
+              className="history-filter-trigger__hidden-input"
+              value={filterDate}
+              onChange={e => setFilterDate(e.target.value)}
+            />
+          </div>
+
+          <div className="history-filter-trigger">
+            <button className="filter-chip-btn" onClick={() => setCategoryMenuOpen(v => !v)}>
+              <Tag size={14} className="icon" /> Categoría <ChevronDown size={14} className="icon" />
+            </button>
+            {categoryMenuOpen && (
+              <>
+                <div className="history-card__menu-overlay" onClick={() => setCategoryMenuOpen(false)} />
+                <div className="history-card__menu-popover history-filter-popover">
+                  <button
+                    className="history-card__menu-item"
+                    onClick={() => { setFilterCategory(''); setCategoryMenuOpen(false) }}
+                  >
+                    Todas las categorías
+                  </button>
+                  {categories.map(cat => (
+                    <button
+                      key={cat}
+                      className="history-card__menu-item"
+                      onClick={() => { setFilterCategory(cat); setCategoryMenuOpen(false) }}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
           {(filterText || filterDate || filterCategory) && (
-            <button onClick={() => { setFilterText(''); setFilterDate(''); setFilterCategory('') }}>
-              <X size={15} className="icon" /><span className="btn-label">Limpiar</span>
+            <button
+              className="history-filter-clear"
+              onClick={() => { setFilterText(''); setFilterDate(''); setFilterCategory('') }}
+            >
+              <RefreshCw size={13} className="icon" /> Limpiar
             </button>
           )}
         </div>
-        <span className="history-header__count">{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</span>
+
+        {(filterDate || filterCategory) && (
+          <div className="history-filter-tags">
+            {filterDate && (
+              <span className="history-filter-tag">
+                <CalendarDays size={13} className="icon" />
+                {format(new Date(filterDate + 'T00:00:00'), 'dd/MM/yyyy')}
+                <button onClick={() => setFilterDate('')} title="Quitar filtro de fecha">
+                  <X size={13} className="icon" />
+                </button>
+              </span>
+            )}
+            {filterCategory && FilterCategoryIcon && (
+              <span className="history-filter-tag">
+                <FilterCategoryIcon size={13} className="icon" />
+                {filterCategory}
+                <button onClick={() => setFilterCategory('')} title="Quitar filtro de categoría">
+                  <X size={13} className="icon" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+
+        <span className="history-header__count">Mostrando {filtered.length} de {rows.length} actividades</span>
       </div>
 
       <div className="admin-table-wrap" ref={tableWrapRef}>
@@ -263,7 +368,7 @@ export function HistoryPanel() {
                     <td colSpan={6}>
                       <div className="history-item__edit-form">
                         <input type="date" className="history-edit__date" value={editDate} onChange={e => setEditDate(e.target.value)} />
-                        <textarea className="history-edit__text" value={editText} rows={2} onChange={e => setEditText(e.target.value)} />
+                        <p className="history-edit__text-readonly">{editText}</p>
                         {editUnit && (
                           <div className="history-edit__qty-row">
                             <input
@@ -317,6 +422,122 @@ export function HistoryPanel() {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="history-cards">
+        {filtered.map(row => {
+          const isEditing = editingId === row.activityId && editingEmissionId === row.emissionId
+          const isExpanded = expandedKey === row.key
+          return (
+            <div key={row.key} className="history-card">
+              <div className="history-card__header">
+                <span className="history-card__date">
+                  <CalendarDays size={14} className="icon" />
+                  {format(row.date, 'dd/MM/yyyy')}
+                </span>
+                <div className="history-card__header-actions">
+                  {!isEditing && (
+                    <button
+                      className="history-card__chevron"
+                      onClick={() => setExpandedKey(k => k === row.key ? null : row.key)}
+                      title={isExpanded ? 'Contraer' : 'Expandir'}
+                    >
+                      {isExpanded ? <ChevronUp size={16} className="icon" /> : <ChevronDown size={16} className="icon" />}
+                    </button>
+                  )}
+                  <div className="history-card__menu">
+                    <button
+                      className="history-card__menu-btn"
+                      onClick={() => setOpenMenuKey(k => k === row.key ? null : row.key)}
+                      title="Opciones"
+                    >
+                      <MoreVertical size={18} className="icon" />
+                    </button>
+                    {openMenuKey === row.key && (
+                      <>
+                        <div className="history-card__menu-overlay" onClick={() => setOpenMenuKey(null)} />
+                        <div className="history-card__menu-popover">
+                          <button
+                            className="history-card__menu-item"
+                            onClick={() => { startEdit(row.activity, row.emissionId ?? undefined, row.description); setOpenMenuKey(null) }}
+                          >
+                            <Pencil size={14} className="icon" /> Editar
+                          </button>
+                          <button
+                            className="history-card__menu-item history-card__menu-item--danger"
+                            disabled={deleteActivity.isPending}
+                            onClick={() => { deleteActivity.mutate(row.activityId); setOpenMenuKey(null) }}
+                          >
+                            <Trash2 size={14} className="icon" /> Eliminar
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {isEditing ? (
+                <div className="history-item__edit-form">
+                  <input type="date" className="history-edit__date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+                  <p className="history-edit__text-readonly">{editText}</p>
+                  {editUnit && (
+                    <div className="history-edit__qty-row">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        className="history-edit__qty"
+                        value={editQuantity}
+                        onChange={e => setEditQuantity(e.target.value)}
+                      />
+                      <span className="history-edit__unit">{editUnit}</span>
+                    </div>
+                  )}
+                  <div className="history-edit__actions">
+                    <button disabled={editActivity.isPending} onClick={() => saveEdit(row.activityId)}>
+                      {editActivity.isPending ? 'Guardando…' : 'Guardar'}
+                    </button>
+                    <button className="btn-light" onClick={cancelEdit}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="history-card__body" onClick={() => setExpandedKey(k => k === row.key ? null : row.key)}>
+                  <div className="history-card__title-row">
+                    <CategoryIconBadge category={row.category} />
+                    <div>
+                      <h3 className="history-card__title">{row.description}</h3>
+                      {row.category && (
+                        <span className="emission-badge" style={categoryBadgeVars(row.category) as CSSProperties}>
+                          {row.category}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="admin-detail__meta history-card__details">
+                      <div><span>Cantidad</span><span>{row.quantity || '—'}</span></div>
+                      <div><span>CO₂e</span><span>{row.co2 !== null ? `${row.co2.toFixed(3)} kg` : '—'}</span></div>
+                      <div><span>Categoría</span><span>{row.category || '—'}</span></div>
+                      <div><span>Fecha y hora</span><span>{format(row.date, 'dd/MM/yyyy, HH:mm')}</span></div>
+                    </div>
+                  )}
+                  <div className="history-card__divider" />
+                  <div className="history-card__footer">
+                    <span className="history-card__qty">{row.quantity || '—'}</span>
+                    {row.co2 !== null
+                      ? <span className="co2-badge" style={co2BadgeVars(row.co2) as CSSProperties}>{row.co2.toFixed(3)} kg</span>
+                      : <span className="admin-table__placeholder">—</span>
+                    }
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {filtered.length === 0 && (
+          <div className="panel-state">Sin resultados para esta búsqueda.</div>
+        )}
       </div>
     </div>
   )

@@ -115,6 +115,7 @@ class ImprovementSuggestion(BaseModel):
     first_step: str
     potential_saving_pct: int
     saving_kg: float
+    equivalence: str | None = None
 
 
 class ImprovementsOut(BaseModel):

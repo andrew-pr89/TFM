@@ -645,7 +645,7 @@ REGLA CRÍTICA: Solo puedes mencionar productos que aparezcan en "Detalle de con
 Cada sugerencia DEBE cumplir TODOS estos requisitos:
 1. "action": menciona el PRODUCTO EXACTO y la cantidad que ha consumido el usuario, luego propone un objetivo CONCRETO con cifra (ej: "Has consumido 800 g de ternera → reduce a 400 g")
 2. "tip": un dato de contexto útil y específico al producto (ej: "La ternera genera 27 kg CO₂/kg, 5× más que el pollo")
-3. "first_step": UN solo paso pequeño y realizable esta semana (ej: "Esta semana, sustituye una de tus raciones de ternera por pollo o legumbres")
+3. "first_step": UN solo paso pequeño y realizable, sin expresiones de tiempo como "esta semana" (ej: "Sustituye una de tus raciones de ternera por pollo o legumbres")
 4. "potential_saving_pct": % de reducción REALISTA para esa categoría (5-60)
 5. "saving_kg": kg CO₂e que se ahorrarían aplicando la reducción propuesta (número decimal)
 
@@ -656,7 +656,7 @@ RESPONDE ÚNICAMENTE con un array JSON válido. Sin texto adicional. Sin bloques
     "category": "<categoría>",
     "action": "<producto exacto + cantidad actual + objetivo concreto con cifra>",
     "tip": "<dato específico del impacto del producto, no consejo genérico>",
-    "first_step": "<una sola acción pequeña y concreta para esta semana>",
+    "first_step": "<una sola acción pequeña y concreta, sin prefijos de tiempo tipo 'esta semana'>",
     "potential_saving_pct": <5-60>,
     "saving_kg": <número decimal>
   }

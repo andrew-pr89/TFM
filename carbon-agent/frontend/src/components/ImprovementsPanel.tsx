@@ -48,10 +48,6 @@ function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
             <span>{s.current_kg.toFixed(2)} kg · {s.pct_of_total.toFixed(0)}% del total</span>
           </div>
         </div>
-        <div className="suggestion-card__saving">
-          <span className="suggestion-card__saving-val">−{s.saving_kg.toFixed(1)} kg</span>
-          <span className="suggestion-card__saving-label">potencial</span>
-        </div>
       </div>
 
       <div className="suggestion-card__bar">
@@ -62,8 +58,14 @@ function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
       </div>
 
       <div className="suggestion-card__item">
+        {s.equivalence && (
+          <p className="suggestion-card__equivalence">
+            <Leaf size={13} className="icon" /> {s.current_kg.toFixed(2)} kg equivale a {s.equivalence}
+          </p>
+        )}
         <p className="suggestion-card__action">{s.action}</p>
         <p className="suggestion-card__tip">{s.tip}</p>
+        
       </div>
 
       {s.first_step && (
