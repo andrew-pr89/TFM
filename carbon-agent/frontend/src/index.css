@@ -1108,7 +1108,7 @@ input[type="checkbox"] {
   .content { overflow: visible; flex: none; height: auto; }
   .dashboard-layout { flex: none; height: auto; padding: 16px 5% 80px; }
   .dashboard { flex: none; display: block; height: auto; }
-  .dashboard__fixed { text-align: center; position: sticky; top: 0; z-index: 10; background: var(--bg); padding-bottom: 12px; }
+  .dashboard__fixed { text-align: center; padding-bottom: 12px; }
   .dashboard__scroll { overflow: visible; flex: none; }
   .dashboard__rings-row { flex-direction: column; width: 100%; gap: 16px; align-items: center; }
   .dashboard__categories { grid-template-columns: repeat(3, 96px); justify-content: center; width: 100%; gap: 16px 12px; margin: 0 auto; }
@@ -1399,31 +1399,33 @@ input[type="checkbox"] {
 
 
 /* ── Dashboard ───────────────────────────────────────────────────────────── */
-.dashboard-layout {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 50px 5% 0;
-}
+@media (min-width: 769px) {
+  .dashboard-layout {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 50px 5% 0;
+  }
 
-.dashboard {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  padding: 8px 0;
-}
+  .dashboard {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 8px 0;
+  }
 
-.dashboard__fixed { flex-shrink: 0; padding-bottom: 24px; }
+  .dashboard__fixed { flex-shrink: 0; padding-bottom: 24px; }
 
-.dashboard__scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  padding-bottom: 5%;
+  .dashboard__scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding-bottom: 5%;
+  }
 }
 
 
