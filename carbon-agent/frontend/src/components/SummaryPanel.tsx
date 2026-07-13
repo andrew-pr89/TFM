@@ -1,13 +1,26 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type CSSProperties } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Label,
 } from 'recharts'
+import {
+  Leaf, ClipboardList, TrendingUp, Target, LayoutGrid,
+  Utensils, Car, Zap, Recycle, ShoppingBag, Music, type LucideIcon,
+} from 'lucide-react'
 import { useSummary, useHistory } from '../hooks/useCarbon'
 import { format, eachMonthOfInterval, startOfMonth, subMonths } from 'date-fns'
 
 interface Props {
   annualGoalKg?: number
+}
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  'Alimentación': Utensils,
+  'Transporte':   Car,
+  'Energía':      Zap,
+  'Residuos':     Recycle,
+  'Compras':      ShoppingBag,
+  'Ocio':         Music,
 }
 
 const css = (v: string) => getComputedStyle(document.documentElement).getPropertyValue(v).trim()
@@ -37,15 +50,26 @@ const tooltipStyle = {
   color: 'var(--text)',
 }
 
-function KpiCard({ label, value, unit, sub }: { label: string; value: string | number; unit?: string; sub?: string }) {
+function KpiCard({ label, value, unit, sub, icon: Icon, color, progress }: {
+  label: string; value: string | number; unit?: string; sub?: string
+  icon: LucideIcon; color: string; progress?: number
+}) {
   return (
     <div className="kpi-card">
-      <span>{label}</span>
-      <div>
-        <strong>{value}</strong>
+      <span className="cat-icon-badge" style={{ '--cat-icon-color': color } as CSSProperties}>
+        <Icon className="icon" />
+      </span>
+      <span className="kpi-card__label">{label}</span>
+      <div className="kpi-card__value">
+        <strong style={{ color }}>{value}</strong>
         {unit && <span>{unit}</span>}
       </div>
       {sub && <small>{sub}</small>}
+      {progress != null && (
+        <div className="kpi-card__bar">
+          <div className="kpi-card__bar-fill" style={{ width: `${Math.min(progress, 100)}%`, background: color }} />
+        </div>
+      )}
     </div>
   )
 }
@@ -215,38 +239,44 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
           className={`btn-square${selectedCategory === null ? ' tab-btn--active' : ''}`}
           onClick={() => setSelectedCategory(null)}
         >
-          Resumen general
+          <LayoutGrid size={14} className="icon" /> Resumen general
         </button>
-        {uniqueCategories.map(cat => (
-          <button
-            key={cat}
-            className={`btn-square${selectedCategory === cat ? ' tab-btn--active' : ''}`}
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat}
-          </button>
-        ))}
+        {uniqueCategories.map(cat => {
+          const CatIcon = CATEGORY_ICONS[cat] ?? Leaf
+          return (
+            <button
+              key={cat}
+              className={`btn-square${selectedCategory === cat ? ' tab-btn--active' : ''}`}
+              onClick={() => setSelectedCategory(cat)}
+            >
+              <CatIcon size={14} className="icon" /> {cat}
+            </button>
+          )
+        })}
       </div>
 
       {/* ── KPI cards ──────────────────────────────────────────────────────── */}
       <div className="summary-card kpi-grid">
         {selectedCategory ? (
           <>
-            <KpiCard label={`CO₂e — ${selectedCategory}`} value={totalCatKg.toFixed(2)} unit="kg" />
-            <KpiCard label="Actividades en categoría"      value={catActs.length} />
-            <KpiCard label="% del total"                   value={pctOfTotal} unit="%" />
-            <KpiCard label="Media por actividad"           value={avgCat} unit="kg" />
+            <KpiCard label={`CO₂e — ${selectedCategory}`} value={totalCatKg.toFixed(2)} unit="kg" icon={CATEGORY_ICONS[selectedCategory] ?? Leaf} color={catColor(selectedCategory, 0)} />
+            <KpiCard label="Actividades en categoría"      value={catActs.length}                icon={ClipboardList} color="var(--cat-transporte)" />
+            <KpiCard label="% del total"                   value={pctOfTotal} unit="%"            icon={TrendingUp}    color="var(--cat-compras)" />
+            <KpiCard label="Media por actividad"           value={avgCat} unit="kg"                icon={Target}        color="var(--c-orange)" />
           </>
         ) : (
           <>
-            <KpiCard label="Total CO₂e"          value={summary.total_kg_co2e.toFixed(2)} unit="kg" />
-            <KpiCard label="Total actividades"   value={summary.total_activities} />
-            <KpiCard label="Media por actividad" value={avgAll} unit="kg" />
+            <KpiCard label="Total CO₂e"          value={summary.total_kg_co2e.toFixed(2)} unit="kg" icon={Leaf}          color="var(--accent)" />
+            <KpiCard label="Total actividades"   value={summary.total_activities}                    icon={ClipboardList} color="var(--cat-transporte)" />
+            <KpiCard label="Media por actividad" value={avgAll} unit="kg"                             icon={TrendingUp}    color="var(--cat-compras)" />
             <KpiCard
-              label="Presupuesto mensual"
+              label="Objetivo mensual"
               value={pctBudget}
               unit="%"
               sub={`${summary.total_kg_co2e.toFixed(0)} / ${summary.budget_kg_co2e.toFixed(0)} kg`}
+              icon={Target}
+              color="var(--c-orange)"
+              progress={Number(pctBudget)}
             />
           </>
         )}
@@ -307,14 +337,14 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
                 ))}
                 <p>Los valores están expresados en kilogramos (kg).</p>
               </div>
-              <div style={{ flexShrink: 0 }}>
-                <ResponsiveContainer width={180} height={180}>
+              <div className="donut-chart">
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={pieData}
                       cx="50%" cy="50%"
-                      innerRadius={52}
-                      outerRadius={80}
+                      innerRadius="58%"
+                      outerRadius="90%"
                       dataKey="value"
                       strokeWidth={1}
                     >
