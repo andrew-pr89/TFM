@@ -341,7 +341,7 @@ function PortionsPanel() {
       </div>
 
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table className="admin-table admin-table--portions">
           <thead>
             <tr>
               <th>{activeCategory === 'all' ? 'Todas las categorías' : activeCategory}</th>
@@ -361,7 +361,7 @@ function PortionsPanel() {
               return (
                 <tr key={entry.category} className="admin-table__row">
                   <td className="admin-table__term">{entry.display_name}</td>
-                  <td className="admin-table__num">{toInputValue(entry.unit, entry.default_quantity)} {inputUnit(entry.unit)}</td>
+                  <td className="admin-table__num"><span className="portions-default-label">por defecto: </span>{toInputValue(entry.unit, entry.default_quantity)} {inputUnit(entry.unit)}</td>
                   <td>
                     <div className="settings__portion-input-wrap">
                       <button className="settings__portion-step" type="button" onClick={() => handleStep(entry.category, displayValue, -1)}>−</button>
@@ -382,7 +382,7 @@ function PortionsPanel() {
                       type="button"
                       title="Restaurar por defecto"
                       disabled={!canReset}
-                      style={{ opacity: canReset ? 1 : 0.25 }}
+                      style={{ opacity: canReset ? 1 : 0.45 }}
                       onClick={() => {
                         if (rawEdit !== undefined) handleReset(entry.category)
                         if (isCustom) save({ [entry.category]: entry.default_quantity }, { onSuccess: () => setSaved(true) })
@@ -445,7 +445,7 @@ function RecurringPanel() {
       </div>
 
       <div className="admin-table-wrap">
-        <table className="admin-table">
+        <table className="admin-table admin-table--recurring">
           <thead>
             <tr>
               <th>Activo</th>
@@ -485,7 +485,9 @@ function RecurringPanel() {
                 </td>
                 <td className="admin-table__cat">{item.unit}</td>
                 <td className="admin-table__num">
+                  <span className="recurring-co2-label">equivale a </span>
                   {((item.factor_kg_co2e ?? 0) * item.quantity * 1000).toFixed(1)} g
+                  <span className="recurring-co2-label"> CO₂/día</span>
                 </td>
               </tr>
             ))}
