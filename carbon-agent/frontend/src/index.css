@@ -1101,8 +1101,74 @@ input[type="checkbox"] {
   .btn-label { display: none; }
   button:has(.btn-label) { padding: 0 14px; min-width: 40px; }
   .history-panel { height: auto; padding-right: 0; }
-  .admin-table-wrap { display: none; }
+  /* Hide the table only where a mobile fallback exists (HistoryPanel cards)
+     or the panel is desktop-only (AdminPanel). Settings tables have no
+     fallback, so they must stay visible on mobile. */
+  .history-panel .admin-table-wrap,
+  .admin-content .admin-table-wrap { display: none; }
   .history-cards { display: flex; }
+
+  /* Recurring table: render each row as a card. Header (top): checkbox +
+     activity title. Body (bottom): stepper + unit + CO₂. The stepper spans
+     two columns so the checkbox column stays tight. */
+  .admin-table--recurring thead { display: none; }
+  .admin-table--recurring,
+  .admin-table--recurring tbody { display: block; }
+  .admin-table--recurring .admin-table__row {
+    display: grid;
+    grid-template-columns: auto auto auto 1fr;
+    grid-template-areas:
+      "chk act  act  act"
+      "ctl ctl  unit co2";
+    gap: 10px;
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .admin-table--recurring .admin-table__row:hover { background: var(--surface-2); }
+  .admin-table--recurring .admin-table__term { font-weight: 400; }
+  .admin-table--recurring .admin-table__row td { padding: 0; }
+  .admin-table--recurring .admin-table__row td:nth-child(1) { grid-area: chk; }  /* checkbox */
+  .admin-table--recurring .admin-table__row td:nth-child(2) { grid-area: act; }  /* activity */
+  .admin-table--recurring .admin-table__row td:nth-child(3) { grid-area: ctl; }  /* stepper  */
+  .admin-table--recurring .admin-table__row td:nth-child(4) { grid-area: unit; } /* unit     */
+  .admin-table--recurring .admin-table__row td:nth-child(5) { grid-area: co2; text-align: right; } /* CO₂ */
+  .admin-table--recurring .recurring-co2-label { display: inline; }
+
+  /* Porciones table: same card treatment. Header (top): title. Body (bottom):
+     stepper (unit inside) + reset + "por defecto: …" default value. */
+  .admin-table--portions thead { display: none; }
+  .admin-table--portions,
+  .admin-table--portions tbody { display: block; }
+  .admin-table--portions .admin-table__row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "title   title title"
+      "stepper def   reset";
+    gap: 10px;
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .admin-table--portions .admin-table__row:hover { background: var(--surface-2); }
+  .admin-table--portions .admin-table__term { font-weight: 400; }
+  .admin-table--portions .admin-table__row td { padding: 0; }
+  .admin-table--portions .admin-table__row td:nth-child(1) { grid-area: title; }  /* title       */
+  .admin-table--portions .admin-table__row td:nth-child(2) { grid-area: def; text-align: right; } /* default */
+  .admin-table--portions .admin-table__row td:nth-child(3) { grid-area: stepper; } /* stepper     */
+  .admin-table--portions .admin-table__row td:nth-child(4) { grid-area: reset; justify-self: end; } /* reset */
+  .admin-table--portions .portions-default-label { display: inline; }
+
+  /* Category tabs: wrap onto multiple lines instead of overflowing off-screen
+     (mobile can't scroll them horizontally). */
+  .admin-tabs { flex-wrap: wrap; }
   .history-header__count { align-self: center; }
   .dashboard__topbar { flex-direction: column-reverse; align-items: center; gap: 4px; margin-bottom: 12px; }
   .dashboard__mode-group { display: flex; justify-content: center; }
@@ -2016,21 +2082,26 @@ label.settings__field > span:last-child  { color: var(--text-dim); }
 }
 .settings__portion-input:focus { border-color: var(--accent); outline: none; }
 .settings__portion-unit { color: var(--text-muted); width: 46px; font-size: 0.85em; }
+/* Mobile-only wording — desktop already has column headers for these */
+.recurring-co2-label { display: none; }
+.portions-default-label { display: none; }
 .settings__portion-reset {
   width: 28px;
   height: 28px;
   padding: 0;
   background: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-2);
   border-radius: 6px;
-  color: var(--text-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.9em;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.settings__portion-reset:hover { color: var(--text); background: var(--surface-2); }
+/* Enabled (there's something to reset) → green arrow */
+.settings__portion-reset:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.settings__portion-reset:not(:disabled):hover { background: var(--accent-dim); }
 .settings__portion-reset-placeholder { width: 28px; flex-shrink: 0; }
 
 /* ── Clarifying question bubble ─────────────────────────────────────────── */
