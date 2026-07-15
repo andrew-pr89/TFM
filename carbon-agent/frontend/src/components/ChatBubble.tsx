@@ -5,6 +5,16 @@ interface Props {
   message: ChatMessage
 }
 
+// Longitud máxima que se muestra en la burbuja del usuario; el resto se
+// recorta con puntos suspensivos (el texto completo se conserva en el title).
+const MAX_DISPLAY_CHARS = 100
+
+function truncate(text: string): string {
+  return text.length > MAX_DISPLAY_CHARS
+    ? `${text.slice(0, MAX_DISPLAY_CHARS)}…`
+    : text
+}
+
 function qtyLabel(qty: number, unit: string): string {
   if (unit === 'kg')    return qty < 1 ? `${Math.round(qty * 1000)} g` : `${qty} kg`
   if (unit === 'litro') return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${qty.toFixed(2)} l`
@@ -39,7 +49,7 @@ export function ChatBubble({ message }: Props) {
   if (role === 'user') {
     return (
       <div className="bubble bubble--user">
-        <p>{text}</p>
+        <p title={text.length > MAX_DISPLAY_CHARS ? text : undefined}>{truncate(text)}</p>
       </div>
     )
   }

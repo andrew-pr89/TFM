@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
+import axios from 'axios'
 import { useAuth0 } from '@auth0/auth0-react'
 import {
   MessageCircle, ClipboardList, CalendarDays, BarChart2,
@@ -119,14 +120,23 @@ export default function App() {
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, assistantMsg])
-    } catch {
+    } catch (err) {
       setPendingContext(null)
+      // Distinguir un error de validación del servidor (p. ej. mensaje demasiado
+      // largo) de una caída real del backend, en vez de mostrar siempre lo mismo.
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined
+      const text =
+        status === 422
+          ? 'El mensaje no es válido (comprueba que no supere los 1000 caracteres).'
+          : status !== undefined
+            ? 'El servidor devolvió un error. Inténtalo de nuevo en unos instantes.'
+            : 'No pude conectar con el servidor. Comprueba que el backend está corriendo.'
       setMessages((prev) => [
         ...prev,
         {
           id: uid(),
           role: 'error',
-          text: 'No pude conectar con el servidor. Comprueba que el backend está corriendo.',
+          text,
           timestamp: new Date(),
         },
       ])

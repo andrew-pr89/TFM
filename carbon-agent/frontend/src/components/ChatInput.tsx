@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 
+// Debe coincidir con el límite del backend (schemas.py: raw_text max_length=1000)
+const MAX_MESSAGE_LENGTH = 1000
+
 interface ChatInputProps {
   onSend: (text: string) => void
   isLoading: boolean
@@ -25,7 +28,7 @@ export function ChatInput({ onSend, isLoading }: ChatInputProps) {
 
 const handleSubmit = () => {
     const trimmed = text.trim()
-    if (!trimmed || isLoading) return
+    if (!trimmed || isLoading || trimmed.length > MAX_MESSAGE_LENGTH) return
     onSend(trimmed)
     setText('')
   }
@@ -62,10 +65,11 @@ const handleSubmit = () => {
           ref={textareaRef}
           className="chat-textarea"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setText(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
           onKeyDown={handleKeyDown}
           placeholder="Describe tu actividad… (Enter para enviar)"
           rows={1}
+          maxLength={MAX_MESSAGE_LENGTH}
           disabled={isLoading}
         />
         <button
@@ -83,6 +87,11 @@ const handleSubmit = () => {
           )}
         </button>
       </div>
+      {text.length > MAX_MESSAGE_LENGTH * 0.8 && (
+        <div className="char-counter" style={{ color: text.length >= MAX_MESSAGE_LENGTH ? '#dc2626' : undefined }}>
+          {text.length} / {MAX_MESSAGE_LENGTH}
+        </div>
+      )}
     </div>
   )
 }

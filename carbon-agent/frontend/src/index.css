@@ -758,6 +758,11 @@ input[type="checkbox"] {
   border-radius: var(--radius-lg);
   line-height: 1.65;
   animation: fadeUp 0.2s ease;
+  /* Romper cadenas largas sin espacios (p. ej. "AAAA…") para que no
+     desborden horizontalmente la burbuja. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 @keyframes fadeUp {
