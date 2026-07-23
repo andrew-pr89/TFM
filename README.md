@@ -1,4 +1,4 @@
-# Carbon Agent — TFM UNIR
+# Planet Pulse — TFM UNIR
 
 > **Agente conversacional de huella de carbono personal.**
 > El usuario describe sus actividades en lenguaje natural y el agente estima las emisiones de CO₂ de forma determinista, ofrece recomendaciones personalizadas y recuerda sus hábitos entre sesiones.
@@ -12,13 +12,17 @@
 | **Chat natural** | Registra actividades como "he conducido 20 km" o "comí 300 g de ternera" |
 | **Cálculo CO₂ determinista** | Siempre `cantidad × factor` — el LLM **nunca** calcula emisiones |
 | **Distancias automáticas** | Geocodificación con OpenStreetMap para resolver trayectos origen → destino |
-| **Preguntas aclaratorias** | Si falta información (origen, cantidad), el agente la pide antes de calcular |
-| **Memoria de usuario** | Guarda ciudad de origen, lugar de trabajo y transporte habitual |
+| **Fechas en lenguaje natural** | Detecta "ayer", "el martes pasado", "el 4 de abril"… y registra la actividad con esa fecha |
+| **Preguntas aclaratorias** | Si falta información (origen, cantidad), el agente la pide antes de calcular, incluso a lo largo de varios turnos |
+| **Memoria de usuario** | Guarda ciudad de origen, lugar de trabajo, trayecto habitual (commute) y transporte más usado |
+| **Autenticación** | Login con Auth0 (OAuth2/JWT); cada usuario solo ve sus propios datos |
 | **Dashboard con anillos SVG** | Vista de emisiones por período (día / semana / mes) con indicador visual de presupuesto |
-| **Historial editable** | Edita texto y fecha de actividades pasadas; las emisiones se recalculan automáticamente |
-| **Panel de mejoras** | Sugerencias de reducción personalizadas generadas por el LLM basadas en consumo real |
+| **Historial editable** | Edita texto, fecha y cantidad de actividades pasadas; las emisiones se recalculan automáticamente |
+| **Panel de mejoras** | Sugerencias de reducción personalizadas generadas por el LLM, con equivalencias cotidianas ("equivale a 36 min conduciendo") |
 | **Resumen de período** | Totales agregados, gráfico por categorías y comparativa vs. objetivo anual |
-| **Perfil de usuario** | Ciudad de origen, lugar de trabajo y nombre para personalizar el agente |
+| **Perfil y porciones** | Ciudad de origen, lugar de trabajo, nombre y raciones por defecto personalizables por el usuario |
+| **Rutina diaria (recurrente)** | Actividades que se registran automáticamente una vez al día (electricidad, gas, TV, móvil…) |
+| **Panel de administración** | Solo para usuarios con rol `admin`: revisión de términos desconocidos y CRUD completo de factores de emisión |
 
 ---
 
@@ -29,28 +33,29 @@ carbon-agent/
 ├── backend/                    # API REST + Agente IA
 │   ├── app/
 │   │   ├── agent/              # Componentes del agente (ver sección dedicada)
-│   │   ├── api/                # Endpoints FastAPI
-│   │   ├── core/               # Configuración
-│   │   ├── db/                 # Base de datos + seed
-│   │   ├── models/             # ORM SQLAlchemy
-│   │   └── schemas/            # Schemas Pydantic
+│   │   ├── api/                # Endpoints FastAPI (activities.py)
+│   │   ├── core/                # Configuración + autenticación Auth0
+│   │   ├── db/                  # Base de datos + seed de factores
+│   │   ├── models/               # ORM SQLAlchemy
+│   │   └── schemas/              # Schemas Pydantic
 │   ├── tests/
-│   ├── main.py
-│   └── requirements.txt
-├── frontend/                   # SPA React + TypeScript
-│   └── src/
-│       ├── components/         # Componentes UI (ver sección dedicada)
-│       ├── hooks/              # Lógica de estado y API
-│       ├── services/           # Cliente HTTP
-│       └── types/              # Tipos TypeScript
-└── docs/
+│   ├── main.py                  # Entry point FastAPI + CORS + healthcheck
+│   ├── requirements.txt
+│   └── railway.toml              # Despliegue backend en Railway
+└── frontend/                   # SPA React + TypeScript
+    ├── src/
+    │   ├── components/          # Componentes UI (ver sección dedicada)
+    │   ├── hooks/                # Lógica de estado y API (TanStack Query)
+    │   ├── services/             # Cliente HTTP (Axios + interceptor Auth0)
+    │   └── types/                # Tipos TypeScript
+    └── railway.toml              # Despliegue frontend en Railway
 ```
 
 ---
 
 ## 🤖 Agentes y servicios del backend
 
-El backend está organizado en cinco módulos especializados dentro de `app/agent/`. Cada uno tiene una responsabilidad única y bien delimitada.
+El backend está organizado en siete módulos especializados dentro de `app/agent/`. Cada uno tiene una responsabilidad única y bien delimitada.
 
 ---
 
@@ -61,26 +66,32 @@ El backend está organizado en cinco módulos especializados dentro de `app/agen
 ```
 texto del usuario
       │
-      ├─► [MemoryService]      ← carga home_city, work_place, actividad pendiente
+      ├─► detección de fecha (regex, en Python — "ayer", "el lunes pasado", "el 4 de abril"…)
+      │
+      ├─► [MemoryService]      ← carga home_city, work_place, commute_km, pending_activity, porciones
       │
       ├─► [Extractor]          ← texto → actividades estructuradas (usa LLM)
       │         │
-      │         ├── marcadores: set_home_city, set_pending_activity, clarifying_question
+      │         ├── marcadores: set_home_city, set_pending_activity, set_activity_date,
+      │         │                clarifying_question, unknown_items, clear_pending
       │         └── ExtractedActivity[] validadas
       │
       ├─► [CO2Calculator]      ← cálculo determinista: cantidad × factor
       │
-      ├─► [MemoryService]      ← actualiza hábitos tras cada actividad
+      ├─► [MemoryService]      ← actualiza hábitos y commute_km tras cada actividad
       │
       └─► [LLMService]         ← genera recomendación personalizada (texto)
 ```
 
 **Casos que gestiona:**
 - Actividad completa → calcula y recomienda
-- Falta información → devuelve pregunta aclaratoria (`is_question: true`)
+- Falta información → devuelve pregunta aclaratoria (`is_question: true`), incluso a través de varios turnos
 - Solo se declara ciudad de origen → confirma y memoriza
-- Nada identificado → mensaje de ayuda al usuario
-- Actividad pendiente resuelta en turno siguiente → completa el cálculo
+- Nada identificado → mensaje de ayuda, o aviso si el término se registró como "desconocido" para revisión de admin
+- Actividad pendiente resuelta en turno siguiente → completa el cálculo y, si era un trayecto habitual (commute), guarda los km para la próxima vez
+- Actividad con fecha pasada ("ayer conduje 20 km") → se persiste con `created_at` sobrescrito
+
+También expone `reprocess_activity()`, usado al editar una entrada del historial: vuelve a extraer y calcular sin duplicar la actividad.
 
 ---
 
@@ -90,12 +101,13 @@ texto del usuario
 
 **Responsabilidades:**
 1. Carga todas las categorías válidas desde `emission_factors` en BD
-2. Llama a `LLMService.extract_activities()` con esas categorías como contexto
+2. Llama a `LLMService.extract_activities()` con esas categorías, la memoria del usuario y sus porciones personalizadas como contexto
 3. Valida cada actividad: categoría existe en BD, cantidad positiva
 4. Resuelve el objeto `EmissionFactor` correspondiente
 5. Gestiona **conversión de unidades** automática: g→kg, ml→litro, vasos→litros
 6. Detecta actividades de **transporte sin cantidad** y lanza geocodificación
-7. Gestiona **marcadores especiales**: `set_home_city`, `set_pending_activity`, `clarifying_question`
+7. Gestiona **marcadores especiales**: `set_home_city`, `set_pending_activity`, `set_activity_date`, `clarifying_question`, `unknown_items`, `clear_pending`
+8. Registra en `unknown_items` cualquier término que el usuario mencione y no exista en el catálogo, para revisión posterior desde el panel de admin
 
 **Lógica de transporte (subcasos):**
 
@@ -103,6 +115,7 @@ texto del usuario
 |---|---|
 | Origen + destino explícitos (dos ciudades) | Geocodifica directamente |
 | Solo destino + `home_city` en memoria | Usa `home_city` como origen |
+| Trayecto al trabajo/estudios + `work_place`/`commute_km` en memoria | Usa la distancia guardada del commute habitual |
 | POI con nombre propio (ej: "Hotel Meliá Castilla") | Geocodifica POI + ciudad |
 | Destino genérico ("el trabajo", "el hotel") | Pregunta al usuario |
 | Sin `home_city` y sin origen | Pregunta y memoriza ciudad |
@@ -133,9 +146,9 @@ Recibe una lista de `ExtractedActivity` (con el `EmissionFactor` ya resuelto) y 
 | `generate_improvements()` | Genera sugerencias de reducción basadas en consumo real | 0.4 |
 
 **Prompt de extracción** incluye:
-- Lista completa de categorías válidas con su unidad (`kg`, `km`, `kWh`, `litro`, etc.)
+- Lista completa de categorías válidas con su unidad (`kg`, `km`, `kWh`, `litro`, etc.) y porciones por defecto del usuario
 - Reglas de conversión de unidades
-- Subcasos para transporte (A, A2, B, C)
+- Subcasos para transporte (origen/destino, commute, POI, genérico)
 - Detección de ciudad de origen habitual
 - Contexto de actividad pendiente del turno anterior (multi-turno)
 - Distinción vuelo doméstico vs. internacional
@@ -152,7 +165,17 @@ Recibe una lista de `ExtractedActivity` (con el `EmissionFactor` ya resuelto) y 
 - **Fórmula de distancia**: Haversine (distancia de gran círculo)
 - **Caché en memoria**: `@lru_cache(maxsize=256)` para evitar llamadas repetidas
 - **Rate limiting**: `time.sleep(1)` obligatorio por política de Nominatim (máx. 1 req/s)
+- `is_geocodable()` — comprobación rápida usada por el endpoint `/api/geocode/check` para validar direcciones en Ajustes
 - Devuelve `None` si alguna localización no se puede geocodificar
+
+---
+
+### 🌍 `equivalences.py` — Equivalencias cotidianas
+
+**Traduce una cifra de kg CO₂e a algo tangible**, usando los mismos factores deterministas ya guardados en BD (nunca el LLM).
+
+- Ejemplo: `X kg CO₂e` → "36 minutos conduciendo" (usando el factor de `coche_gasolina` y una velocidad media asumida de 50 km/h)
+- Se usa en el panel de mejoras para dar contexto intuitivo a cada sugerencia de ahorro
 
 ---
 
@@ -164,20 +187,48 @@ Recibe una lista de `ExtractedActivity` (con el `EmissionFactor` ya resuelto) y 
 |---|---|---|
 | `home_city` | Ciudad de origen habitual | Origen por defecto en trayectos de transporte |
 | `work_place` | Lugar de trabajo / estudio | Referencia para trayectos al trabajo |
+| `commute_km` | Distancia del trayecto casa→trabajo | Evita repetir la geocodificación cada vez |
 | `transporte_habitual` | Último medio de transporte usado | Contexto para recomendaciones |
 | `pending_activity` | Actividad a medio completar (JSON) | Resolución multi-turno |
+| `portion_<categoría>` | Ración personalizada por categoría | Sustituye la ración por defecto del catálogo |
+| `recurring_<categoría>` | Configuración de rutina diaria (cantidad, activo) | Registro automático diario |
+| `recurring_last_applied` | Fecha del último registro automático | Evita duplicar la rutina el mismo día |
 
 **Operaciones principales:**
-- `get_memory()` / `update_memory()` — lectura y upsert genérico
-- `get_home_city()` / `set_home_city()` — ciudad de origen
+- `get_memory()` / `update_memory()` / `clear_keys()` — lectura, upsert y borrado genérico
+- `get_home_city()` / `set_home_city()`, `get_work_place()`, `get_commute_km()` / `set_commute_km()`
 - `get_pending_activity()` / `set_pending_activity()` / `clear_pending_activity()` — gestión de actividades incompletas
+- `get_portions()` / `set_portions()` — raciones personalizadas
+- `get_recurring()` / `set_recurring()` / `get_recurring_last_applied()` / `set_recurring_last_applied()` — rutina diaria
 - `infer_habits()` — detecta el transporte habitual del usuario a partir de sus registros
+
+---
+
+## 🔐 Autenticación y autorización
+
+- **Auth0** gestiona el login (OAuth2 + JWT) — el frontend usa `@auth0/auth0-react` para el flujo de redirección y obtener el access token
+- El backend valida cada request con `app/core/auth.py`: descarga las claves públicas JWKS de Auth0, verifica la firma RS256, el `audience` y el `issuer`
+- `get_current_user()` — dependencia FastAPI que extrae el `sub` del token como `user_id`; todos los endpoints filtran datos por este ID
+- `get_admin_user()` — dependencia adicional que exige el rol `admin` en el claim personalizado `https://planet-pulse-api/roles`; protege todos los endpoints `/api/admin/*`
+- En el frontend, `useIsAdmin()` lee ese mismo claim del perfil de Auth0 para mostrar u ocultar la pestaña "Admin"
 
 ---
 
 ## 🖥️ Componentes del frontend
 
 La interfaz está construida con React 18 + TypeScript. Los componentes son funcionales y se comunican con el backend a través de TanStack Query y Axios.
+
+---
+
+### 🔑 `LoginPage.tsx`
+
+Pantalla de bienvenida mostrada cuando el usuario no está autenticado. Un único botón lanza `loginWithRedirect()` de Auth0.
+
+---
+
+### 🛡️ `ErrorBoundary.tsx`
+
+Captura errores de renderizado de React (necesita ser una clase, no un hook) para evitar una pantalla en blanco en producción. Muestra un mensaje de error y un botón para recargar.
 
 ---
 
@@ -236,6 +287,7 @@ Genera y muestra **sugerencias de reducción de huella** personalizadas:
   - Icono y nombre de categoría
   - Total de kg y % del total (con barra de progreso de color)
   - Acción concreta + consejo adicional
+  - **Equivalencia cotidiana** (ej: "equivale a 36 minutos conduciendo")
   - Badge con ahorro potencial estimado (`−X% · ahorra ~Y kg`)
 - Botón "🔄 Regenerar sugerencias" para obtener nuevas ideas del LLM
 
@@ -259,7 +311,7 @@ Panel de resumen con **dos vistas** seleccionables por pestañas:
 
 ### ⚙️ `SettingsPanel.tsx`
 
-Panel de configuración con dos sub-pestañas:
+Panel de configuración con tres sub-pestañas:
 
 **🎯 Objetivo CO₂:**
 - Slider de 2 t a 8 t/año con botones de acceso rápido a niveles estándar
@@ -267,11 +319,34 @@ Panel de configuración con dos sub-pestañas:
 - Equivalencia automática: muestra el objetivo en kg/mes y kg/día
 - Explicación didáctica de qué es la huella de carbono
 
-**👤 Preferencias:**
-- Nombre del usuario (para personalizar respuestas del agente)
-- Ciudad de origen — se sincroniza con `home_city` en `MemoryService`
-- Lugar de trabajo / estudios — usado para trayectos habituales
-- Los cambios se persisten en la BD via `PATCH /api/profile`
+**👤 Preferencias** (agrupa varios sub-paneles):
+- **Perfil** — nombre del usuario, ciudad de origen y lugar de trabajo, con verificación en vivo de que la dirección es geocodificable (`/api/geocode/check`); se sincroniza con `home_city`/`work_place` en `MemoryService`
+- **Rutina diaria** — activa/desactiva y ajusta la cantidad de actividades recurrentes (electricidad, gas, TV, móvil…) que se registran automáticamente una vez al día
+- **Historial** — botón para borrar todo el historial (doble confirmación)
+- **Cuenta** — datos de sesión y cierre de sesión (visible en móvil; en escritorio ya está en la barra lateral)
+- Los cambios se persisten en la BD vía `PATCH /api/profile`, `PATCH /api/recurring`
+
+**🍽️ Porciones:**
+- Tabla de raciones por defecto para cada categoría no-transporte (ej. "pechuga de pollo: 150 g")
+- El usuario puede sobrescribir cada ración; un botón "↺" restaura el valor de catálogo
+- Estas porciones se usan cuando el usuario no especifica cantidad ("comí pollo" → usa la ración guardada)
+
+---
+
+### 🛠️ `AdminPanel.tsx`
+
+Solo visible para usuarios con rol `admin` (`useIsAdmin()`). Dos secciones:
+
+**Items desconocidos:**
+- Lista de términos que el LLM no pudo mapear a ninguna categoría del catálogo, con su contexto original y una categoría principal sugerida
+- Pestañas por estado: Pendiente · Añadido · Rechazado · Todos
+- Selección múltiple y borrado en lote
+- Al abrir un item: aceptar (crea un factor de emisión nuevo prellenado), rechazar o eliminar
+
+**Factores de emisión:**
+- Tabla completa de `emission_factors` con búsqueda y filtro por categoría principal
+- Alta, edición y borrado de factores desde un formulario compartido (`FactorForm`), incluyendo fuente, año, tipo de fuente y notas para trazabilidad científica
+- Al escribir el nombre visible, genera automáticamente el slug de categoría interna
 
 ---
 
@@ -279,12 +354,14 @@ Panel de configuración con dos sub-pestañas:
 
 | Capa | Tecnología |
 |---|---|
-| **Frontend** | React 18 + TypeScript · Vite · TanStack Query · Recharts · Axios · date-fns |
+| **Frontend** | React 18 + TypeScript · Vite · TanStack Query · Recharts · Axios · date-fns · lucide-react · Bootstrap (utilidades) |
+| **Autenticación** | Auth0 (`@auth0/auth0-react` en frontend · `python-jose` + JWKS en backend) |
 | **Backend** | Python 3.12 · FastAPI · SQLAlchemy 2 · Pydantic v2 · Alembic |
 | **Agente IA** | OpenAI API (GPT-4o-mini por defecto) |
 | **Geocodificación** | geopy 2.4 + Nominatim (OpenStreetMap) — sin API key |
-| **Base de datos** | SQLite (MVP) → PostgreSQL (producción) |
+| **Base de datos** | SQLite (MVP) → PostgreSQL (producción, vía `psycopg2-binary`) |
 | **Tests** | pytest + httpx + pytest-asyncio |
+| **Despliegue** | Railway (backend + frontend, `railway.toml` en ambos con Nixpacks) |
 
 ---
 
@@ -305,12 +382,9 @@ pip install -r requirements.txt
 
 # Configurar variables de entorno
 cp .env.example .env
-# → Edita .env y añade tu OPENAI_API_KEY
+# → Edita .env y añade tu OPENAI_API_KEY y la configuración de Auth0
 
-# Inicializar base de datos (crea tablas + seed de factores de emisión)
-python -m app.db.init_db
-
-# Arrancar el servidor
+# Arrancar el servidor (init_db() se ejecuta automáticamente al arrancar)
 uvicorn main:app --reload
 ```
 
@@ -322,6 +396,8 @@ uvicorn main:app --reload
 ```bash
 cd carbon-agent/frontend
 npm install
+cp .env.example .env.local
+# → Edita .env.local si tu backend no corre en el proxy de Vite por defecto
 npm run dev
 ```
 
@@ -331,37 +407,74 @@ npm run dev
 
 ## 📡 Endpoints REST
 
+Todos los endpoints (salvo `/health`) requieren un Bearer token de Auth0. Los prefijados con `/admin` exigen además el rol `admin`.
+
 | Método | Ruta | Descripción |
 |---|---|---|
 | `POST` | `/api/activity` | Registra una actividad en lenguaje natural |
-| `GET` | `/api/history` | Historial de actividades del usuario |
-| `PATCH` | `/api/history/{id}` | Edita texto/fecha y recalcula emisiones |
+| `GET` | `/api/history` | Historial de actividades del usuario (filtrable por rango de fechas) |
+| `PATCH` | `/api/history/{id}` | Edita texto/fecha de una actividad y recalcula sus emisiones |
 | `DELETE` | `/api/history/{id}` | Elimina una actividad concreta |
 | `DELETE` | `/api/history` | Borra todo el historial del usuario |
+| `PATCH` | `/api/emissions/{id}` | Edita la cantidad de una emisión concreta y recalcula su CO₂ |
 | `GET` | `/api/summary` | Totales agregados + top categorías del período |
 | `GET` | `/api/profile` | Perfil del usuario (ciudad, trabajo, nombre) |
 | `PATCH` | `/api/profile` | Actualiza el perfil del usuario |
-| `GET` | `/api/improvements` | Sugerencias de mejora generadas por el LLM |
+| `GET` | `/api/geocode/check` | Comprueba si una dirección es geocodificable |
+| `GET` | `/api/portions` | Raciones por defecto por categoría, con overrides del usuario |
+| `PATCH` | `/api/portions` | Guarda raciones personalizadas |
+| `GET` | `/api/recurring` | Configuración de rutina diaria (actividades recurrentes) |
+| `PATCH` | `/api/recurring` | Actualiza la rutina diaria |
+| `POST` | `/api/recurring/apply` | Aplica la rutina diaria (una vez por día; se llama automáticamente al abrir la app) |
+| `GET` | `/api/improvements` | Sugerencias de mejora generadas por el LLM, con equivalencias |
+| `GET` | `/api/admin/unknown-items` | Lista items desconocidos por estado, para revisión de admin |
+| `PATCH` | `/api/admin/unknown-items/{id}` | Cambia el estado de un item desconocido (pendiente → añadido/rechazado) |
+| `DELETE` | `/api/admin/unknown-items/{id}` | Elimina un item desconocido |
+| `DELETE` | `/api/admin/unknown-items` | Elimina varios items desconocidos por ID |
+| `GET` | `/api/admin/factors` | Lista todos los factores de emisión (con búsqueda) |
+| `POST` | `/api/admin/factors` | Crea un nuevo factor de emisión |
+| `PATCH` | `/api/admin/factors/{id}` | Actualiza un factor de emisión existente |
+| `DELETE` | `/api/admin/factors/{id}` | Elimina un factor de emisión permanentemente |
+| `POST` | `/api/admin/seed-upsert` | Sincroniza los factores de `seed_data.py` con la BD (soporta `?dry_run=true`) |
+| `GET` | `/health` | Healthcheck (sin autenticación) — usado por Railway |
 
 ---
 
 ## 🗄️ Modelo de datos
 
 ```
-emission_factors   — factores estáticos de CO₂ por categoría (seed, nunca modificados en runtime)
+emission_factors   — factores de CO₂ por categoría (seed inicial + gestionables desde el panel admin)
 activities         — registro de actividades del usuario (texto original + timestamp)
 emissions          — resultado del cálculo: quantity × factor_kg_co2e  (nunca generado por LLM)
 user_memory        — hábitos y preferencias del usuario (clave-valor por user_id)
+unknown_items       — términos mencionados por usuarios sin categoría conocida, en cola de revisión admin
 ```
 
 ---
 
 ## ⚙️ Variables de entorno
 
+### Backend (`carbon-agent/backend/.env`)
+
 ```env
 OPENAI_API_KEY=sk-...                         # Requerida
 OPENAI_MODEL=gpt-4o-mini                      # Modelo a usar (por defecto)
-DATABASE_URL=sqlite:///./carbon_agent.db      # Default SQLite (MVP)
+DATABASE_URL=sqlite:///./carbon_agent.db      # Default SQLite (MVP) — PostgreSQL en producción
+APP_ENV=development
+APP_DEBUG=true
+FRONTEND_URL=                                 # Orígenes CORS de producción (coma-separados)
+ADMIN_TOKEN=change-me                         # Reservado para endpoints protegidos por token
+AUTH0_DOMAIN=                                 # ej: dev-xxxxx.us.auth0.com
+AUTH0_AUDIENCE=                               # ej: https://planet-pulse-api
+```
+
+### Frontend (`carbon-agent/frontend/.env.local`)
+
+```env
+VITE_API_URL=                                 # Vacío en dev (proxy de Vite) · URL de Railway en producción
+VITE_AUTH0_DOMAIN=
+VITE_AUTH0_CLIENT_ID=
+VITE_AUTH0_AUDIENCE=
 ```
 
 ---
@@ -375,6 +488,17 @@ pytest tests/ -v
 
 - `test_phase1.py` — unitarios: extracción, cálculo, memoria
 - `test_phase2.py` — integración: endpoints API con cliente httpx
+
+---
+
+## ☁️ Despliegue
+
+Backend y frontend se despliegan como dos servicios independientes en **Railway** (Nixpacks), cada uno con su propio `railway.toml`:
+
+- **Backend** — `uvicorn main:app --host 0.0.0.0 --port $PORT`, healthcheck en `/health`, base de datos PostgreSQL en producción
+- **Frontend** — `npm install && npm run build`, servido estáticamente con `npx serve dist --single`
+
+El CORS del backend acepta explícitamente `FRONTEND_URL` (uno o varios orígenes separados por coma) y, además, cualquier subdominio `*.up.railway.app` mediante `allow_origin_regex`.
 
 ---
 
@@ -392,7 +516,7 @@ Usuario: "conduje 30 km al trabajo"
          │
          ▼
   ┌─────────────┐
-  │MemoryService│  ← carga home_city, work_place, pending_activity
+  │MemoryService│  ← carga home_city, work_place, commute_km, pending_activity, porciones
   └──────┬──────┘
          │
          ▼
