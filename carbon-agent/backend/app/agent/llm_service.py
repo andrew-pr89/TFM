@@ -21,6 +21,17 @@ from app.core.config import settings
 log = logging.getLogger(__name__)
 
 
+def format_es(value: float, decimals: int = 1) -> str:
+    """
+    Formatea un número en notación española (coma decimal) para texto que
+    puede acabar visible al usuario o ser copiado literalmente por el LLM.
+    Nunca usar f"{x:.3f}" directamente en un prompt o frase generada: el
+    punto se lee como separador de millares en español (p.ej. "27.000"
+    parece "veintisiete mil", no 27,0).
+    """
+    return f"{value:.{decimals}f}".replace(".", ",")
+
+
 class LLMService:
     """Cliente OpenAI con métodos específicos para cada caso de uso del agente."""
 
@@ -612,18 +623,20 @@ Si no hay ningún término relevante, devuelve: []"""
         budget_kg: float,
         by_category: list[dict],
         by_factor: list[dict],
+        reference_factors: list[dict],
         period_days: int,
     ) -> list[dict]:
         """
         Genera sugerencias de mejora estructuradas basadas en el consumo real del usuario.
 
         Devuelve lista de dicts:
-          [{category, action, tip, first_step, potential_saving_pct}]
-        saving_kg NO lo devuelve el LLM — se calcula de forma determinista en el
-        endpoint a partir de potential_saving_pct y el kg real ya computado.
+          [{category, product, action, tip, compare_to, first_step, potential_saving_pct}]
+        Ni saving_kg ni el ratio de la comparación los calcula el LLM — se derivan de
+        forma determinista en el endpoint (potential_saving_pct × kg real; y
+        factor(product) / factor(compare_to) respectivamente).
         """
         cats_text = "\n".join(
-            f"  - {c['category']}: {c['kg']:.3f} kg CO₂e ({c['pct']:.1f}% del total)"
+            f"  - {c['category']}: {format_es(c['kg'], 2)} kg CO₂e ({format_es(c['pct'], 1)}% del total)"
             for c in by_category
         )
         def fmt_qty(f: dict) -> str:
@@ -636,19 +649,33 @@ Si no hay ningún término relevante, devuelve: []"""
             return f"{qty:.0f} {unit}"
 
         factors_text = "\n".join(
-            f"  - {f['name']}: {fmt_qty(f)} consumidos → {f['kg']:.3f} kg CO₂e"
+            f"  - {f['name']}: {fmt_qty(f)} consumidos → {format_es(f['kg'], 2)} kg CO₂e"
+            f" (factor real: {format_es(f['factor_kg_co2e'], 1)} kg CO₂e/{f['unit']})"
             for f in by_factor
+        )
+
+        consumed_names = {f["name"] for f in by_factor}
+        reference_text = "\n".join(
+            f"  - {f['name']}: {format_es(f['factor_kg_co2e'], 1)} kg CO₂e/{f['unit']}"
+            for f in reference_factors
+            if f["name"] not in consumed_names
         )
 
         system = """Eres un experto en sostenibilidad ambiental. Analiza el consumo REAL del usuario y genera sugerencias MUY ESPECÍFICAS con pasos concretos.
 
-REGLA CRÍTICA: Solo puedes mencionar productos que aparezcan en "Detalle de consumo". No inventes consumos.
+REGLA CRÍTICA: Solo puedes mencionar productos y factores que aparezcan en "Detalle de consumo" o en "Factores de referencia". No inventes consumos ni factores de emisión — ni siquiera uno que recuerdes de tu entrenamiento.
+
+REGLA CRÍTICA 2: NUNCA escribas tú mismo un ratio o comparación numérica ("X× más", "X× menos", "la mitad de"...). No se te da bien dividir con precisión y es exactamente el tipo de cifra que esta app no permite inventar. Tú solo ELIGES qué comparar; el backend CALCULA el ratio y lo añade al texto automáticamente.
+
+REGLA CRÍTICA 3 — FORMATO NUMÉRICO: cualquier cifra que escribas (en "action", "tip", "first_step") debe usar coma como separador decimal, NUNCA punto (en español el punto es separador de millares: "27.000" se lee "veintisiete mil", no 27,0). Copia los números tal cual aparecen en los datos de abajo — ya están en formato correcto.
 
 Cada sugerencia DEBE cumplir TODOS estos requisitos:
-1. "action": menciona el PRODUCTO EXACTO y la cantidad que ha consumido el usuario, luego propone un objetivo CONCRETO con cifra (ej: "Has consumido 800 g de ternera → reduce a 400 g")
-2. "tip": un dato de contexto útil y específico al producto (ej: "La ternera genera 27 kg CO₂/kg, 5× más que el pollo")
-3. "first_step": UN solo paso pequeño y realizable, sin expresiones de tiempo como "esta semana" (ej: "Sustituye una de tus raciones de ternera por pollo o legumbres")
-4. "potential_saving_pct": % de reducción REALISTA para esa categoría (5-60)
+1. "product": el nombre EXACTO del producto de "Detalle de consumo" al que se refiere esta sugerencia.
+2. "action": menciona el PRODUCTO EXACTO y la cantidad que ha consumido el usuario, luego propone un objetivo CONCRETO con cifra (ej: "Has consumido 800 g de ternera → reduce a 400 g")
+3. "tip": UNA frase con el "factor real" del producto consumido, sin ratios ni comparaciones (ej: "Este producto emite 27,0 kg CO₂e por kg consumido."). La comparación con otro producto NO va aquí.
+4. "compare_to": el nombre EXACTO de un producto de "Factores de referencia" que sea una alternativa más baja en CO₂ y relevante para sustituir a "product" — o "" si ninguno encaja bien. El backend añadirá automáticamente la frase comparativa con el ratio ya calculado.
+5. "first_step": UN solo paso pequeño y realizable, sin expresiones de tiempo como "esta semana" (ej: "Sustituye una de tus raciones de ternera por pollo o legumbres")
+6. "potential_saving_pct": % de reducción REALISTA para esa categoría (5-60)
 
 El kg CO₂e ahorrado NO lo calculas tú: el backend lo deriva de este porcentaje y del kg real ya calculado.
 
@@ -657,8 +684,10 @@ RESPONDE ÚNICAMENTE con un array JSON válido. Sin texto adicional. Sin bloques
 [
   {
     "category": "<categoría>",
+    "product": "<nombre exacto de Detalle de consumo>",
     "action": "<producto exacto + cantidad actual + objetivo concreto con cifra>",
-    "tip": "<dato específico del impacto del producto, no consejo genérico>",
+    "tip": "<una frase con el factor real del producto consumido, SIN ratios ni comparaciones>",
+    "compare_to": "<nombre exacto de Factores de referencia, o \\"\\" si no aplica>",
     "first_step": "<una sola acción pequeña y concreta, sin prefijos de tiempo tipo 'esta semana'>",
     "potential_saving_pct": <5-60>
   }
@@ -667,15 +696,19 @@ RESPONDE ÚNICAMENTE con un array JSON válido. Sin texto adicional. Sin bloques
 - Genera entre 2 y 4 sugerencias, priorizando los factores con MAYOR impacto absoluto en kg CO₂e.
 - Responde siempre en español."""
 
-        user = f"""El usuario ha emitido {total_kg:.2f} kg CO₂e en los últimos {period_days} días.
+        user = f"""El usuario ha emitido {format_es(total_kg, 2)} kg CO₂e en los últimos {period_days} días.
 Presupuesto sostenible para ese período: {budget_kg:.0f} kg.
-{'Está dentro del presupuesto.' if total_kg <= budget_kg else f'Supera el presupuesto en {total_kg - budget_kg:.1f} kg.'}
+{'Está dentro del presupuesto.' if total_kg <= budget_kg else f'Supera el presupuesto en {format_es(total_kg - budget_kg, 1)} kg.'}
 
 Resumen por categoría (de mayor a menor impacto):
 {cats_text}
 
 Detalle de consumo con cantidades reales del usuario:
 {factors_text}
+
+Factores de referencia (productos reales de la base de datos que el usuario NO ha consumido —
+solo para comparar en "tip", nunca para inventar un consumo nuevo):
+{reference_text or "  (sin alternativas de referencia disponibles)"}
 
 Genera sugerencias basadas ÚNICAMENTE en los productos y cantidades listados arriba."""
 
@@ -704,7 +737,7 @@ Genera sugerencias basadas ÚNICAMENTE en los productos y cantidades listados ar
         Recibe el total ya calculado (determinista) y genera solo el texto explicativo.
         """
         activities_text = "\n".join(
-            f"  - {a['description']}: {a['amount_kg_co2e']:.3f} kg CO₂e"
+            f"  - {a['description']}: {format_es(a['amount_kg_co2e'])} kg CO₂e"
             for a in activities_summary
         )
 
@@ -723,12 +756,13 @@ Reglas:
 - Tono motivador, no culpabilizador.
 - Da una acción concreta y realista.
 - No inventes cifras de CO₂, porcentajes ni equivalencias que no se te hayan dado explícitamente arriba.
+- Si citas una cifra, usa coma decimal (p.ej. "2,45 kg"), nunca punto — en español el punto es separador de millares.
 - Responde siempre en español."""
 
         user = f"""El usuario ha registrado las siguientes actividades hoy:
 {activities_text}
 
-Total de emisiones: {total_kg_co2e:.3f} kg CO₂e
+Total de emisiones: {format_es(total_kg_co2e)} kg CO₂e
 
 {memory_text}
 

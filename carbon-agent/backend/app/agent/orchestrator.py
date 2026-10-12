@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.calculator import CO2Calculator
 from app.agent.extractor import Extractor, ExtractedActivity
-from app.agent.llm_service import LLMService
+from app.agent.llm_service import LLMService, format_es
 from app.agent.memory import MemoryService
 from app.models.models import Activity, EmissionFactor
 from app.schemas.schemas import ActivityOut, ActivityResponse
@@ -313,7 +313,7 @@ class CarbonAgent:
             )
         except Exception as exc:
             log.error("Error generando recomendación: %s", exc)
-            recommendation = f"Has generado {total:.3f} kg CO₂e. ¡Intenta reducir tu huella mañana!"
+            recommendation = f"Has generado {format_es(total)} kg CO₂e. ¡Intenta reducir tu huella mañana!"
 
         # Si sigue habiendo un transporte pendiente en memoria (no resuelto este turno), recordarlo.
         # Solo si el usuario NO envió una actividad nueva en este turno (no queremos interrumpir

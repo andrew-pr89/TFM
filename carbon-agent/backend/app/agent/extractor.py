@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.agent.distance_service import get_distance_km
-from app.agent.llm_service import LLMService
+from app.agent.llm_service import LLMService, format_es
 from app.models.models import EmissionFactor
 
 
@@ -354,7 +354,7 @@ class Extractor:
                             if commute_km and commute_km > 0:
                                 log.info("Usando commute_km guardado: %.1f km", commute_km)
                                 quantity_raw = commute_km
-                                item["description"] = description + f" ({origin} → {destination}, {commute_km:.1f} km)"
+                                item["description"] = description + f" ({origin} → {destination}, {format_es(commute_km)} km)"
                                 description = item["description"]
                                 # quantity_raw ya tiene valor → cae al bloque de guardado normal
                             else:
@@ -368,7 +368,7 @@ class Extractor:
                                     if probe is not None and probe <= _max_km(category):
                                         log.info("Auto-ciudad '%s' → %s → %s: %.0f km", city_guess, origin, auto_dest, probe)
                                         quantity_raw = probe
-                                        item["description"] = description + f" ({origin} → {auto_dest}, {probe:.1f} km)"
+                                        item["description"] = description + f" ({origin} → {auto_dest}, {format_es(probe)} km)"
                                         description = item["description"]
                                         auto_probed = True
                                 if not auto_probed:
@@ -410,7 +410,7 @@ class Extractor:
                             continue
                         # Geocodificó correctamente — saltar el cálculo normal de abajo
                         quantity_raw = probe
-                        item["description"] = description + f" ({origin} → {destination}, {probe:.1f} km)"
+                        item["description"] = description + f" ({origin} → {destination}, {format_es(probe)} km)"
                         description = item["description"]
                     else:
                         log.info("[DIST] Calculando distancia %s → %s (commute_km=%s)", origin, destination, commute_km)
@@ -423,7 +423,7 @@ class Extractor:
                             if commute_km and commute_km > 0:
                                 log.info("Geocoding falló, usando commute_km guardado: %.1f km", commute_km)
                                 quantity_raw = commute_km
-                                item["description"] = description + f" ({origin} → {destination}, {commute_km:.1f} km)"
+                                item["description"] = description + f" ({origin} → {destination}, {format_es(commute_km)} km)"
                                 description = item["description"]
                             else:
                                 if quantity_raw and quantity_raw > _max_km(category):
@@ -437,7 +437,7 @@ class Extractor:
                                     "clarifying_question": question,
                                 })
                                 continue
-                        item["description"] = description + f" ({origin} → {destination}, {quantity_raw:.1f} km)"
+                        item["description"] = description + f" ({origin} → {destination}, {format_es(quantity_raw)} km)"
                         description = item["description"]
 
                 # Solo hay destino — usar home_city como origen si está disponible
@@ -483,7 +483,7 @@ class Extractor:
                             if commute_km and commute_km > 0:
                                 log.info("Geocoding falló, usando commute_km guardado: %.1f km", commute_km)
                                 quantity_raw = commute_km
-                                item["description"] = description + f" ({home_city} → {destination}, {commute_km:.1f} km)"
+                                item["description"] = description + f" ({home_city} → {destination}, {format_es(commute_km)} km)"
                                 description = item["description"]
                             else:
                                 if quantity_raw and quantity_raw > _max_km(category):
@@ -498,7 +498,7 @@ class Extractor:
                                 })
                                 continue
                         if quantity_raw is not None:
-                            item["description"] = description + f" ({home_city} → {destination}, {quantity_raw:.1f} km)"
+                            item["description"] = description + f" ({home_city} → {destination}, {format_es(quantity_raw)} km)"
                             description = item["description"]
                     else:
                         # Sin home_city (o home_city en otra ciudad) — pedir origen local

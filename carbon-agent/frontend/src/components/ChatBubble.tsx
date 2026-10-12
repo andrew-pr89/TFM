@@ -1,5 +1,6 @@
 import { AlertCircle } from 'lucide-react'
 import type { ChatMessage } from '../types'
+import { formatEs } from '../utils/format'
 
 interface Props {
   message: ChatMessage
@@ -17,7 +18,7 @@ function truncate(text: string): string {
 
 function qtyLabel(qty: number, unit: string): string {
   if (unit === 'kg')    return qty < 1 ? `${Math.round(qty * 1000)} g` : `${qty} kg`
-  if (unit === 'litro') return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${qty.toFixed(2)} l`
+  if (unit === 'litro') return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${formatEs(qty)} l`
   if (unit === 'kWh')   return `${qty} kWh`
   if (unit === 'hora')  return qty === 1 ? '1 h' : `${qty} h`
   if (unit === 'km')    return `${qty} km`
@@ -39,8 +40,8 @@ function co2Color(kg: number): string {
 
 function co2Label(kg: number): string {
   if (kg === 0) return '—'
-  if (kg < 0.001) return `${(kg * 1000).toFixed(1).replace('.', ',')} g`
-  return `${kg.toFixed(3).replace('.', ',')} kg`
+  if (kg < 0.001) return `${formatEs(kg * 1000)} g`
+  return `${formatEs(kg)} kg`
 }
 
 export function ChatBubble({ message }: Props) {

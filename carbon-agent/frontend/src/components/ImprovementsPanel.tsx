@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { RefreshCw, Utensils, Car, Zap, Recycle, ShoppingBag, Music, Leaf, ArrowRight, type LucideIcon } from 'lucide-react'
 import { useImprovements } from '../hooks/useCarbon'
 import type { ImprovementSuggestion } from '../types'
+import { formatEs } from '../utils/format'
 
 interface Props {
   annualGoalKg?: number
@@ -45,7 +46,7 @@ function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
           <CategoryIconBadge category={s.category} />
           <div>
             <span>{s.category}</span>
-            <span>{s.current_kg.toFixed(2)} kg · {s.pct_of_total.toFixed(0)}% del total</span>
+            <span>{formatEs(s.current_kg)} kg · {s.pct_of_total.toFixed(0)}% del total</span>
           </div>
         </div>
       </div>
@@ -60,7 +61,7 @@ function SuggestionCard({ s }: { s: ImprovementSuggestion }) {
       <div className="suggestion-card__item">
         {s.equivalence && (
           <p className="suggestion-card__equivalence">
-            <Leaf size={13} className="icon" /> {s.current_kg.toFixed(2)} kg equivale a {s.equivalence}
+            <Leaf size={13} className="icon" /> {formatEs(s.current_kg)} kg equivale a {s.equivalence}
           </p>
         )}
         <p className="suggestion-card__action">{s.action}</p>
@@ -100,14 +101,14 @@ export function ImprovementsPanel({ annualGoalKg = 6000 }: Props) {
   )
 
   const overBudget = data.total_kg > data.budget_kg
-  const gap = Math.abs(data.total_kg - data.budget_kg).toFixed(1)
+  const gap = formatEs(Math.abs(data.total_kg - data.budget_kg))
 
   return (
     <div className="summary-panel">
       <div className={`suggestions-context ${overBudget ? 'suggestions-context--over' : 'suggestions-context--ok'}`}>
         {overBudget
           ? `Estás ${gap} kg por encima del presupuesto sostenible de ${data.budget_kg.toFixed(0)} kg/mes. Aquí tienes las áreas donde reducir más impacto:`
-          : `Estás dentro del presupuesto sostenible (${data.total_kg.toFixed(1)} kg de ${data.budget_kg.toFixed(0)} kg). Sigue mejorando con estos consejos:`
+          : `Estás dentro del presupuesto sostenible (${formatEs(data.total_kg)} kg de ${data.budget_kg.toFixed(0)} kg). Sigue mejorando con estos consejos:`
         }
       </div>
 

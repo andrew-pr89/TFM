@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useSummary, useHistory } from '../hooks/useCarbon'
 import { format, eachMonthOfInterval, startOfMonth, subMonths } from 'date-fns'
+import { formatEs } from '../utils/format'
 
 interface Props {
   annualGoalKg?: number
@@ -81,7 +82,7 @@ function DonutCenterLabel({ viewBox, total }: { viewBox?: { cx: number; cy: numb
     <g>
       <text x={cx} y={cy - 7} textAnchor="middle" fill="var(--text-muted)" fontSize={11}>Total</text>
       <text x={cx} y={cy + 11} textAnchor="middle" fill="var(--text)" fontSize={13} fontWeight={700}>
-        {total.toFixed(2)} kg
+        {formatEs(total)} kg
       </text>
     </g>
   )
@@ -114,7 +115,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
       map[a.main_category] = (map[a.main_category] ?? 0) + kg
     })
     return Object.entries(map)
-      .map(([cat, kg]) => ({ name: cat, value: parseFloat(kg.toFixed(3)) }))
+      .map(([cat, kg]) => ({ name: cat, value: parseFloat(kg.toFixed(2)) }))
       .sort((a, b) => b.value - a.value)
   }, [allActivities])
 
@@ -131,7 +132,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
     source.forEach(a => {
       const key = format(new Date(a.created_at), 'yyyy-MM')
       const kg  = a.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
-      map.set(key, parseFloat(((map.get(key) ?? 0) + kg).toFixed(3)))
+      map.set(key, parseFloat(((map.get(key) ?? 0) + kg).toFixed(2)))
     })
 
     return months.map(d => ({
@@ -150,7 +151,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
       }),
     )
     return Object.entries(map)
-      .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(3)) }))
+      .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }))
       .sort((a, b) => b.value - a.value)
   }, [allActivities, selectedCategory, categoryTotals])
 
@@ -170,7 +171,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
       const kg   = a.emissions.reduce((s, e) => s + e.amount_kg_co2e, 0)
       const entry = map.get(key)
       if (!entry) return
-      entry[a.main_category] = parseFloat((((entry[a.main_category] as number) ?? 0) + kg).toFixed(3))
+      entry[a.main_category] = parseFloat((((entry[a.main_category] as number) ?? 0) + kg).toFixed(2))
     })
 
     return [...map.entries()]
@@ -194,13 +195,13 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
   const pieTotal    = pieData.reduce((s, d) => s + d.value, 0)
   const catActs     = selectedCategory ? allActivities.filter(a => a.main_category === selectedCategory) : []
   const totalCatKg  = catActs.flatMap(a => a.emissions).reduce((s, e) => s + e.amount_kg_co2e, 0)
-  const pctBudget   = Math.min((summary.total_kg_co2e / summary.budget_kg_co2e) * 100, 999).toFixed(1)
+  const pctBudget   = formatEs(Math.min((summary.total_kg_co2e / summary.budget_kg_co2e) * 100, 999), 1)
   const avgAll      = summary.total_activities > 0
-    ? (summary.total_kg_co2e / summary.total_activities).toFixed(2)
+    ? formatEs(summary.total_kg_co2e / summary.total_activities)
     : '0'
-  const avgCat      = catActs.length > 0 ? (totalCatKg / catActs.length).toFixed(2) : '0'
+  const avgCat      = catActs.length > 0 ? formatEs(totalCatKg / catActs.length) : '0'
   const pctOfTotal  = summary.total_kg_co2e > 0
-    ? ((totalCatKg / summary.total_kg_co2e) * 100).toFixed(1)
+    ? formatEs((totalCatKg / summary.total_kg_co2e) * 100, 1)
     : '0'
   const barColor    = selectedCategory ? catColor(selectedCategory, 0) : 'var(--accent)'
 
@@ -259,14 +260,14 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
       <div className="summary-card kpi-grid">
         {selectedCategory ? (
           <>
-            <KpiCard label={`CO₂e — ${selectedCategory}`} value={totalCatKg.toFixed(2)} unit="kg" icon={CATEGORY_ICONS[selectedCategory] ?? Leaf} color={catColor(selectedCategory, 0)} />
+            <KpiCard label={`CO₂e — ${selectedCategory}`} value={formatEs(totalCatKg)} unit="kg" icon={CATEGORY_ICONS[selectedCategory] ?? Leaf} color={catColor(selectedCategory, 0)} />
             <KpiCard label="Actividades en categoría"      value={catActs.length}                icon={ClipboardList} color="var(--cat-transporte)" />
             <KpiCard label="% del total"                   value={pctOfTotal} unit="%"            icon={TrendingUp}    color="var(--cat-compras)" />
             <KpiCard label="Media por actividad"           value={avgCat} unit="kg"                icon={Target}        color="var(--c-orange)" />
           </>
         ) : (
           <>
-            <KpiCard label="Total CO₂e"          value={summary.total_kg_co2e.toFixed(2)} unit="kg" icon={Leaf}          color="var(--accent)" />
+            <KpiCard label="Total CO₂e"          value={formatEs(summary.total_kg_co2e)} unit="kg" icon={Leaf}          color="var(--accent)" />
             <KpiCard label="Total actividades"   value={summary.total_activities}                    icon={ClipboardList} color="var(--cat-transporte)" />
             <KpiCard label="Media por actividad" value={avgAll} unit="kg"                             icon={TrendingUp}    color="var(--cat-compras)" />
             <KpiCard
@@ -331,8 +332,8 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
                   <div key={d.name}>
                     <span style={{ background: catColor(d.name, i) }} />
                     <span title={d.name}>{d.name.length > 35 ? d.name.slice(0, 35) + '…' : d.name}</span>
-                    <span>{d.value.toFixed(2)} kg</span>
-                    <span>{pieTotal > 0 ? ((d.value / pieTotal) * 100).toFixed(1) : '0'}%</span>
+                    <span>{formatEs(d.value)} kg</span>
+                    <span>{pieTotal > 0 ? formatEs((d.value / pieTotal) * 100, 1) : '0'}%</span>
                   </div>
                 ))}
                 <p>Los valores están expresados en kilogramos (kg).</p>
@@ -358,7 +359,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
                     </Pie>
                     <Tooltip
                       contentStyle={tooltipStyle}
-                      formatter={(v: number) => [`${v.toFixed(3)} kg CO₂e`, '']}
+                      formatter={(v: number) => [`${formatEs(v)} kg CO₂e`, '']}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -386,7 +387,7 @@ export function SummaryPanel({ annualGoalKg = 6000 }: Props) {
               <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
               <Tooltip
                 contentStyle={tooltipStyle}
-                formatter={(v: number, name: string) => [`${v.toFixed(2)} kg`, name]}
+                formatter={(v: number, name: string) => [`${formatEs(v)} kg`, name]}
               />
               {uniqueCategories.map((cat, i) => (
                 <Bar
