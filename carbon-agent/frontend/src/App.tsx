@@ -88,11 +88,13 @@ export default function App() {
   // Configura el interceptor de axios con el token de Auth0
   useEffect(() => {
     if (!isAuthenticated) return
-    setupAuthInterceptor(() =>
-      getAccessTokenSilently({
+    setupAuthInterceptor(async () => {
+      const token = await getAccessTokenSilently({
         authorizationParams: { audience: import.meta.env.VITE_AUTH0_AUDIENCE },
       })
-    )
+      if (!token) throw new Error('No se pudo obtener el token de autenticación')
+      return token
+    })
   }, [isAuthenticated, getAccessTokenSilently])
 
   useEffect(() => {
