@@ -491,7 +491,9 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
         cat_kg = by_category.get(cat_name, 0.0)
         pct = round(cat_kg / total_kg * 100, 1) if total_kg > 0 else 0.0
         saving_pct = int(s.get("potential_saving_pct", 10))
-        saving_kg = round(s.get("saving_kg") or cat_kg * saving_pct / 100, 3)
+        # Determinista: nunca se usa el "saving_kg" que proponga el LLM, siempre se
+        # deriva del kg real de la categoría (cat_kg, calculado) y el % sugerido.
+        saving_kg = round(cat_kg * saving_pct / 100, 3)
 
         equivalence = None
         eqs = compute_equivalences(cat_kg, db, limit=1)
