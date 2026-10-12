@@ -39,8 +39,8 @@ function co2Color(kg: number): string {
 
 function co2Label(kg: number): string {
   if (kg === 0) return '—'
-  if (kg < 0.001) return `${(kg * 1000).toFixed(1)} g`
-  return `${kg.toFixed(3)} kg`
+  if (kg < 0.001) return `${(kg * 1000).toFixed(1).replace('.', ',')} g`
+  return `${kg.toFixed(3).replace('.', ',')} kg`
 }
 
 export function ChatBubble({ message }: Props) {
