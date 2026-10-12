@@ -618,7 +618,9 @@ Si no hay ningún término relevante, devuelve: []"""
         Genera sugerencias de mejora estructuradas basadas en el consumo real del usuario.
 
         Devuelve lista de dicts:
-          [{category, action, tip, first_step, potential_saving_pct, saving_kg}]
+          [{category, action, tip, first_step, potential_saving_pct}]
+        saving_kg NO lo devuelve el LLM — se calcula de forma determinista en el
+        endpoint a partir de potential_saving_pct y el kg real ya computado.
         """
         cats_text = "\n".join(
             f"  - {c['category']}: {c['kg']:.3f} kg CO₂e ({c['pct']:.1f}% del total)"
@@ -647,7 +649,8 @@ Cada sugerencia DEBE cumplir TODOS estos requisitos:
 2. "tip": un dato de contexto útil y específico al producto (ej: "La ternera genera 27 kg CO₂/kg, 5× más que el pollo")
 3. "first_step": UN solo paso pequeño y realizable, sin expresiones de tiempo como "esta semana" (ej: "Sustituye una de tus raciones de ternera por pollo o legumbres")
 4. "potential_saving_pct": % de reducción REALISTA para esa categoría (5-60)
-5. "saving_kg": kg CO₂e que se ahorrarían aplicando la reducción propuesta (número decimal)
+
+El kg CO₂e ahorrado NO lo calculas tú: el backend lo deriva de este porcentaje y del kg real ya calculado.
 
 RESPONDE ÚNICAMENTE con un array JSON válido. Sin texto adicional. Sin bloques markdown.
 
@@ -657,8 +660,7 @@ RESPONDE ÚNICAMENTE con un array JSON válido. Sin texto adicional. Sin bloques
     "action": "<producto exacto + cantidad actual + objetivo concreto con cifra>",
     "tip": "<dato específico del impacto del producto, no consejo genérico>",
     "first_step": "<una sola acción pequeña y concreta, sin prefijos de tiempo tipo 'esta semana'>",
-    "potential_saving_pct": <5-60>,
-    "saving_kg": <número decimal>
+    "potential_saving_pct": <5-60>
   }
 ]
 
@@ -720,6 +722,7 @@ Reglas:
 - Máximo 3 frases.
 - Tono motivador, no culpabilizador.
 - Da una acción concreta y realista.
+- No inventes cifras de CO₂, porcentajes ni equivalencias que no se te hayan dado explícitamente arriba.
 - Responde siempre en español."""
 
         user = f"""El usuario ha registrado las siguientes actividades hoy:
