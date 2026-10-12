@@ -1,6 +1,7 @@
 import { useState, useMemo, type CSSProperties } from 'react'
 import { useHistory } from '../hooks/useCarbon'
 import type { ActivityOut } from '../types'
+import { formatEs } from '../utils/format'
 
 type ViewMode = 'day' | 'week' | 'month'
 
@@ -196,11 +197,11 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
           <div className="dashboard__ring-wrapper">
             <Ring value={total} max={budget} size={220} stroke={28} color="var(--accent)">
               <div className={`ring-center__value${total > budget ? ' ring-center__value--over' : ''}`}>
-                {total.toFixed(2)}
+                {formatEs(total)}
               </div>
               <div className="ring-center__unit">kg CO₂e</div>
               <div className="ring-center__budget">
-                {pctLabel} de {budget.toFixed(1)} kg
+                {pctLabel} de {formatEs(budget)} kg
               </div>
               {filtered.length === 0 && (
                 <div className="ring-center__empty">sin actividad</div>
@@ -215,7 +216,7 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
                 <div key={cat} className="dashboard__category-item" style={{ '--cat-color': color } as CSSProperties}>
                   <Ring value={kg} max={budget} size={80} stroke={8} color={color} keepColor>
                     <span className="dashboard__category-value">
-                      {kg > 0 ? kg.toFixed(2) : '—'}
+                      {kg > 0 ? formatEs(kg) : '—'}
                     </span>
                   </Ring>
                   <span className="dashboard__category-name">{cat}</span>
@@ -244,7 +245,7 @@ export function DailyDashboard({ annualGoalKg = 6000 }: Props) {
                     {a.raw_text.length > 80 ? a.raw_text.slice(0, 80) + '…' : a.raw_text}
                   </p>
                   <span className="co2-badge" style={kgBadgeVars(kg) as CSSProperties}>
-                    {kg.toFixed(3)} kg
+                    {formatEs(kg)} kg
                   </span>
                 </div>
               )

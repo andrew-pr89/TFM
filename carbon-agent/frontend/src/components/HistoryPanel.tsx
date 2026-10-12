@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef } from 'react'
+import { formatEs } from '../utils/format'
 
 function formatQty(qty: number, unit: string): string {
   if (unit === 'kg')    return qty < 1 ? `${Math.round(qty * 1000)} g` : `${qty} kg`
-  if (unit === 'litro') return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${qty.toFixed(2)} l`
+  if (unit === 'litro') return qty < 1 ? `${Math.round(qty * 1000)} ml` : `${formatEs(qty)} l`
   if (unit === 'kWh')   return `${qty} kWh`
   if (unit === 'hora')  return qty === 1 ? '1 h' : `${qty} h`
   if (unit === 'km')    return `${qty} km`
@@ -398,7 +399,7 @@ export function HistoryPanel() {
                       <td className="admin-table__num">{row.quantity || <span className="admin-table__placeholder">—</span>}</td>
                       <td>
                         {row.co2 !== null
-                          ? <span className="co2-badge" style={co2BadgeVars(row.co2) as CSSProperties}>{row.co2.toFixed(3)} kg</span>
+                          ? <span className="co2-badge" style={co2BadgeVars(row.co2) as CSSProperties}>{formatEs(row.co2)} kg</span>
                           : <span className="admin-table__placeholder">—</span>
                         }
                       </td>
@@ -517,7 +518,7 @@ export function HistoryPanel() {
                   {isExpanded && (
                     <div className="admin-detail__meta history-card__details">
                       <div><span>Cantidad</span><span>{row.quantity || '—'}</span></div>
-                      <div><span>CO₂e</span><span>{row.co2 !== null ? `${row.co2.toFixed(3)} kg` : '—'}</span></div>
+                      <div><span>CO₂e</span><span>{row.co2 !== null ? `${formatEs(row.co2)} kg` : '—'}</span></div>
                       <div><span>Categoría</span><span>{row.category || '—'}</span></div>
                       <div><span>Fecha y hora</span><span>{format(row.date, 'dd/MM/yyyy, HH:mm')}</span></div>
                     </div>
@@ -526,7 +527,7 @@ export function HistoryPanel() {
                   <div className="history-card__footer">
                     <span className="history-card__qty">{row.quantity || '—'}</span>
                     {row.co2 !== null
-                      ? <span className="co2-badge" style={co2BadgeVars(row.co2) as CSSProperties}>{row.co2.toFixed(3)} kg</span>
+                      ? <span className="co2-badge" style={co2BadgeVars(row.co2) as CSSProperties}>{formatEs(row.co2)} kg</span>
                       : <span className="admin-table__placeholder">—</span>
                     }
                   </div>

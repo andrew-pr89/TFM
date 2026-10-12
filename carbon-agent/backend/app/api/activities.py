@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.distance_service import is_geocodable
 from app.agent.equivalences import compute_equivalences
+from app.agent.llm_service import format_es
 from app.agent.memory import MemoryService
 from app.agent.orchestrator import carbon_agent
 from app.core.auth import get_admin_user, get_current_user
@@ -450,7 +451,7 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
     budget_kg = round(period_days * (annual_goal_kg / 365), 2)
 
     by_category: dict[str, float] = defaultdict(float)
-    by_factor: dict[str, dict] = defaultdict(lambda: {"kg": 0.0, "qty": 0.0, "unit": ""})
+    by_factor: dict[str, dict] = defaultdict(lambda: {"kg": 0.0, "qty": 0.0, "unit": "", "factor_kg_co2e": 0.0})
     for activity in activities:
         for emission in activity.emissions:
             by_category[emission.factor.main_category] += emission.amount_kg_co2e
@@ -458,6 +459,7 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
             by_factor[name]["kg"]  += emission.amount_kg_co2e
             by_factor[name]["qty"] += emission.quantity
             by_factor[name]["unit"] = emission.factor.unit
+            by_factor[name]["factor_kg_co2e"] = emission.factor.factor_kg_co2e
 
     sorted_cats = sorted(by_category.items(), key=lambda x: x[1], reverse=True)
     cats_payload = [
@@ -472,8 +474,28 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
             "kg": round(data["kg"], 3),
             "qty": round(data["qty"], 2),
             "unit": data["unit"],
+            "factor_kg_co2e": round(data["factor_kg_co2e"], 4),
         }
         for name, data in sorted_factors
+    ]
+
+    # Factores reales de la BD para las mismas categorías principales que el usuario
+    # consumió, aunque el usuario no los haya consumido él mismo — para que el LLM
+    # pueda comparar productos (p.ej. "res" vs "pollo") sin inventar el factor del
+    # producto que no aparece en su historial.
+    reference_main_categories = {c["category"] for c in cats_payload}
+    reference_factors = (
+        db.query(EmissionFactor)
+        .filter(EmissionFactor.main_category.in_(reference_main_categories))
+        .all()
+    )
+    reference_payload = [
+        {
+            "name": f.display_name,
+            "unit": f.unit,
+            "factor_kg_co2e": round(f.factor_kg_co2e, 4),
+        }
+        for f in reference_factors
     ]
 
     llm = LLMService()
@@ -482,8 +504,55 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
         budget_kg=budget_kg,
         by_category=cats_payload,
         by_factor=factors_payload,
+        reference_factors=reference_payload,
         period_days=period_days,
     )
+
+    # Lookup único (consumidos + referencia) para calcular ratios de comparación
+    # de forma determinista — el LLM solo elige QUÉ comparar, nunca CUÁNTO.
+    all_factors_lookup: dict[str, dict] = {
+        name: {"factor_kg_co2e": data["factor_kg_co2e"], "unit": data["unit"]}
+        for name, data in by_factor.items()
+    }
+    for f in reference_payload:
+        all_factors_lookup.setdefault(f["name"], {"factor_kg_co2e": f["factor_kg_co2e"], "unit": f["unit"]})
+
+    def _ratio_phrase(ratio: float) -> str:
+        """Convierte un ratio en una frase natural ('casi 4 veces') en vez de una cifra cruda."""
+        rounded = round(ratio)
+        if rounded >= 2 and abs(ratio - rounded) < 0.15:
+            diff = ratio - rounded
+            if diff < -0.02:
+                return f"casi {rounded} veces"
+            if diff > 0.02:
+                return f"más de {rounded} veces"
+            return f"{rounded} veces"
+        return f"{format_es(ratio, 1)} veces"
+
+    def _with_comparison(tip_text: str, product_name: str, compare_name: str) -> str:
+        """Añade una frase comparativa con el ratio calculado en código, nunca por el LLM."""
+        if not compare_name:
+            return tip_text
+        consumed_info = all_factors_lookup.get(product_name)
+        ref_info = all_factors_lookup.get(compare_name)
+        if not (consumed_info and ref_info and consumed_info["unit"] == ref_info["unit"]):
+            return tip_text
+        if consumed_info["factor_kg_co2e"] <= 0 or ref_info["factor_kg_co2e"] <= 0:
+            return tip_text
+        ratio = consumed_info["factor_kg_co2e"] / ref_info["factor_kg_co2e"]
+        unit = ref_info["unit"]
+        ref_factor_str = format_es(ref_info["factor_kg_co2e"], 1)
+        if ratio >= 1.05:
+            return (
+                f"{tip_text} {compare_name}, con {ref_factor_str} kg CO₂e/{unit},"
+                f" emite {_ratio_phrase(ratio)} menos."
+            )
+        if ratio <= 0.95:
+            return (
+                f"{tip_text} {compare_name} emite {_ratio_phrase(1 / ratio)} más"
+                f" ({ref_factor_str} kg CO₂e/{unit})."
+            )
+        return tip_text  # factores casi idénticos: no aporta comparar
 
     suggestions = []
     for s in raw_suggestions:
@@ -495,6 +564,12 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
         # deriva del kg real de la categoría (cat_kg, calculado) y el % sugerido.
         saving_kg = round(cat_kg * saving_pct / 100, 3)
 
+        tip_text = _with_comparison(
+            s.get("tip", ""),
+            (s.get("product") or "").strip(),
+            (s.get("compare_to") or "").strip(),
+        )
+
         equivalence = None
         eqs = compute_equivalences(cat_kg, db, limit=1)
         if eqs:
@@ -505,7 +580,7 @@ def get_improvements(period_days: int = 30, annual_goal_kg: int = 6000, user_id:
             current_kg=round(cat_kg, 3),
             pct_of_total=pct,
             action=s.get("action", ""),
-            tip=s.get("tip", ""),
+            tip=tip_text,
             first_step=_strip_time_prefix(s.get("first_step", "")),
             potential_saving_pct=saving_pct,
             saving_kg=saving_kg,

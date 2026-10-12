@@ -4,6 +4,7 @@ import { Target, User, UtensilsCrossed, Thermometer, Sun, Moon, Check, X, Loader
 import { useSettings } from '../hooks/useSettings'
 import { useProfile, useUpdateProfile, usePortions, useUpdatePortions, useRecurring, useUpdateRecurring, useDeleteHistory, useAddressCheck, type AddressCheckStatus } from '../hooks/useCarbon'
 import type { RecurringActivity } from '../types'
+import { formatEs } from '../utils/format'
 
 function AddressStatusIcon({ status }: { status: AddressCheckStatus }) {
   if (status === 'checking') return <Loader2 size={15} className="icon address-status address-status--checking" />
@@ -65,7 +66,7 @@ function GoalPanel() {
   const t = settings.annualGoalTonnes
   const level = getLevelInfo(t)
   const monthlyKg = Math.round(t * 1000 / 12)
-  const dailyKg = (t * 1000 / 365).toFixed(1)
+  const dailyKg = formatEs(t * 1000 / 365)
 
   return (
     <div className="goal-layout">
@@ -486,7 +487,7 @@ function RecurringPanel() {
                 <td className="admin-table__cat">{item.unit}</td>
                 <td className="admin-table__num">
                   <span className="recurring-co2-label">equivale a </span>
-                  {((item.factor_kg_co2e ?? 0) * item.quantity * 1000).toFixed(1)} g
+                  {Math.round((item.factor_kg_co2e ?? 0) * item.quantity * 1000)} g
                   <span className="recurring-co2-label"> CO₂/día</span>
                 </td>
               </tr>
